@@ -44,11 +44,20 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   isThinking?: boolean;
+  attachments?: ChatAttachment[];
+}
+
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
 }
 
 // Gemini Tool Arguments
 export interface TaskActionArgs {
-  action: 'create' | 'move' | 'delete' | 'update';
+  action: 'create' | 'move' | 'delete' | 'update' | 'resolve-dependency-conflicts';
   title?: string;
   description?: string;
   status?: string; 

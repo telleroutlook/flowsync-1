@@ -12,7 +12,7 @@ const manageTasksTool: FunctionDeclaration = {
     properties: {
       action: {
         type: Type.STRING,
-        enum: ['create', 'move', 'delete', 'update'],
+        enum: ['create', 'move', 'delete', 'update', 'resolve-dependency-conflicts'],
         description: 'The action to perform on a task.',
       },
       title: {
@@ -143,6 +143,8 @@ app.post('/api/gemini', zValidator('json', requestSchema), async (c) => {
     const systemInstruction = `You are FlowSync AI, an expert project manager.
 ${systemContext || ''}
 You manage projects with professional detail (WBS, Gantt schedules, Responsibility).
+You may resolve dependency conflicts by calling manageTasks with action "resolve-dependency-conflicts".
+If a task id or title is provided, resolve only that task; otherwise resolve for all tasks in the active project.
 Current Date: ${new Date().toISOString().split('T')[0]}`;
 
     const chat = ai.chats.create({
