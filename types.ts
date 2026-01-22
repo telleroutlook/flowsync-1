@@ -55,6 +55,7 @@ export interface TaskActionArgs {
   priority?: string; 
   id?: string; 
   oldTitle?: string; 
+  projectId?: string;
   
   // New Fields
   wbs?: string;

@@ -1,0 +1,6 @@
+name = "flowsync-gemini"
+main = "worker/index.ts"
+compatibility_date = "2026-01-22"
+
+[vars]
+# GEMINI_API_KEY should be set via `wrangler secret put GEMINI_API_KEY`

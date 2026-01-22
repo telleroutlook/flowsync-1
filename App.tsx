@@ -8,7 +8,10 @@ import { ProjectSidebar } from './components/ProjectSidebar';
 import { Task, ChatMessage, TaskStatus, Priority, TaskActionArgs, Project, ProjectActionArgs } from './types';
 
 // Simple ID generator
-const generateId = () => Math.random().toString(36).substr(2, 9);
+const generateId = () =>
+  (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2, 11);
 
 type ViewMode = 'BOARD' | 'LIST' | 'GANTT';
 
@@ -20,6 +23,8 @@ const createDate = (offsetDays: number) => {
   const base = new Date('2026-01-01').getTime(); 
   return base + (offsetDays * day);
 };
+
+const clampCompletion = (value: number) => Math.min(100, Math.max(0, value));
 
 const INITIAL_PROJECTS: Project[] = [
   { id: 'p3', name: 'Construction Phase 1', description: 'Main Building Construction WBS', icon: '🏗️' },
@@ -83,6 +88,208 @@ const INITIAL_TASKS: Task[] = [
   },
 ];
 
+type AppState = {
+  projects: Project[];
+  tasks: Task[];
+  activeProjectId: string;
+};
+
+type ProjectActionResult = {
+  projects: Project[];
+  tasks: Task[];
+  activeProjectId: string;
+  message: string;
+};
+
+type TaskActionResult = {
+  tasks: Task[];
+  message: string;
+};
+
+const applyProjectAction = (state: AppState, args: ProjectActionArgs): ProjectActionResult => {
+  const { projects, tasks, activeProjectId } = state;
+  const { action, name, description, oldName } = args;
+
+  switch (action) {
+    case 'create': {
+      if (!name) {
+        return { projects, tasks, activeProjectId, message: 'Error: Project name required.' };
+      }
+      const newProj: Project = {
+        id: generateId(),
+        name,
+        description: description || '',
+        icon: name.charAt(0).toUpperCase(),
+      };
+      return {
+        projects: [...projects, newProj],
+        tasks,
+        activeProjectId: newProj.id,
+        message: `Project "${name}" created and selected.`,
+      };
+    }
+
+    case 'select': {
+      const target = projects.find(p =>
+        p.name.toLowerCase().includes((name || oldName || '').toLowerCase())
+      );
+      if (target) {
+        return {
+          projects,
+          tasks,
+          activeProjectId: target.id,
+          message: `Switched to project "${target.name}".`,
+        };
+      }
+      return { projects, tasks, activeProjectId, message: `Error: Could not find project "${name}".` };
+    }
+
+    case 'delete': {
+      const delTarget = projects.find(p =>
+        p.name.toLowerCase().includes((name || oldName || '').toLowerCase())
+      );
+      if (delTarget) {
+        if (projects.length <= 1) {
+          return { projects, tasks, activeProjectId, message: 'Error: Cannot delete the last project.' };
+        }
+        const nextProjects = projects.filter(p => p.id !== delTarget.id);
+        const nextTasks = tasks.filter(t => t.projectId !== delTarget.id);
+        const nextActive =
+          projects[0].id === delTarget.id ? projects[1].id : projects[0].id;
+        return {
+          projects: nextProjects,
+          tasks: nextTasks,
+          activeProjectId: nextActive,
+          message: `Project "${delTarget.name}" deleted.`,
+        };
+      }
+      return { projects, tasks, activeProjectId, message: 'Error: Could not find project to delete.' };
+    }
+
+    default:
+      return { projects, tasks, activeProjectId, message: 'Unknown project action.' };
+  }
+};
+
+const applyTaskAction = (state: AppState, args: TaskActionArgs): TaskActionResult => {
+  const { tasks, activeProjectId } = state;
+  const {
+    action,
+    title,
+    description,
+    status,
+    priority,
+    oldTitle,
+    projectId,
+    id,
+    dueDate,
+    startDate,
+    completion,
+    assignee,
+    wbs,
+    isMilestone,
+  } = args;
+
+  const mapStatus = (s?: string) => {
+    if (s === 'in-progress') return TaskStatus.IN_PROGRESS;
+    if (s === 'done') return TaskStatus.DONE;
+    return TaskStatus.TODO;
+  };
+
+  const mapPriority = (p?: string) => {
+    if (p === 'high') return Priority.HIGH;
+    if (p === 'low') return Priority.LOW;
+    return Priority.MEDIUM;
+  };
+
+  const parseDate = (dateStr?: string): number | undefined => {
+    if (!dateStr) return undefined;
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return d.getTime();
+    return undefined;
+  };
+
+  switch (action) {
+    case 'create': {
+      if (!title) return { tasks, message: 'Error: Title required for creation.' };
+      const normalizedCompletion = clampCompletion(completion ?? 0);
+      const parsedStart = parseDate(startDate);
+      const parsedDue = parseDate(dueDate);
+      const targetProjectId = projectId || activeProjectId;
+      const newTask: Task = {
+        id: generateId(),
+        projectId: targetProjectId,
+        title,
+        description: description || '',
+        status: mapStatus(status),
+        priority: mapPriority(priority),
+        createdAt: Date.now(),
+        startDate: parsedStart ?? Date.now(),
+        dueDate: parsedDue,
+        completion: normalizedCompletion,
+        assignee: assignee || 'Unassigned',
+        wbs: wbs || '',
+        isMilestone: !!isMilestone,
+      };
+      return {
+        tasks: [...tasks, newTask],
+        message: `Task "${title}" created (WBS: ${wbs || 'N/A'}).`,
+      };
+    }
+
+    case 'move':
+    case 'update':
+    case 'delete': {
+      const targetProjectId = projectId || activeProjectId;
+      const targetTask = id
+        ? tasks.find(t => t.id === id && t.projectId === targetProjectId)
+        : tasks.find(t =>
+            t.projectId === targetProjectId &&
+            t.title.toLowerCase().includes((oldTitle || title || '').toLowerCase())
+          );
+
+      if (!targetTask) {
+        const label = id || oldTitle || title || 'unknown';
+        return { tasks, message: `Error: Could not find task "${label}" in current project.` };
+      }
+
+      if (action === 'delete') {
+        const deletedTitle = targetTask.title;
+        return {
+          tasks: tasks.filter(t => t.id !== targetTask.id),
+          message: `Task "${deletedTitle}" deleted.`,
+        };
+      }
+
+      const updatedTask = { ...targetTask };
+      if (status) updatedTask.status = mapStatus(status);
+      if (priority) updatedTask.priority = mapPriority(priority);
+      if (description) updatedTask.description = description;
+      if (startDate) {
+        const parsedStart = parseDate(startDate);
+        if (parsedStart !== undefined) updatedTask.startDate = parsedStart;
+      }
+      if (dueDate) {
+        const parsedDue = parseDate(dueDate);
+        if (parsedDue !== undefined) updatedTask.dueDate = parsedDue;
+      }
+      if (assignee) updatedTask.assignee = assignee;
+      if (wbs) updatedTask.wbs = wbs;
+      if (completion !== undefined) updatedTask.completion = clampCompletion(completion);
+      if (isMilestone !== undefined) updatedTask.isMilestone = isMilestone;
+      if (action === 'update' && title && title !== targetTask.title) updatedTask.title = title;
+
+      return {
+        tasks: tasks.map(t => (t.id === targetTask.id ? updatedTask : t)),
+        message: `Task updated: ${updatedTask.title}`,
+      };
+    }
+
+    default:
+      return { tasks, message: 'Unknown action.' };
+  }
+};
+
 export default function App() {
   const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
   const [activeProjectId, setActiveProjectId] = useState<string>(INITIAL_PROJECTS[0].id);
@@ -109,129 +316,17 @@ export default function App() {
   }, [messages]);
 
   const handleProjectAction = (args: ProjectActionArgs): string => {
-     const { action, name, description, oldName } = args;
-
-     switch(action) {
-       case 'create':
-         if (!name) return "Error: Project name required.";
-         const newProj: Project = {
-           id: generateId(),
-           name,
-           description: description || '',
-           icon: name.charAt(0).toUpperCase()
-         };
-         setProjects(prev => [...prev, newProj]);
-         setActiveProjectId(newProj.id);
-         return `Project "${name}" created and selected.`;
-       
-       case 'select':
-         const target = projects.find(p => p.name.toLowerCase().includes((name || oldName || '').toLowerCase()));
-         if (target) {
-           setActiveProjectId(target.id);
-           return `Switched to project "${target.name}".`;
-         }
-         return `Error: Could not find project "${name}".`;
-
-       case 'delete':
-         const delTarget = projects.find(p => p.name.toLowerCase().includes((name || oldName || '').toLowerCase()));
-         if (delTarget) {
-           if (projects.length <= 1) return "Error: Cannot delete the last project.";
-           setProjects(prev => prev.filter(p => p.id !== delTarget.id));
-           setTasks(prev => prev.filter(t => t.projectId !== delTarget.id)); 
-           setActiveProjectId(projects[0].id === delTarget.id ? projects[1].id : projects[0].id);
-           return `Project "${delTarget.name}" deleted.`;
-         }
-         return `Error: Could not find project to delete.`;
-       
-       default: return "Unknown project action.";
-     }
+    const result = applyProjectAction({ projects, tasks, activeProjectId }, args);
+    setProjects(result.projects);
+    setTasks(result.tasks);
+    setActiveProjectId(result.activeProjectId);
+    return result.message;
   };
 
   const handleTaskAction = (args: TaskActionArgs): string => {
-    const { 
-      action, title, description, status, priority, oldTitle, 
-      dueDate, startDate, completion, assignee, wbs, isMilestone 
-    } = args;
-    
-    const mapStatus = (s?: string) => {
-      if (s === 'in-progress') return TaskStatus.IN_PROGRESS;
-      if (s === 'done') return TaskStatus.DONE;
-      return TaskStatus.TODO;
-    };
-
-    const mapPriority = (p?: string) => {
-      if (p === 'high') return Priority.HIGH;
-      if (p === 'low') return Priority.LOW;
-      return Priority.MEDIUM;
-    };
-
-    const parseDate = (dateStr?: string): number | undefined => {
-      if (!dateStr) return undefined;
-      const d = new Date(dateStr);
-      if (!isNaN(d.getTime())) return d.getTime();
-      return undefined;
-    };
-
-    switch (action) {
-      case 'create':
-        if (!title) return "Error: Title required for creation.";
-        const newTask: Task = {
-          id: generateId(),
-          projectId: activeProjectId,
-          title,
-          description: description || '',
-          status: mapStatus(status),
-          priority: mapPriority(priority),
-          createdAt: Date.now(),
-          startDate: parseDate(startDate) || Date.now(),
-          dueDate: parseDate(dueDate),
-          completion: completion || 0,
-          assignee: assignee || 'Unassigned',
-          wbs: wbs || '',
-          isMilestone: !!isMilestone
-        };
-        setTasks(prev => [...prev, newTask]);
-        return `Task "${title}" created (WBS: ${wbs || 'N/A'}).`;
-
-      case 'move':
-      case 'update':
-      case 'delete':
-        let taskIndex = tasks.findIndex(t => 
-          t.projectId === activeProjectId && 
-          t.title.toLowerCase().includes((oldTitle || title || "").toLowerCase())
-        );
-        
-        if (taskIndex === -1) return `Error: Could not find task "${oldTitle || title}" in current project.`;
-        
-        if (action === 'delete') {
-           const deletedTitle = tasks[taskIndex].title;
-           setTasks(prev => prev.filter((_, i) => i !== taskIndex));
-           return `Task "${deletedTitle}" deleted.`;
-        }
-
-        const updatedTask = { ...tasks[taskIndex] };
-        if (status) updatedTask.status = mapStatus(status);
-        if (priority) updatedTask.priority = mapPriority(priority);
-        if (description) updatedTask.description = description;
-        if (startDate) updatedTask.startDate = parseDate(startDate);
-        if (dueDate) updatedTask.dueDate = parseDate(dueDate);
-        if (assignee) updatedTask.assignee = assignee;
-        if (wbs) updatedTask.wbs = wbs;
-        if (completion !== undefined) updatedTask.completion = completion;
-        if (isMilestone !== undefined) updatedTask.isMilestone = isMilestone;
-        if (action === 'update' && title && title !== tasks[taskIndex].title) updatedTask.title = title;
-
-        setTasks(prev => {
-          const newTasks = [...prev];
-          newTasks[taskIndex] = updatedTask;
-          return newTasks;
-        });
-        
-        return `Task updated: ${updatedTask.title}`;
-      
-      default:
-        return "Unknown action.";
-    }
+    const result = applyTaskAction({ projects, tasks, activeProjectId }, args);
+    setTasks(result.tasks);
+    return result.message;
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -255,8 +350,37 @@ export default function App() {
         parts: [{ text: m.text }]
       }));
 
+      const maxContextTasks = 30;
+      const limitedTasks = activeTasks.slice(0, maxContextTasks);
+      const taskIdMap = limitedTasks.map(task => ({
+        id: task.id,
+        title: task.title,
+      }));
+      const wbsIdMap = limitedTasks
+        .filter(task => task.wbs)
+        .map(task => ({
+          id: task.id,
+          wbs: task.wbs || '',
+        }));
+      const shouldIncludeFullMappings = activeTasks.length > maxContextTasks;
+      const mappingJson = shouldIncludeFullMappings
+        ? JSON.stringify({
+            limit: maxContextTasks,
+            total: activeTasks.length,
+            taskIdMap,
+            wbsIdMap,
+          })
+        : JSON.stringify({
+            total: activeTasks.length,
+            taskIdMap,
+          });
       const systemContext = `Active Project: ${activeProject.name}. 
-                             Available Projects: ${projects.map(p => p.name).join(', ')}.`;
+                             Available Projects: ${projects.map(p => p.name).join(', ')}.
+                             ${
+                               shouldIncludeFullMappings
+                                 ? `Task IDs in Active Project (JSON): ${mappingJson}.`
+                                 : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
+                             }`;
 
       const response = await geminiService.sendMessage(history, userMsg.text, systemContext);
 
@@ -264,15 +388,27 @@ export default function App() {
       const toolResults: string[] = [];
 
       if (response.toolCalls && response.toolCalls.length > 0) {
+        let draftState: AppState = { projects, tasks, activeProjectId };
         for (const call of response.toolCalls) {
           if (call.name === 'manageTasks') {
-            toolResults.push(handleTaskAction(call.args as TaskActionArgs));
+            const result = applyTaskAction(draftState, call.args as TaskActionArgs);
+            draftState = { ...draftState, tasks: result.tasks };
+            toolResults.push(result.message);
           } else if (call.name === 'manageProjects') {
-            toolResults.push(handleProjectAction(call.args as ProjectActionArgs));
+            const result = applyProjectAction(draftState, call.args as ProjectActionArgs);
+            draftState = {
+              projects: result.projects,
+              tasks: result.tasks,
+              activeProjectId: result.activeProjectId,
+            };
+            toolResults.push(result.message);
           }
         }
         
         if (toolResults.length > 0) {
+           setProjects(draftState.projects);
+           setTasks(draftState.tasks);
+           setActiveProjectId(draftState.activeProjectId);
            const resultMsg = toolResults.join(" | ");
            setMessages(prev => [...prev, {
              id: generateId(),
