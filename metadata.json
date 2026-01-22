@@ -1,0 +1,5 @@
+{
+  "name": "FlowSync AI",
+  "description": "A productivity workspace that fuses chat and project management. Talk to your AI assistant to automatically create tasks, organize your Kanban board, and brainstorm ideas in real-time using Google Gemini.",
+  "requestFramePermissions": []
+}
