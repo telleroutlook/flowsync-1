@@ -35,3 +35,7 @@
 - Set `GEMINI_API_KEY` in `.env.local` for Gemini API access.
 - Do not commit secrets or local env files.
 - Keep external calls isolated in `services/` and validate inputs before use.
+
+## Data Export & Import
+- Export/Import headers are standardized (see README for the canonical header list).
+- Import supports Append or Merge by ID; prefer Merge when re-syncing existing tasks.

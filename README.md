@@ -18,3 +18,16 @@ View your app in AI Studio: https://ai.studio/apps/drive/108LxxUEBaRbOP9K_usWgcF
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Data Export & Import
+
+### Export
+- Formats: CSV, TSV, JSON, Markdown, PDF, XLSX
+- Scope: Active project or All projects
+- XLSX includes an "All Tasks" sheet plus per-project sheets when exporting all projects
+
+### Import
+- Formats: JSON, CSV, TSV
+- Strategy: Append (add new tasks) or Merge by ID (overwrite tasks with matching IDs)
+- Required headers for CSV/TSV (case-insensitive):
+  `project,id,title,status,priority,assignee,wbs,startDate,dueDate,completion,isMilestone,predecessors,description,createdAt`

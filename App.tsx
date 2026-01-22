@@ -14,6 +14,9 @@ const generateId = () =>
     : Math.random().toString(36).slice(2, 11);
 
 type ViewMode = 'BOARD' | 'LIST' | 'GANTT';
+type ExportFormat = 'csv' | 'tsv' | 'json' | 'markdown' | 'pdf' | 'xlsx';
+type ExportScope = 'active' | 'all';
+type ImportStrategy = 'append' | 'merge';
 
 // --- Mock Data Setup ---
 const now = Date.now();
@@ -365,6 +368,11 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [viewMode, setViewMode] = useState<ViewMode>('GANTT'); 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [exportScope, setExportScope] = useState<ExportScope>('active');
+  const [lastExportFormat, setLastExportFormat] = useState<ExportFormat>('csv');
+  const [importStrategy, setImportStrategy] = useState<ImportStrategy>('append');
+  const importInputRef = useRef<HTMLInputElement>(null);
   
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -409,6 +417,28 @@ export default function App() {
       setSelectedTaskId(null);
     }
   }, [tasks, selectedTaskId]);
+
+  useEffect(() => {
+    const storedScope = window.localStorage.getItem('flowsync:exportScope');
+    const storedFormat = window.localStorage.getItem('flowsync:exportFormat');
+    const storedImportStrategy = window.localStorage.getItem('flowsync:importStrategy');
+    if (storedScope === 'active' || storedScope === 'all') {
+      setExportScope(storedScope);
+    }
+    if (storedFormat === 'csv' || storedFormat === 'tsv' || storedFormat === 'json' || storedFormat === 'markdown' || storedFormat === 'pdf' || storedFormat === 'xlsx') {
+      setLastExportFormat(storedFormat);
+    }
+    if (storedImportStrategy === 'append' || storedImportStrategy === 'merge') {
+      setImportStrategy(storedImportStrategy);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isExportOpen) return;
+    const handleWindowClick = () => setIsExportOpen(false);
+    window.addEventListener('click', handleWindowClick);
+    return () => window.removeEventListener('click', handleWindowClick);
+  }, [isExportOpen]);
 
   const handleProjectAction = (args: ProjectActionArgs): string => {
     const result = applyProjectAction({ projects, tasks, activeProjectId }, args);
@@ -589,6 +619,487 @@ export default function App() {
     return end <= start ? start + day : end;
   };
 
+  const formatExportDate = (value?: number) => {
+    if (!value) return '';
+    return new Date(value).toISOString().slice(0, 10);
+  };
+
+  const parseDateFlexible = (value?: string) => {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    if (/^\d+$/.test(trimmed)) {
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) return numeric;
+    }
+    const parsed = Date.parse(trimmed);
+    if (!Number.isNaN(parsed)) return parsed;
+    return undefined;
+  };
+
+  const makeSafeFileName = (value: string) => {
+    const cleaned = value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    return cleaned || 'project';
+  };
+
+  const formatCsvValue = (value: string, delimiter: string) => {
+    const escaped = value.replace(/"/g, '""');
+    if (escaped.includes('"') || escaped.includes('\n') || escaped.includes(delimiter)) {
+      return `"${escaped}"`;
+    }
+    return escaped;
+  };
+
+  const exportHeaders = [
+    'project',
+    'id',
+    'title',
+    'status',
+    'priority',
+    'assignee',
+    'wbs',
+    'startDate',
+    'dueDate',
+    'completion',
+    'isMilestone',
+    'predecessors',
+    'description',
+    'createdAt',
+  ];
+
+  const buildExportRows = (scope: ExportScope) => {
+    const projectLookup = projects.reduce<Record<string, Project>>((acc, project) => {
+      acc[project.id] = project;
+      return acc;
+    }, {});
+    const sourceTasks = scope === 'all' ? tasks : activeTasks;
+    return sourceTasks.map(task => {
+      const project = projectLookup[task.projectId] || activeProject;
+      return {
+        project: project.name,
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        priority: task.priority,
+        assignee: task.assignee || '',
+        wbs: task.wbs || '',
+        startDate: formatExportDate(getTaskStart(task)),
+        dueDate: formatExportDate(getTaskEnd(task)),
+        completion: task.completion ?? 0,
+        isMilestone: task.isMilestone ? 'yes' : 'no',
+        predecessors: (task.predecessors || []).join(','),
+        description: task.description || '',
+        createdAt: formatExportDate(task.createdAt),
+      };
+    });
+  };
+
+  const makeSheetName = (value: string, usedNames: Set<string>) => {
+    const base = value
+      .replace(/[\[\]\:\*\?\/\\]/g, '')
+      .trim()
+      .slice(0, 31) || 'Sheet';
+    let name = base;
+    let counter = 1;
+    while (usedNames.has(name)) {
+      const suffix = `-${counter}`;
+      name = base.slice(0, Math.max(1, 31 - suffix.length)) + suffix;
+      counter += 1;
+    }
+    usedNames.add(name);
+    return name;
+  };
+
+  const recordExportPreference = (format: ExportFormat, scope: ExportScope) => {
+    setLastExportFormat(format);
+    window.localStorage.setItem('flowsync:exportFormat', format);
+    window.localStorage.setItem('flowsync:exportScope', scope);
+  };
+
+  const recordImportPreference = (strategy: ImportStrategy) => {
+    setImportStrategy(strategy);
+    window.localStorage.setItem('flowsync:importStrategy', strategy);
+  };
+
+  const normalizeStatus = (value?: string): TaskStatus => {
+    const normalized = (value || '').toUpperCase();
+    if (normalized === 'DONE') return TaskStatus.DONE;
+    if (normalized === 'IN_PROGRESS' || normalized === 'IN-PROGRESS' || normalized === 'IN PROGRESS') {
+      return TaskStatus.IN_PROGRESS;
+    }
+    return TaskStatus.TODO;
+  };
+
+  const normalizePriority = (value?: string): Priority => {
+    const normalized = (value || '').toUpperCase();
+    if (normalized === 'HIGH') return Priority.HIGH;
+    if (normalized === 'MEDIUM') return Priority.MEDIUM;
+    return Priority.LOW;
+  };
+
+  const parseDelimitedLine = (line: string, delimiter: string) => {
+    const cells: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const char = line[i];
+      const next = line[i + 1];
+      if (char === '"' && inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+        continue;
+      }
+      if (char === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (char === delimiter && !inQuotes) {
+        cells.push(current);
+        current = '';
+        continue;
+      }
+      current += char;
+    }
+    cells.push(current);
+    return cells.map(cell => cell.trim());
+  };
+
+  const parseDelimitedContent = (content: string) => {
+    const delimiter = content.includes('\t') ? '\t' : ',';
+    const rows = content.split(/\r?\n/).filter(line => line.trim().length > 0);
+    if (rows.length === 0) return [];
+    const headers = parseDelimitedLine(rows[0], delimiter).map(h => h.trim().toLowerCase());
+    return rows.slice(1).map(line => {
+      const cells = parseDelimitedLine(line, delimiter);
+      const record: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        record[header] = cells[index] ?? '';
+      });
+      return record;
+    });
+  };
+
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = String(reader.result || '');
+      const lowerName = file.name.toLowerCase();
+      let importedProjects: Project[] = [];
+      let importedTasks: Task[] = [];
+
+      if (lowerName.endsWith('.json')) {
+        try {
+          const payload = JSON.parse(content) as {
+            projects?: Project[];
+            tasks?: Array<Record<string, unknown>>;
+          };
+          if (Array.isArray(payload.projects)) {
+            importedProjects = payload.projects.filter(item => item && typeof item.name === 'string');
+          }
+          if (Array.isArray(payload.tasks)) {
+            importedTasks = payload.tasks.map((raw) => {
+              const record = raw as Record<string, unknown>;
+              const projectName = typeof record.project === 'string' ? record.project : activeProject.name;
+              const project = importedProjects.find(item => item.name === projectName)
+                || projects.find(item => item.name === projectName)
+                || activeProject;
+              return {
+                id: typeof record.id === 'string' ? record.id : generateId(),
+                projectId: project.id,
+                title: typeof record.title === 'string' ? record.title : 'Untitled Task',
+                description: typeof record.description === 'string' ? record.description : undefined,
+                status: normalizeStatus(typeof record.status === 'string' ? record.status : undefined),
+                priority: normalizePriority(typeof record.priority === 'string' ? record.priority : undefined),
+                wbs: typeof record.wbs === 'string' ? record.wbs : undefined,
+                createdAt: parseDateFlexible(typeof record.createdAt === 'string' ? record.createdAt : undefined) || Date.now(),
+                startDate: parseDateFlexible(typeof record.startDate === 'string' ? record.startDate : undefined),
+                dueDate: parseDateFlexible(typeof record.dueDate === 'string' ? record.dueDate : undefined),
+                completion: typeof record.completion === 'number' ? clampCompletion(record.completion) : undefined,
+                assignee: typeof record.assignee === 'string' ? record.assignee : undefined,
+                isMilestone: record.isMilestone === 'yes' || record.isMilestone === true,
+                predecessors: typeof record.predecessors === 'string'
+                  ? record.predecessors.split(',').map(item => item.trim()).filter(Boolean)
+                  : undefined,
+              };
+            });
+          }
+        } catch {
+          alert('Import failed: invalid JSON file.');
+          return;
+        }
+      } else if (lowerName.endsWith('.csv') || lowerName.endsWith('.tsv')) {
+        const records = parseDelimitedContent(content);
+        importedTasks = records.map(record => {
+          const projectName = record.project || activeProject.name;
+          const existingProject = projects.find(item => item.name === projectName);
+          const project = existingProject || { id: generateId(), name: projectName, description: '', icon: projectName.charAt(0).toUpperCase() };
+          if (!existingProject) {
+            importedProjects.push(project);
+          }
+          return {
+            id: record.id ? record.id : generateId(),
+            projectId: project.id,
+            title: record.title || 'Untitled Task',
+            description: record.description || undefined,
+            status: normalizeStatus(record.status),
+            priority: normalizePriority(record.priority),
+            wbs: record.wbs || undefined,
+            createdAt: parseDateFlexible(record.createdat) || Date.now(),
+            startDate: parseDateFlexible(record.startdate),
+            dueDate: parseDateFlexible(record.duedate),
+            completion: record.completion ? clampCompletion(Number(record.completion)) : undefined,
+            assignee: record.assignee || undefined,
+            isMilestone: (record.ismilestone || '').toLowerCase() === 'yes',
+            predecessors: record.predecessors ? record.predecessors.split(',').map(item => item.trim()).filter(Boolean) : undefined,
+          };
+        });
+      } else {
+        alert('Import failed: only JSON, CSV, or TSV files are supported.');
+        return;
+      }
+
+      if (importedTasks.length === 0) {
+        alert('No tasks found in the import file.');
+        return;
+      }
+
+      const existingIds = new Set(tasks.map(task => task.id));
+      const normalizedTasks = importedTasks.map(task => ({
+        ...task,
+        id: importStrategy === 'append' && existingIds.has(task.id) ? generateId() : task.id,
+      }));
+
+      setProjects(prev => {
+        const next = [...prev];
+        importedProjects.forEach(project => {
+          if (!next.find(item => item.name === project.name)) {
+            next.push(project);
+          }
+        });
+        return next;
+      });
+      if (importStrategy === 'merge') {
+        setTasks(prev => {
+          const map = new Map(prev.map(task => [task.id, task]));
+          normalizedTasks.forEach(task => {
+            map.set(task.id, task);
+          });
+          return Array.from(map.values());
+        });
+        alert(`Merged ${normalizedTasks.length} tasks by ID.`);
+      } else {
+        setTasks(prev => [...prev, ...normalizedTasks]);
+        alert(`Imported ${normalizedTasks.length} tasks.`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const exportTasks = async (format: ExportFormat, scope: ExportScope) => {
+    const exportDate = new Date();
+    const fileStamp = exportDate.toISOString().slice(0, 10);
+    const scopeLabel = scope === 'all' ? 'all-projects' : makeSafeFileName(activeProject.name);
+    const baseName = `${scopeLabel}-tasks-${fileStamp}`;
+    const rows = buildExportRows(scope);
+
+    if (format === 'json') {
+      const payload = {
+        scope,
+        exportedAt: exportDate.toISOString(),
+        projects: scope === 'all' ? projects : [activeProject],
+        tasks: rows,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${baseName}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      recordExportPreference(format, scope);
+      return;
+    }
+
+    if (format === 'xlsx') {
+      const XLSX = await import('xlsx');
+      const headers = exportHeaders;
+      const workbook = XLSX.utils.book_new();
+      const usedNames = new Set<string>();
+      const toRows = (dataRows: typeof rows) => dataRows.map(row => ([
+        row.project,
+        row.id,
+        row.title,
+        row.status,
+        row.priority,
+        row.assignee,
+        row.wbs,
+        row.startDate,
+        row.dueDate,
+        String(row.completion),
+        row.isMilestone,
+        row.predecessors,
+        row.description,
+        row.createdAt,
+      ]));
+
+      if (scope === 'all') {
+        const allSheet = XLSX.utils.aoa_to_sheet([headers, ...toRows(rows)]);
+        XLSX.utils.book_append_sheet(workbook, allSheet, makeSheetName('All Tasks', usedNames));
+        projects.forEach(project => {
+          const projectRows = rows.filter(row => row.project === project.name);
+          if (projectRows.length === 0) return;
+          const projectSheet = XLSX.utils.aoa_to_sheet([headers, ...toRows(projectRows)]);
+          XLSX.utils.book_append_sheet(workbook, projectSheet, makeSheetName(project.name, usedNames));
+        });
+      } else {
+        const sheet = XLSX.utils.aoa_to_sheet([headers, ...toRows(rows)]);
+        XLSX.utils.book_append_sheet(workbook, sheet, makeSheetName(activeProject.name, usedNames));
+      }
+      XLSX.writeFile(workbook, `${baseName}.xlsx`);
+      recordExportPreference(format, scope);
+      return;
+    }
+
+    if (format === 'pdf') {
+      const [{ jsPDF }, autoTableModule] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+      const autoTable = autoTableModule.default;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
+      const headers = exportHeaders.slice(0, 12);
+      const body = rows.map(row => ([
+        row.project,
+        row.id,
+        row.title,
+        row.status,
+        row.priority,
+        row.assignee,
+        row.wbs,
+        row.startDate,
+        row.dueDate,
+        String(row.completion),
+        row.isMilestone,
+        row.predecessors,
+      ]));
+      doc.setFontSize(12);
+      doc.text(
+        scope === 'all' ? 'All Projects - Task Export' : `${activeProject.name} - Task Export`,
+        40,
+        32
+      );
+      doc.setFontSize(9);
+      doc.text(`Exported: ${exportDate.toISOString()}`, 40, 48);
+      autoTable(doc, {
+        head: [headers],
+        body,
+        startY: 64,
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0: { cellWidth: 90 },
+          1: { cellWidth: 60 },
+          2: { cellWidth: 150 },
+          3: { cellWidth: 70 },
+          4: { cellWidth: 70 },
+          5: { cellWidth: 80 },
+          6: { cellWidth: 50 },
+          7: { cellWidth: 60 },
+          8: { cellWidth: 60 },
+          9: { cellWidth: 70 },
+          10: { cellWidth: 70 },
+          11: { cellWidth: 100 },
+        },
+        margin: { left: 40, right: 40 },
+      });
+      doc.save(`${baseName}.pdf`);
+      recordExportPreference(format, scope);
+      return;
+    }
+
+    if (format === 'markdown') {
+      const payload = {
+        scope,
+        exportedAt: exportDate.toISOString(),
+      };
+      const headers = exportHeaders;
+      const escapeMd = (value: string) => value.replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+      const body = rows.map(row => [
+        row.project,
+        row.id,
+        row.title,
+        row.status,
+        row.priority,
+        row.assignee,
+        row.wbs,
+        row.startDate,
+        row.dueDate,
+        String(row.completion),
+        row.isMilestone,
+        row.predecessors,
+        row.description,
+        row.createdAt,
+      ].map(cell => escapeMd(String(cell))).join(' | '));
+
+      const markdown = [
+        `# ${scope === 'all' ? 'All Projects' : activeProject.name} Tasks`,
+        '',
+        `Exported: ${payload.exportedAt}`,
+        '',
+        `| ${headers.join(' | ')} |`,
+        `| ${headers.map(() => '---').join(' | ')} |`,
+        ...body.map(line => `| ${line} |`),
+        '',
+      ].join('\n');
+
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${baseName}.md`;
+      link.click();
+      URL.revokeObjectURL(url);
+      recordExportPreference(format, scope);
+      return;
+    }
+
+    const delimiter = format === 'tsv' ? '\t' : ',';
+    const headers = exportHeaders;
+    const lines = [
+      headers.join(delimiter),
+      ...rows.map(row => [
+        row.project,
+        row.id,
+        row.title,
+        row.status,
+        row.priority,
+        row.assignee,
+        row.wbs,
+        row.startDate,
+        row.dueDate,
+        String(row.completion),
+        row.isMilestone,
+        row.predecessors,
+        row.description,
+        row.createdAt,
+      ].map(value => formatCsvValue(String(value), delimiter)).join(delimiter)),
+    ];
+
+    const mime = format === 'tsv' ? 'text/tab-separated-values' : 'text/csv';
+    const blob = new Blob([lines.join('\n')], { type: `${mime};charset=utf-8;` });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${baseName}.${format}`;
+    link.click();
+    URL.revokeObjectURL(url);
+    recordExportPreference(format, scope);
+  };
+
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden text-slate-900 font-sans">
       
@@ -734,6 +1245,110 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+             <div className="relative">
+               <input
+                 ref={importInputRef}
+                 type="file"
+                 accept=".json,.csv,.tsv"
+                 className="hidden"
+                 onChange={(event) => {
+                   const file = event.target.files?.[0];
+                   if (file) handleImportFile(file);
+                   event.currentTarget.value = '';
+                 }}
+               />
+              <button
+                type="button"
+                onClick={() => importInputRef.current?.click()}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+              >
+                <span>Import</span>
+              </button>
+              <select
+                value={importStrategy}
+                onChange={(event) => recordImportPreference(event.target.value as ImportStrategy)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-semibold text-slate-600"
+                aria-label="Import strategy"
+              >
+                <option value="append">Append</option>
+                <option value="merge">Merge by ID</option>
+              </select>
+               <button
+                 type="button"
+                 onClick={(event) => {
+                   event.stopPropagation();
+                   setIsExportOpen(prev => !prev);
+                 }}
+                 className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
+               >
+                 <span>Export</span>
+                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                   <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+                 </svg>
+               </button>
+               {isExportOpen && (
+                 <div
+                   onClick={(event) => event.stopPropagation()}
+                   className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 bg-white shadow-lg"
+                 >
+                   <div className="px-3 pt-3 text-[10px] uppercase tracking-widest text-slate-400">Scope</div>
+                   <div className="px-3 pb-2">
+                     <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+                       <button
+                         type="button"
+                         onClick={() => setExportScope('active')}
+                         className={`flex-1 rounded-md px-2 py-1 text-[10px] font-semibold ${
+                           exportScope === 'active'
+                             ? 'bg-white text-slate-800 shadow-sm'
+                             : 'text-slate-500'
+                         }`}
+                       >
+                         Active
+                       </button>
+                       <button
+                         type="button"
+                         onClick={() => setExportScope('all')}
+                         className={`flex-1 rounded-md px-2 py-1 text-[10px] font-semibold ${
+                           exportScope === 'all'
+                             ? 'bg-white text-slate-800 shadow-sm'
+                             : 'text-slate-500'
+                         }`}
+                       >
+                         All projects
+                       </button>
+                     </div>
+                   </div>
+                   <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-400">
+                     Export format
+                   </div>
+                   {([
+                     { id: 'csv', label: 'CSV (.csv)' },
+                     { id: 'tsv', label: 'TSV (.tsv)' },
+                     { id: 'xlsx', label: 'Excel (.xlsx)' },
+                     { id: 'pdf', label: 'PDF (.pdf)' },
+                     { id: 'json', label: 'JSON (.json)' },
+                     { id: 'markdown', label: 'Markdown (.md)' },
+                   ] as const).map(item => (
+                     <button
+                       key={item.id}
+                       type="button"
+                       onClick={() => {
+                         void exportTasks(item.id, exportScope);
+                         setIsExportOpen(false);
+                       }}
+                       className={`flex w-full items-center justify-between px-3 py-2 text-xs ${
+                         lastExportFormat === item.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                       }`}
+                     >
+                       <span>{item.label}</span>
+                       <span className="text-[10px] text-slate-400">
+                         {lastExportFormat === item.id ? 'default' : (exportScope === 'all' ? 'all' : 'active')}
+                       </span>
+                     </button>
+                   ))}
+                 </div>
+               )}
+             </div>
              <div className="flex -space-x-2">
                 <div className="w-8 h-8 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-indigo-700 font-bold text-xs">AI</div>
              </div>
