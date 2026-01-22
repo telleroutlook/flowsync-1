@@ -1101,33 +1101,40 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-background overflow-hidden text-slate-900 font-sans">
+    <div className="flex h-screen w-full bg-slate-50 overflow-hidden text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       
       {/* 1. Chat Interface (Left) */}
-      <div className="w-[320px] flex flex-col border-r border-slate-200 bg-white relative z-20 shrink-0 shadow-sm">
-        <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+      <div className="w-[340px] flex flex-col border-r border-slate-200 bg-white relative z-20 shrink-0 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+        <div className="h-16 px-5 border-b border-slate-100 flex items-center gap-3 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200 ring-1 ring-black/5">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <div>
-            <h1 className="font-bold text-lg text-slate-900 tracking-tight">FlowSync</h1>
-            <p className="text-xs text-slate-500">AI Assistant</p>
+            <h1 className="font-bold text-base text-slate-900 tracking-tight leading-tight">FlowSync</h1>
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">AI Assistant Online</p>
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50">
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/50 scroll-smooth">
           {messages.map((msg) => (
             <ChatBubble key={msg.id} message={msg} />
           ))}
           {isProcessing && (
-            <div className="flex justify-start mb-4 animate-pulse">
-               <div className="bg-white px-4 py-3 rounded-2xl rounded-bl-none border border-slate-200 shadow-sm">
+            <div className="flex justify-start mb-4 animate-fade-in">
+               <div className="bg-white px-4 py-3.5 rounded-2xl rounded-bl-none border border-slate-100 shadow-sm flex items-center gap-2">
+                  <span className="text-xs font-medium text-slate-500">Thinking</span>
                   <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
-                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-100"></span>
-                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-200"></span>
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></span>
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-100"></span>
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-200"></span>
                   </div>
                </div>
             </div>
@@ -1135,29 +1142,28 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 border-t border-slate-200 bg-white">
-          <form onSubmit={handleSendMessage} className="relative">
+        <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)] z-20">
+          <form onSubmit={handleSendMessage} className="relative group">
             {pendingAttachments.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-3 flex flex-wrap gap-2 animate-slide-up">
                 {pendingAttachments.map((file) => (
                   <div
                     key={file.id}
-                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600"
+                    className="flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50/50 px-3 py-1 text-xs text-indigo-700"
                   >
-                    <span className="max-w-[140px] truncate">{file.name}</span>
+                    <span className="max-w-[140px] truncate font-medium">{file.name}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveAttachment(file.id)}
-                      className="text-slate-400 hover:text-slate-700"
-                      aria-label={`Remove ${file.name}`}
+                      className="text-indigo-400 hover:text-indigo-700 p-0.5 rounded-full hover:bg-indigo-100 transition-colors"
                     >
-                      ×
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
                 ))}
               </div>
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex items-end gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-100 transition-all shadow-inner">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1172,31 +1178,33 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-700"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                 disabled={isProcessing}
-                aria-label="Attach files"
+                title="Attach files"
               >
-                <span aria-hidden>📎</span>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
               </button>
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Ask AI (e.g., 'Update schedule')"
-                  className="w-full bg-slate-50 text-slate-900 pl-4 pr-10 py-3 rounded-xl border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-slate-400 text-sm"
-                  disabled={isProcessing}
-                />
-                <button 
-                  type="submit"
-                  disabled={(inputText.trim().length === 0 && pendingAttachments.length === 0) || isProcessing}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-primary text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-primary transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
+              
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Ask AI to update tasks..."
+                className="w-full bg-transparent text-slate-900 py-2.5 outline-none placeholder:text-slate-400 text-sm font-medium"
+                disabled={isProcessing}
+              />
+              
+              <button 
+                type="submit"
+                disabled={(inputText.trim().length === 0 && pendingAttachments.length === 0) || isProcessing}
+                className="h-9 w-9 shrink-0 flex items-center justify-center bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-all shadow-md shadow-indigo-200"
+              >
+                <svg className="w-4 h-4 translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
             </div>
           </form>
         </div>
@@ -1212,40 +1220,40 @@ export default function App() {
       />
 
       {/* 3. Workspace (Right) */}
-      <div className="flex-1 flex flex-col h-full bg-slate-50 relative">
+      <div className="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden">
         {/* Header */}
-        <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6 bg-white z-20 shadow-sm">
+        <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md z-20 sticky top-0">
           <div className="flex items-center gap-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">{activeProject.name}</h2>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">{activeProject.description || 'Project Workspace'}</p>
+            <div className="flex flex-col">
+              <h2 className="text-lg font-bold text-slate-800 leading-tight">{activeProject.name}</h2>
+              <div className="flex items-center gap-2">
+                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                 <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{activeProject.description || 'Workspace'}</p>
+              </div>
             </div>
             
+            <div className="h-8 w-px bg-slate-200 mx-2"></div>
+
             {/* View Switcher */}
-            <div className="flex p-1 bg-slate-100 rounded-lg border border-slate-200 ml-4">
-               <button 
-                 onClick={() => setViewMode('BOARD')}
-                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'BOARD' ? 'bg-white text-primary shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
-               >
-                 Board
-               </button>
-               <button 
-                 onClick={() => setViewMode('LIST')}
-                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'LIST' ? 'bg-white text-primary shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
-               >
-                 List
-               </button>
-               <button 
-                 onClick={() => setViewMode('GANTT')}
-                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'GANTT' ? 'bg-white text-primary shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
-               >
-                 Gantt
-               </button>
+            <div className="flex p-1 bg-slate-100/80 rounded-lg border border-slate-200/60 backdrop-blur-sm">
+               {['BOARD', 'LIST', 'GANTT'].map((mode) => (
+                 <button 
+                   key={mode}
+                   onClick={() => setViewMode(mode as ViewMode)}
+                   className={`px-3.5 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all ${
+                     viewMode === mode 
+                       ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5' 
+                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                   }`}
+                 >
+                   {mode}
+                 </button>
+               ))}
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-             <div className="relative">
+          <div className="flex items-center gap-3">
+             <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                <input
                  ref={importInputRef}
                  type="file"
@@ -1260,97 +1268,98 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => importInputRef.current?.click()}
-                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
               >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                 <span>Import</span>
               </button>
+              <div className="w-px h-4 bg-slate-200"></div>
               <select
                 value={importStrategy}
                 onChange={(event) => recordImportPreference(event.target.value as ImportStrategy)}
-                className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-[10px] font-semibold text-slate-600"
+                className="bg-transparent text-[10px] font-medium text-slate-500 outline-none cursor-pointer hover:text-indigo-600"
                 aria-label="Import strategy"
               >
                 <option value="append">Append</option>
-                <option value="merge">Merge by ID</option>
+                <option value="merge">Merge ID</option>
               </select>
+             </div>
+
+             <div className="relative">
                <button
                  type="button"
                  onClick={(event) => {
                    event.stopPropagation();
                    setIsExportOpen(prev => !prev);
                  }}
-                 className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-white"
+                 className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm hover:border-indigo-200 hover:text-indigo-600 transition-all"
                >
                  <span>Export</span>
-                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                   <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                  </svg>
                </button>
                {isExportOpen && (
                  <div
                    onClick={(event) => event.stopPropagation()}
-                   className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 bg-white shadow-lg"
+                   className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-100 bg-white shadow-xl shadow-slate-200/50 z-50 p-2 animate-fade-in"
                  >
-                   <div className="px-3 pt-3 text-[10px] uppercase tracking-widest text-slate-400">Scope</div>
-                   <div className="px-3 pb-2">
-                     <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-                       <button
-                         type="button"
-                         onClick={() => setExportScope('active')}
-                         className={`flex-1 rounded-md px-2 py-1 text-[10px] font-semibold ${
-                           exportScope === 'active'
-                             ? 'bg-white text-slate-800 shadow-sm'
-                             : 'text-slate-500'
-                         }`}
-                       >
-                         Active
-                       </button>
-                       <button
-                         type="button"
-                         onClick={() => setExportScope('all')}
-                         className={`flex-1 rounded-md px-2 py-1 text-[10px] font-semibold ${
-                           exportScope === 'all'
-                             ? 'bg-white text-slate-800 shadow-sm'
-                             : 'text-slate-500'
-                         }`}
-                       >
-                         All projects
-                       </button>
-                     </div>
-                   </div>
-                   <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-400">
-                     Export format
-                   </div>
-                   {([
-                     { id: 'csv', label: 'CSV (.csv)' },
-                     { id: 'tsv', label: 'TSV (.tsv)' },
-                     { id: 'xlsx', label: 'Excel (.xlsx)' },
-                     { id: 'pdf', label: 'PDF (.pdf)' },
-                     { id: 'json', label: 'JSON (.json)' },
-                     { id: 'markdown', label: 'Markdown (.md)' },
-                   ] as const).map(item => (
+                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Export Scope</div>
+                   <div className="flex gap-1 p-1 bg-slate-50 rounded-lg mb-2">
                      <button
-                       key={item.id}
                        type="button"
-                       onClick={() => {
-                         void exportTasks(item.id, exportScope);
-                         setIsExportOpen(false);
-                       }}
-                       className={`flex w-full items-center justify-between px-3 py-2 text-xs ${
-                         lastExportFormat === item.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                       onClick={() => setExportScope('active')}
+                       className={`flex-1 rounded-md px-2 py-1.5 text-[10px] font-bold transition-all ${
+                         exportScope === 'active'
+                           ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5'
+                           : 'text-slate-500 hover:text-slate-700'
                        }`}
                      >
-                       <span>{item.label}</span>
-                       <span className="text-[10px] text-slate-400">
-                         {lastExportFormat === item.id ? 'default' : (exportScope === 'all' ? 'all' : 'active')}
-                       </span>
+                       Current Project
                      </button>
-                   ))}
+                     <button
+                       type="button"
+                       onClick={() => setExportScope('all')}
+                       className={`flex-1 rounded-md px-2 py-1.5 text-[10px] font-bold transition-all ${
+                         exportScope === 'all'
+                           ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5'
+                           : 'text-slate-500 hover:text-slate-700'
+                       }`}
+                     >
+                       All Projects
+                     </button>
+                   </div>
+                   
+                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Format</div>
+                   <div className="grid grid-cols-1 gap-0.5">
+                     {([
+                       { id: 'csv', label: 'CSV', desc: 'Spreadsheet compatible' },
+                       { id: 'xlsx', label: 'Excel', desc: 'Formatted workbook' },
+                       { id: 'pdf', label: 'PDF', desc: 'Document view' },
+                       { id: 'json', label: 'JSON', desc: 'Raw data' },
+                       { id: 'markdown', label: 'Markdown', desc: 'Documentation' },
+                     ] as const).map(item => (
+                       <button
+                         key={item.id}
+                         type="button"
+                         onClick={() => {
+                           void exportTasks(item.id, exportScope);
+                           setIsExportOpen(false);
+                         }}
+                         className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
+                           lastExportFormat === item.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                         }`}
+                       >
+                         <div className="flex flex-col items-start">
+                            <span className="font-semibold">{item.label}</span>
+                            <span className="text-[9px] opacity-70 group-hover:opacity-100">{item.desc}</span>
+                         </div>
+                         {lastExportFormat === item.id && <span className="text-indigo-500">✓</span>}
+                       </button>
+                     ))}
+                   </div>
                  </div>
                )}
-             </div>
-             <div className="flex -space-x-2">
-                <div className="w-8 h-8 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-indigo-700 font-bold text-xs">AI</div>
              </div>
           </div>
         </div>
@@ -1360,8 +1369,8 @@ export default function App() {
             {viewMode === 'BOARD' && <KanbanBoard tasks={activeTasks} />}
             {viewMode === 'LIST' && <ListView tasks={activeTasks} />}
             {viewMode === 'GANTT' && (
-              <div className="flex h-full gap-4">
-                <div className="flex-1 min-w-0">
+              <div className="flex h-full gap-6">
+                <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                   <GanttChart
                     tasks={activeTasks}
                     selectedTaskId={selectedTaskId}
@@ -1377,13 +1386,27 @@ export default function App() {
                     }}
                   />
                 </div>
-                <div className="w-[260px] bg-white border border-slate-200 rounded-xl shadow-sm p-4 overflow-y-auto">
+                <div className={`w-[300px] bg-white border border-slate-200 rounded-2xl shadow-xl flex flex-col transition-all duration-300 ${selectedTask ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-50 pointer-events-none'}`}>
                   {selectedTask ? (
-                    <div className="space-y-3 text-xs text-slate-600">
-                      <div>
-                        <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Task</div>
+                    <>
+                    <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-2xl">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Task Details</span>
+                        {selectedTask.isMilestone && (
+                           <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold border border-amber-200">Milestone</span>
+                        )}
+                      </div>
+                      <button onClick={() => setSelectedTaskId(null)} className="text-slate-400 hover:text-slate-600">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
+                      
+                      {/* Title */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Title</label>
                         <input
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                           value={selectedTask.title}
                           onChange={(event) => {
                             const title = event.target.value;
@@ -1398,29 +1421,12 @@ export default function App() {
                         />
                       </div>
 
-                      <div>
-                        <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Assignee</div>
-                        <input
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
-                          value={selectedTask.assignee || ''}
-                          onChange={(event) => {
-                            const assignee = event.target.value;
-                            setTasks(prev =>
-                              prev.map(task =>
-                                task.id === selectedTask.id
-                                  ? { ...task, assignee }
-                                  : task
-                              )
-                            );
-                          }}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Status</div>
+                      {/* Status & Priority */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</label>
                           <select
-                            className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-700"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700 focus:border-indigo-500 outline-none"
                             value={selectedTask.status}
                             onChange={(event) => {
                               const status = event.target.value as TaskStatus;
@@ -1438,10 +1444,10 @@ export default function App() {
                             <option value={TaskStatus.DONE}>Done</option>
                           </select>
                         </div>
-                        <div>
-                          <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Priority</div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Priority</label>
                           <select
-                            className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-700"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700 focus:border-indigo-500 outline-none"
                             value={selectedTask.priority}
                             onChange={(event) => {
                               const priority = event.target.value as Priority;
@@ -1461,28 +1467,75 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="flex items-center gap-2">
+                      {/* Dates */}
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-semibold text-slate-400 uppercase">Start Date</label>
+                            <input
+                              type="date"
+                              className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-indigo-500 outline-none"
+                              value={formatDateInput(selectedTask.startDate ?? selectedTask.createdAt)}
+                              onChange={(event) => {
+                                const startDate = parseDateInput(event.target.value);
+                                if (!startDate) return;
+                                setTasks(prev =>
+                                  prev.map(task =>
+                                    task.id === selectedTask.id
+                                      ? { ...task, startDate }
+                                      : task
+                                  )
+                                );
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-semibold text-slate-400 uppercase">Due Date</label>
+                            <input
+                              type="date"
+                              className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-indigo-500 outline-none"
+                              value={formatDateInput(selectedTask.dueDate)}
+                              onChange={(event) => {
+                                const dueDate = parseDateInput(event.target.value);
+                                if (!dueDate) return;
+                                setTasks(prev =>
+                                  prev.map(task =>
+                                    task.id === selectedTask.id
+                                      ? { ...task, dueDate }
+                                      : task
+                                  )
+                                );
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Assignee & WBS */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Assignee</label>
                           <input
-                            type="checkbox"
-                            checked={!!selectedTask.isMilestone}
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 outline-none"
+                            placeholder="Unassigned"
+                            value={selectedTask.assignee || ''}
                             onChange={(event) => {
-                              const isMilestone = event.target.checked;
+                              const assignee = event.target.value;
                               setTasks(prev =>
                                 prev.map(task =>
                                   task.id === selectedTask.id
-                                    ? { ...task, isMilestone }
+                                    ? { ...task, assignee }
                                     : task
                                 )
                               );
                             }}
                           />
-                          <span>Milestone</span>
                         </div>
-                        <div>
-                          <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">WBS</div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">WBS Code</label>
                           <input
-                            className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-700"
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 font-mono focus:border-indigo-500 outline-none"
+                            placeholder="1.0"
                             value={selectedTask.wbs || ''}
                             onChange={(event) => {
                               const wbs = event.target.value;
@@ -1498,118 +1551,12 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Start</div>
-                          <input
-                            type="date"
-                            className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-700"
-                            value={formatDateInput(selectedTask.startDate ?? selectedTask.createdAt)}
-                            onChange={(event) => {
-                              const startDate = parseDateInput(event.target.value);
-                              if (!startDate) return;
-                              setTasks(prev =>
-                                prev.map(task =>
-                                  task.id === selectedTask.id
-                                    ? { ...task, startDate }
-                                    : task
-                                )
-                              );
-                            }}
-                          />
+                      {/* Progress */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                           <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Completion</label>
+                           <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{selectedTask.completion ?? 0}%</span>
                         </div>
-                        <div>
-                          <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Due</div>
-                          <input
-                            type="date"
-                            className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-700"
-                            value={formatDateInput(selectedTask.dueDate)}
-                            onChange={(event) => {
-                              const dueDate = parseDateInput(event.target.value);
-                              if (!dueDate) return;
-                              setTasks(prev =>
-                                prev.map(task =>
-                                  task.id === selectedTask.id
-                                    ? { ...task, dueDate }
-                                    : task
-                                )
-                              );
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Predecessors</div>
-                        <input
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                          placeholder="e.g. t1,t2 or 1.1,2.0"
-                          value={(selectedTask.predecessors || []).join(',')}
-                          onChange={(event) => {
-                            const predecessors = event.target.value
-                              .split(',')
-                              .map(item => item.trim())
-                              .filter(Boolean);
-                            setTasks(prev =>
-                              prev.map(task =>
-                                task.id === selectedTask.id
-                                  ? { ...task, predecessors }
-                                  : task
-                              )
-                            );
-                          }}
-                        />
-                        {hasPredecessorConflicts && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const maxEnd = predecessorDetails.reduce((acc, item) => {
-                                if (!item.task) return acc;
-                                return Math.max(acc, getTaskEnd(item.task));
-                              }, getTaskStart(selectedTask));
-                              const currentStart = getTaskStart(selectedTask);
-                              const currentEnd = getTaskEnd(selectedTask);
-                              const duration = Math.max(day, currentEnd - currentStart);
-                              const nextStart = maxEnd;
-                              const nextEnd = Math.max(nextStart + day, nextStart + duration);
-                              setTasks(prev =>
-                                prev.map(task =>
-                                  task.id === selectedTask.id
-                                    ? { ...task, startDate: nextStart, dueDate: nextEnd }
-                                    : task
-                                )
-                              );
-                            }}
-                            className="mt-2 w-full rounded-lg border border-rose-200 bg-rose-50 px-2 py-2 text-[10px] font-semibold text-rose-600 hover:border-rose-300 hover:bg-rose-100"
-                          >
-                            Auto-shift to resolve conflicts
-                          </button>
-                        )}
-                        {predecessorDetails.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {predecessorDetails.map(({ ref, task, conflict }) => (
-                              <button
-                                key={ref}
-                                type="button"
-                                onClick={() => task && setSelectedTaskId(task.id)}
-                                className={`flex w-full items-center justify-between rounded-lg border px-2 py-1 text-[10px] ${
-                                  conflict
-                                    ? 'border-rose-200 bg-rose-50 text-rose-600'
-                                    : 'border-slate-200 bg-slate-50 text-slate-500'
-                                } ${task ? 'hover:border-indigo-200 hover:bg-indigo-50' : ''}`}
-                              >
-                                <span className="truncate">
-                                  {task ? task.title : `Missing: ${ref}`}
-                                </span>
-                                {conflict && <span className="font-semibold">Conflict</span>}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Completion</div>
                         <input
                           type="range"
                           min={0}
@@ -1625,13 +1572,109 @@ export default function App() {
                               )
                             );
                           }}
-                          className="w-full"
+                          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                         />
-                        <div className="text-[10px] text-slate-400 mt-1">{selectedTask.completion ?? 0}%</div>
                       </div>
+
+                      {/* Dependencies */}
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                          Dependencies
+                          <span className="bg-slate-100 text-slate-500 text-[10px] px-1.5 py-0.5 rounded-full">{predecessorDetails.length}</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs text-slate-700 focus:border-indigo-500 outline-none"
+                            placeholder="Add IDs (e.g. t1, 1.2)..."
+                            value={(selectedTask.predecessors || []).join(', ')}
+                            onChange={(event) => {
+                              const predecessors = event.target.value
+                                .split(',')
+                                .map(item => item.trim())
+                                .filter(Boolean);
+                              setTasks(prev =>
+                                prev.map(task =>
+                                  task.id === selectedTask.id
+                                    ? { ...task, predecessors }
+                                    : task
+                                )
+                              );
+                            }}
+                          />
+                          <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                        </div>
+                        
+                        {hasPredecessorConflicts && (
+                          <div className="bg-rose-50 border border-rose-100 rounded-lg p-3 animate-fade-in">
+                            <div className="flex items-start gap-2 text-rose-700 mb-2">
+                               <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                               <span className="text-xs font-semibold">Schedule Conflict Detected</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const maxEnd = predecessorDetails.reduce((acc, item) => {
+                                  if (!item.task) return acc;
+                                  return Math.max(acc, getTaskEnd(item.task));
+                                }, getTaskStart(selectedTask));
+                                const currentStart = getTaskStart(selectedTask);
+                                const currentEnd = getTaskEnd(selectedTask);
+                                const duration = Math.max(day, currentEnd - currentStart);
+                                const nextStart = maxEnd;
+                                const nextEnd = Math.max(nextStart + day, nextStart + duration);
+                                setTasks(prev =>
+                                  prev.map(task =>
+                                    task.id === selectedTask.id
+                                      ? { ...task, startDate: nextStart, dueDate: nextEnd }
+                                      : task
+                                  )
+                                );
+                              }}
+                              className="w-full rounded-md bg-white border border-rose-200 py-1.5 text-xs font-bold text-rose-600 shadow-sm hover:bg-rose-50 transition-colors"
+                            >
+                              Fix Schedule (Shift Task)
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="pt-2">
+                        <label className="flex items-center gap-2 cursor-pointer group">
+                           <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedTask.isMilestone ? 'bg-amber-500 border-amber-500' : 'bg-white border-slate-300 group-hover:border-amber-400'}`}>
+                              {selectedTask.isMilestone && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                           </div>
+                           <input
+                            type="checkbox"
+                            className="hidden"
+                            checked={!!selectedTask.isMilestone}
+                            onChange={(event) => {
+                              const isMilestone = event.target.checked;
+                              setTasks(prev =>
+                                prev.map(task =>
+                                  task.id === selectedTask.id
+                                    ? { ...task, isMilestone }
+                                    : task
+                                )
+                              );
+                            }}
+                          />
+                          <span className="text-sm text-slate-700 font-medium">Mark as Milestone</span>
+                        </label>
+                      </div>
+
                     </div>
+                    </>
                   ) : (
-                    <div className="text-xs text-slate-400 italic">Select a task to edit details.</div>
+                    <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400">
+                      <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
+                        <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-medium">Select a task on the chart<br/>to view details</p>
+                    </div>
                   )}
                 </div>
               </div>
