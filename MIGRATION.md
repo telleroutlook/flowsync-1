@@ -65,7 +65,8 @@ npm run start:prod
 #### Step 1: Generate PostgreSQL Migration
 
 ```bash
-drizzle-kit generate --config=drizzle.config.pg.ts
+# Uses the updated drizzle.config.ts (configured for PostgreSQL)
+npm run db:generate
 ```
 
 #### Step 2: Export Data from D1
@@ -167,7 +168,6 @@ If issues occur, you can:
 
 ### New Files
 
-- `drizzle.config.pg.ts` - PostgreSQL Drizzle configuration
 - `manifest.yml` - SAP BTP deployment manifest
 - `tsconfig.server.json` - TypeScript config for server
 - `.env.example` - Environment variable template
