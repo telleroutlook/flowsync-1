@@ -87,7 +87,7 @@ describe('useExport', () => {
 
   it('imports tasks from CSV and submits draft actions', async () => {
     api.listProjects.mockResolvedValue(mockProjects);
-    const submitDraft = vi.fn(async () => ({ id: 'd1' }));
+    const submitDraft = vi.fn(async () => ({ id: 'd1' })) as any;
     const refreshData = vi.fn(async () => {});
     const fetchAllTasks = vi.fn(async () => mockTasks);
 
@@ -108,7 +108,7 @@ describe('useExport', () => {
       'Alpha,t2,Imported TODO,TODO,LOW',
     ].join('\n');
 
-    const file = { name: 'import.csv', _text: csv } as File;
+    const file = { name: 'import.csv', _text: csv } as unknown as File;
 
     act(() => {
       result.current.handleImportFile(file);

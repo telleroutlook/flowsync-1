@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { geminiService } from '../../services/geminiService';
+import { aiService } from '../../services/aiService';
 import { apiService } from '../../services/apiService';
 import { ChatMessage, ChatAttachment, DraftAction, Project, Task } from '../../types';
 
@@ -120,8 +120,8 @@ export const useChat = ({
                                  : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
                              }`;
 
-      // Call Gemini Service
-      const response = await geminiService.sendMessage(history, userMsg.text, systemContext);
+      // Call AI Service
+      const response = await aiService.sendMessage(history, userMsg.text, systemContext);
 
       let finalText = response.text;
       const toolResults: string[] = [];

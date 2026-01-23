@@ -29,7 +29,7 @@
 UI (React/Vite)
   -> API (Hono/Cloudflare Worker)
      -> D1 Database (Projects, Tasks, Audit, Drafts)
-     -> LLM Service (Gemini)
+     -> LLM Service (AI)
 
 Agent Tooling
   -> list/get/search (read)

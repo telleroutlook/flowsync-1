@@ -261,12 +261,12 @@ const requestSchema = z.object({
   systemContext: z.string().optional(),
 });
 
-export const geminiRoute = new Hono<{
+export const aiRoute = new Hono<{
   Bindings: { OPENAI_API_KEY: string; OPENAI_BASE_URL?: string; OPENAI_MODEL?: string };
   Variables: { db: ReturnType<typeof import('../db').getDb> };
 }>();
 
-geminiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
+aiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
   const { history, message, systemContext } = c.req.valid('json');
 
   if (!c.env.OPENAI_API_KEY) {
@@ -278,7 +278,7 @@ geminiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
     const model = c.env.OPENAI_MODEL || 'GLM-4.7';
     const systemInstruction = `You are FlowSync AI, an expert project manager.\n${systemContext || ''}\nYou must read before you write: call listProjects/listTasks/searchTasks first.\nAll edits must go through planChanges and require user approval before applyChanges.\nResolve dependency conflicts and date issues automatically when planning.\nCurrent Date: ${new Date().toISOString().split('T')[0]}`;
 
-    await recordLog(c.get('db'), 'gemini_request', {
+    await recordLog(c.get('db'), 'ai_request', {
       message,
       history: history.slice(-10),
     });
@@ -343,7 +343,7 @@ geminiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
       })
       .filter((call): call is { name: string; args: unknown } => Boolean(call));
 
-    await recordLog(c.get('db'), 'gemini_response', {
+    await recordLog(c.get('db'), 'ai_response', {
       text: modelText,
       toolCalls: functionCalls,
     });

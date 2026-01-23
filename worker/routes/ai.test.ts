@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { geminiRoute } from './gemini';
+import { aiRoute } from './ai';
 
 vi.mock('../services/logService', () => ({
   recordLog: vi.fn(),
@@ -11,12 +11,12 @@ import { recordLog } from '../services/logService';
 const mockDb = {};
 
 const buildApp = () => {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { db: any } }>();
   app.use('*', async (c, next) => {
     c.set('db', mockDb as any);
     await next();
   });
-  app.route('/', geminiRoute);
+  app.route('/', aiRoute);
   return app;
 };
 
@@ -25,7 +25,7 @@ const baseRequest = {
   message: 'Hello',
 };
 
-describe('geminiRoute', () => {
+describe('aiRoute', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -148,7 +148,7 @@ describe('geminiRoute', () => {
     expect(json.data.text).toBe('Custom');
     expect(fetchMock).toHaveBeenCalled();
 
-    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, options] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://example.com/v1/chat/completions');
     const body = JSON.parse(String(options.body));
     expect(body.model).toBe('custom-model');

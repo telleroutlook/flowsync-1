@@ -99,7 +99,11 @@ export interface ApiResponse<T> {
   error?: { code: string; message: string };
 }
 
-// Gemini Tool Arguments
+// AI Tool Arguments
+export interface ToolCall {
+  name: string;
+  args: any;
+}
 export interface TaskActionArgs {
   action: 'create' | 'update' | 'delete';
   id?: string;

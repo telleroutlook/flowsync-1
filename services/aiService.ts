@@ -1,4 +1,4 @@
-export class GeminiService {
+export class AIService {
   async sendMessage(
     history: { role: string; parts: { text: string }[] }[],
     newMessage: string,
@@ -23,10 +23,10 @@ export class GeminiService {
 
       return payload.data;
     } catch (error) {
-      console.error("Gemini API Error:", error);
+      console.error("AI API Error:", error);
       return { text: "Sorry, I encountered an error processing your request." };
     }
   }
 }
 
-export const geminiService = new GeminiService();
+export const aiService = new AIService();

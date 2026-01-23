@@ -6,10 +6,12 @@ import { projectsRoute } from './routes/projects';
 import { tasksRoute } from './routes/tasks';
 import { draftsRoute } from './routes/drafts';
 import { auditRoute } from './routes/audit';
-import { geminiRoute } from './routes/gemini';
+import { aiRoute } from './routes/ai';
 
 export type Bindings = {
-  GEMINI_API_KEY: string;
+  OPENAI_API_KEY: string;
+  OPENAI_BASE_URL?: string;
+  OPENAI_MODEL?: string;
   DB: D1Database;
 };
 
@@ -26,7 +28,7 @@ app.use('*', async (c, next) => {
   await next();
 });
 
-app.route('/', geminiRoute);
+app.route('/', aiRoute);
 app.route('/api/projects', projectsRoute);
 app.route('/api/tasks', tasksRoute);
 app.route('/api/drafts', draftsRoute);

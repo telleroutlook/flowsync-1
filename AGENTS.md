@@ -4,7 +4,7 @@
 - `App.tsx` hosts the main UI state and page layout.
 - `index.tsx` is the React entry point; `index.html` is the Vite HTML shell.
 - `components/` contains UI modules (PascalCase files like `GanttChart.tsx`).
-- `services/` contains external integrations (e.g., `geminiService.ts`).
+- `services/` contains external integrations (e.g., `aiService.ts`).
 - `types.ts` centralizes shared TypeScript types and enums.
 - `metadata.json` stores app metadata used by the project.
 
@@ -34,7 +34,7 @@
 - Link related issues/tickets when applicable.
 
 ## Security & Configuration Tips
-- Set `GEMINI_API_KEY` in `.env.local` for Gemini API access.
+- Set `OPENAI_API_KEY` in `.env.local` for AI API access.
 - Do not commit secrets or local env files.
 - Keep external calls isolated in `services/` and validate inputs before use.
 

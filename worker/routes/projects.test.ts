@@ -31,7 +31,7 @@ const mockDb = {
 };
 
 const buildApp = () => {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { db: any } }>();
   app.use('*', async (c, next) => {
     c.set('db', mockDb as any);
     await next();

@@ -14,7 +14,7 @@ import { getAuditLogById, rollbackAuditLog, isRollbackError } from '../services/
 const mockDb = {};
 
 const buildApp = () => {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { db: any } }>();
   app.use('*', async (c, next) => {
     c.set('db', mockDb as any);
     await next();
@@ -49,8 +49,8 @@ describe('auditRoute', () => {
 
   it('maps rollback errors from service', async () => {
     const error = Object.assign(new Error('Nope'), { code: 'INVALID_ROLLBACK', status: 409, message: 'Nope' });
-    (rollbackAuditLog as ReturnType<typeof vi.fn>).mockRejectedValue(error);
-    (isRollbackError as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    (rollbackAuditLog as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(error);
+    (isRollbackError as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
     const app = buildApp();
     const res = await app.request('/api/audit/a1/rollback', {
