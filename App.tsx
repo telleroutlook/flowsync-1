@@ -5,7 +5,8 @@ import { KanbanBoard } from './components/KanbanBoard';
 import { ListView } from './components/ListView';
 import { GanttChart } from './components/GanttChart';
 import { ProjectSidebar } from './components/ProjectSidebar';
-import { Task, ChatMessage, ChatAttachment, TaskStatus, Priority, TaskActionArgs, Project, ProjectActionArgs } from './types';
+import { apiService } from './services/apiService';
+import { Task, ChatMessage, ChatAttachment, TaskStatus, Priority, Project, Draft, DraftAction } from './types';
 
 // Simple ID generator
 const generateId = () =>
@@ -14,358 +15,22 @@ const generateId = () =>
     : Math.random().toString(36).slice(2, 11);
 
 type ViewMode = 'BOARD' | 'LIST' | 'GANTT';
-type ExportFormat = 'csv' | 'tsv' | 'json' | 'markdown' | 'pdf' | 'xlsx';
+type ExportFormat = 'csv' | 'tsv' | 'json' | 'markdown' | 'pdf';
 type ExportScope = 'active' | 'all';
 type ImportStrategy = 'append' | 'merge';
 
-// --- Mock Data Setup ---
-const now = Date.now();
 const day = 86400000;
-
-const createDate = (offsetDays: number) => {
-  const base = new Date('2026-01-01').getTime(); 
-  return base + (offsetDays * day);
-};
-
 const clampCompletion = (value: number) => Math.min(100, Math.max(0, value));
 
-const INITIAL_PROJECTS: Project[] = [
-  { id: 'p3', name: 'Construction Phase 1', description: 'Main Building Construction WBS', icon: '🏗️' },
-  { id: 'p1', name: 'Software Development', description: 'Main SaaS product development', icon: '💻' },
-  { id: 'p2', name: 'Marketing Campaign', description: 'Q4 Launch Strategies', icon: '🚀' },
-];
-
-const INITIAL_TASKS: Task[] = [
-  // --- Construction Project ---
-  {
-    id: 't1', projectId: 'p3', title: 'Project Initiation', wbs: '1', 
-    status: TaskStatus.DONE, priority: Priority.HIGH, createdAt: now,
-    startDate: createDate(0), dueDate: createDate(0), completion: 100, isMilestone: true, assignee: 'Owner Unit'
-  },
-  {
-    id: 't1.1', projectId: 'p3', title: 'Approval & Reporting', wbs: '1.1', 
-    status: TaskStatus.DONE, priority: Priority.HIGH, createdAt: now,
-    startDate: createDate(0), dueDate: createDate(30), completion: 100, isMilestone: false, assignee: 'Owner Unit'
-  },
-  {
-    id: 't1.2', projectId: 'p3', title: 'Construction Drawings', wbs: '1.2', 
-    status: TaskStatus.DONE, priority: Priority.HIGH, createdAt: now,
-    startDate: createDate(15), dueDate: createDate(60), completion: 90, isMilestone: false, assignee: 'Design Institute'
-  },
-  {
-    id: 't2', projectId: 'p3', title: 'Construction Prep', wbs: '2', 
-    status: TaskStatus.IN_PROGRESS, priority: Priority.MEDIUM, createdAt: now,
-    startDate: createDate(30), dueDate: createDate(54), completion: 80, isMilestone: false, assignee: 'General Contractor'
-  },
-  {
-    id: 't2.1', projectId: 'p3', title: 'Site Leveling', wbs: '2.1', 
-    status: TaskStatus.DONE, priority: Priority.MEDIUM, createdAt: now,
-    startDate: createDate(30), dueDate: createDate(40), completion: 100, isMilestone: false, assignee: 'General Contractor'
-  },
-  {
-    id: 't3', projectId: 'p3', title: 'Foundation Works', wbs: '3', 
-    status: TaskStatus.IN_PROGRESS, priority: Priority.HIGH, createdAt: now,
-    startDate: createDate(60), dueDate: createDate(121), completion: 70, isMilestone: false, assignee: 'General Contractor'
-  },
-  {
-    id: 't4', projectId: 'p3', title: 'Main Structure', wbs: '4', 
-    status: TaskStatus.TODO, priority: Priority.HIGH, createdAt: now,
-    startDate: createDate(120), dueDate: createDate(273), completion: 0, isMilestone: false, assignee: 'General Contractor'
-  },
-  {
-    id: 't4.1', projectId: 'p3', title: 'Structure Cap', wbs: '4.1', 
-    status: TaskStatus.TODO, priority: Priority.HIGH, createdAt: now,
-    startDate: createDate(273), dueDate: createDate(273), completion: 0, isMilestone: true, assignee: 'General Contractor'
-  },
-
-  // --- Software Project ---
-  { 
-    id: '1', projectId: 'p1', title: 'Design System Draft', wbs: '1.0',
-    status: TaskStatus.DONE, priority: Priority.HIGH, createdAt: now - (day * 3), 
-    startDate: now - (day * 3), dueDate: now - day, completion: 100, assignee: 'Design Team'
-  },
-  { 
-    id: '2', projectId: 'p1', title: 'Integrate Gemini API', wbs: '2.0',
-    status: TaskStatus.IN_PROGRESS, priority: Priority.HIGH, createdAt: now - day,
-    startDate: now, dueDate: now + (day * 2), completion: 45, assignee: 'Dev Team'
-  },
-];
-
-type AppState = {
-  projects: Project[];
-  tasks: Task[];
-  activeProjectId: string;
-};
-
-type ProjectActionResult = {
-  projects: Project[];
-  tasks: Task[];
-  activeProjectId: string;
-  message: string;
-};
-
-type TaskActionResult = {
-  tasks: Task[];
-  message: string;
-};
-
-const applyProjectAction = (state: AppState, args: ProjectActionArgs): ProjectActionResult => {
-  const { projects, tasks, activeProjectId } = state;
-  const { action, name, description, oldName } = args;
-
-  switch (action) {
-    case 'create': {
-      if (!name) {
-        return { projects, tasks, activeProjectId, message: 'Error: Project name required.' };
-      }
-      const newProj: Project = {
-        id: generateId(),
-        name,
-        description: description || '',
-        icon: name.charAt(0).toUpperCase(),
-      };
-      return {
-        projects: [...projects, newProj],
-        tasks,
-        activeProjectId: newProj.id,
-        message: `Project "${name}" created and selected.`,
-      };
-    }
-
-    case 'select': {
-      const target = projects.find(p =>
-        p.name.toLowerCase().includes((name || oldName || '').toLowerCase())
-      );
-      if (target) {
-        return {
-          projects,
-          tasks,
-          activeProjectId: target.id,
-          message: `Switched to project "${target.name}".`,
-        };
-      }
-      return { projects, tasks, activeProjectId, message: `Error: Could not find project "${name}".` };
-    }
-
-    case 'delete': {
-      const delTarget = projects.find(p =>
-        p.name.toLowerCase().includes((name || oldName || '').toLowerCase())
-      );
-      if (delTarget) {
-        if (projects.length <= 1) {
-          return { projects, tasks, activeProjectId, message: 'Error: Cannot delete the last project.' };
-        }
-        const nextProjects = projects.filter(p => p.id !== delTarget.id);
-        const nextTasks = tasks.filter(t => t.projectId !== delTarget.id);
-        const nextActive =
-          projects[0].id === delTarget.id ? projects[1].id : projects[0].id;
-        return {
-          projects: nextProjects,
-          tasks: nextTasks,
-          activeProjectId: nextActive,
-          message: `Project "${delTarget.name}" deleted.`,
-        };
-      }
-      return { projects, tasks, activeProjectId, message: 'Error: Could not find project to delete.' };
-    }
-
-    default:
-      return { projects, tasks, activeProjectId, message: 'Unknown project action.' };
-  }
-};
-
-const applyTaskAction = (state: AppState, args: TaskActionArgs): TaskActionResult => {
-  const { tasks, activeProjectId } = state;
-  const {
-    action,
-    title,
-    description,
-    status,
-    priority,
-    oldTitle,
-    projectId,
-    id,
-    dueDate,
-    startDate,
-    completion,
-    assignee,
-    wbs,
-    isMilestone,
-  } = args;
-
-  const mapStatus = (s?: string) => {
-    if (s === 'in-progress') return TaskStatus.IN_PROGRESS;
-    if (s === 'done') return TaskStatus.DONE;
-    return TaskStatus.TODO;
-  };
-
-  const mapPriority = (p?: string) => {
-    if (p === 'high') return Priority.HIGH;
-    if (p === 'low') return Priority.LOW;
-    return Priority.MEDIUM;
-  };
-
-  const parseDate = (dateStr?: string): number | undefined => {
-    if (!dateStr) return undefined;
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) return d.getTime();
-    return undefined;
-  };
-
-  const getTaskStart = (task: Task) => task.startDate ?? task.createdAt;
-  const getTaskEnd = (task: Task) => {
-    const start = getTaskStart(task);
-    const end = task.dueDate ?? start + day;
-    return end <= start ? start + day : end;
-  };
-
-  const resolveTaskConflicts = (task: Task, allTasks: Task[]) => {
-    const predecessors = task.predecessors || [];
-    if (predecessors.length === 0) return { task, changed: false };
-    const start = getTaskStart(task);
-    const end = getTaskEnd(task);
-    let maxEnd = start;
-    for (const ref of predecessors) {
-      const match = allTasks.find(
-        t => t.projectId === task.projectId && (t.id === ref || t.wbs === ref)
-      );
-      if (match) {
-        maxEnd = Math.max(maxEnd, getTaskEnd(match));
-      }
-    }
-    if (maxEnd <= start) return { task, changed: false };
-    const duration = Math.max(day, end - start);
-    const nextStart = maxEnd;
-    const nextEnd = Math.max(nextStart + day, nextStart + duration);
-    return { task: { ...task, startDate: nextStart, dueDate: nextEnd }, changed: true };
-  };
-
-  switch (action) {
-    case 'create': {
-      if (!title) return { tasks, message: 'Error: Title required for creation.' };
-      const normalizedCompletion = clampCompletion(completion ?? 0);
-      const parsedStart = parseDate(startDate);
-      const parsedDue = parseDate(dueDate);
-      const targetProjectId = projectId || activeProjectId;
-      const newTask: Task = {
-        id: generateId(),
-        projectId: targetProjectId,
-        title,
-        description: description || '',
-        status: mapStatus(status),
-        priority: mapPriority(priority),
-        createdAt: Date.now(),
-        startDate: parsedStart ?? Date.now(),
-        dueDate: parsedDue,
-        completion: normalizedCompletion,
-        assignee: assignee || 'Unassigned',
-        wbs: wbs || '',
-        isMilestone: !!isMilestone,
-      };
-      return {
-        tasks: [...tasks, newTask],
-        message: `Task "${title}" created (WBS: ${wbs || 'N/A'}).`,
-      };
-    }
-
-    case 'move':
-    case 'update':
-    case 'delete': {
-      const targetProjectId = projectId || activeProjectId;
-      const targetTask = id
-        ? tasks.find(t => t.id === id && t.projectId === targetProjectId)
-        : tasks.find(t =>
-            t.projectId === targetProjectId &&
-            t.title.toLowerCase().includes((oldTitle || title || '').toLowerCase())
-          );
-
-      if (!targetTask) {
-        const label = id || oldTitle || title || 'unknown';
-        return { tasks, message: `Error: Could not find task "${label}" in current project.` };
-      }
-
-      if (action === 'delete') {
-        const deletedTitle = targetTask.title;
-        return {
-          tasks: tasks.filter(t => t.id !== targetTask.id),
-          message: `Task "${deletedTitle}" deleted.`,
-        };
-      }
-
-      const updatedTask = { ...targetTask };
-      if (status) updatedTask.status = mapStatus(status);
-      if (priority) updatedTask.priority = mapPriority(priority);
-      if (description) updatedTask.description = description;
-      if (startDate) {
-        const parsedStart = parseDate(startDate);
-        if (parsedStart !== undefined) updatedTask.startDate = parsedStart;
-      }
-      if (dueDate) {
-        const parsedDue = parseDate(dueDate);
-        if (parsedDue !== undefined) updatedTask.dueDate = parsedDue;
-      }
-      if (assignee) updatedTask.assignee = assignee;
-      if (wbs) updatedTask.wbs = wbs;
-      if (completion !== undefined) updatedTask.completion = clampCompletion(completion);
-      if (isMilestone !== undefined) updatedTask.isMilestone = isMilestone;
-      if (action === 'update' && title && title !== targetTask.title) updatedTask.title = title;
-
-      return {
-        tasks: tasks.map(t => (t.id === targetTask.id ? updatedTask : t)),
-        message: `Task updated: ${updatedTask.title}`,
-      };
-    }
-
-    case 'resolve-dependency-conflicts': {
-      const targetProjectId = projectId || activeProjectId;
-      const scopedTasks = tasks.filter(t => t.projectId === targetProjectId);
-      const targetTask = id
-        ? scopedTasks.find(t => t.id === id)
-        : scopedTasks.find(t =>
-            t.title.toLowerCase().includes((oldTitle || title || '').toLowerCase())
-          );
-
-      if (id || title || oldTitle) {
-        if (!targetTask) {
-          const label = id || oldTitle || title || 'unknown';
-          return { tasks, message: `Error: Could not find task "${label}" in current project.` };
-        }
-        const result = resolveTaskConflicts(targetTask, tasks);
-        if (!result.changed) {
-          return { tasks, message: `No dependency conflicts found for "${targetTask.title}".` };
-        }
-        return {
-          tasks: tasks.map(t => (t.id === targetTask.id ? result.task : t)),
-          message: `Resolved dependency conflicts for "${targetTask.title}".`,
-        };
-      }
-
-      let changedCount = 0;
-      const resolvedTasks = tasks.map(task => {
-        if (task.projectId !== targetProjectId) return task;
-        const result = resolveTaskConflicts(task, tasks);
-        if (result.changed) changedCount += 1;
-        return result.task;
-      });
-
-      return {
-        tasks: resolvedTasks,
-        message:
-          changedCount === 0
-            ? 'No dependency conflicts found in the active project.'
-            : `Resolved dependency conflicts for ${changedCount} task(s).`,
-      };
-    }
-
-    default:
-      return { tasks, message: 'Unknown action.' };
-  }
-};
-
 export default function App() {
-  const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
-  const [activeProjectId, setActiveProjectId] = useState<string>(INITIAL_PROJECTS[0].id);
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string>('');
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [pendingDraftId, setPendingDraftId] = useState<string | null>(null);
+  const [draftWarnings, setDraftWarnings] = useState<string[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('GANTT'); 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -388,9 +53,20 @@ export default function App() {
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingTaskUpdatesRef = useRef<Record<string, Partial<Task>>>({});
+  const taskUpdateTimers = useRef<Map<string, number>>(new Map());
 
-  const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId) || projects[0], [projects, activeProjectId]);
-  const activeTasks = useMemo(() => tasks.filter(t => t.projectId === activeProjectId), [tasks, activeProjectId]);
+  const activeProject = useMemo(() => {
+    return projects.find(p => p.id === activeProjectId) || projects[0] || { id: '', name: 'No Project', description: '' };
+  }, [projects, activeProjectId]);
+  const activeTasks = useMemo(() => {
+    if (!activeProjectId) return [];
+    return tasks.filter(t => t.projectId === activeProjectId);
+  }, [tasks, activeProjectId]);
+  const pendingDraft = useMemo(
+    () => drafts.find(draft => draft.id === pendingDraftId) || null,
+    [drafts, pendingDraftId]
+  );
   const selectedTask = useMemo(
     () => (selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null),
     [tasks, selectedTaskId]
@@ -409,9 +85,65 @@ export default function App() {
   }, [selectedTask, tasks]);
   const hasPredecessorConflicts = predecessorDetails.some(item => item.conflict);
 
+  const fetchAllTasks = async () => {
+    const collected: Task[] = [];
+    let page = 1;
+    let total = 0;
+    do {
+      const result = await apiService.listTasks({ page, pageSize: 100 });
+      collected.push(...result.data);
+      total = result.total;
+      page += 1;
+    } while (collected.length < total);
+    return collected;
+  };
+
+  const refreshDrafts = async () => {
+    const items = await apiService.listDrafts();
+    setDrafts(items);
+    if (pendingDraftId && !items.find(item => item.id === pendingDraftId && item.status === 'pending')) {
+      setPendingDraftId(null);
+    }
+  };
+
+  const refreshData = async () => {
+    try {
+      setIsLoadingData(true);
+      setDataError(null);
+      const [projectList, taskList] = await Promise.all([
+        apiService.listProjects(),
+        fetchAllTasks(),
+      ]);
+      setProjects(projectList);
+      setTasks(taskList);
+      setActiveProjectId((prev) => {
+        const stored = window.localStorage.getItem('flowsync:activeProjectId');
+        const candidate = stored && projectList.find(project => project.id === stored) ? stored : prev;
+        return candidate && projectList.find(project => project.id === candidate)
+          ? candidate
+          : projectList[0]?.id || '';
+      });
+    } catch (error) {
+      setDataError(error instanceof Error ? error.message : 'Failed to load data.');
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
+    refreshDrafts();
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (activeProjectId) {
+      window.localStorage.setItem('flowsync:activeProjectId', activeProjectId);
+    }
+  }, [activeProjectId]);
 
   useEffect(() => {
     if (selectedTaskId && !tasks.find(task => task.id === selectedTaskId)) {
@@ -426,7 +158,7 @@ export default function App() {
     if (storedScope === 'active' || storedScope === 'all') {
       setExportScope(storedScope);
     }
-    if (storedFormat === 'csv' || storedFormat === 'tsv' || storedFormat === 'json' || storedFormat === 'markdown' || storedFormat === 'pdf' || storedFormat === 'xlsx') {
+    if (storedFormat === 'csv' || storedFormat === 'tsv' || storedFormat === 'json' || storedFormat === 'markdown' || storedFormat === 'pdf') {
       setLastExportFormat(storedFormat);
     }
     if (storedImportStrategy === 'append' || storedImportStrategy === 'merge') {
@@ -441,18 +173,105 @@ export default function App() {
     return () => window.removeEventListener('click', handleWindowClick);
   }, [isExportOpen]);
 
-  const handleProjectAction = (args: ProjectActionArgs): string => {
-    const result = applyProjectAction({ projects, tasks, activeProjectId }, args);
-    setProjects(result.projects);
-    setTasks(result.tasks);
-    setActiveProjectId(result.activeProjectId);
-    return result.message;
+  const appendSystemMessage = (text: string) => {
+    setMessages(prev => [...prev, {
+      id: generateId(),
+      role: 'system',
+      text,
+      timestamp: Date.now(),
+    }]);
   };
 
-  const handleTaskAction = (args: TaskActionArgs): string => {
-    const result = applyTaskAction({ projects, tasks, activeProjectId }, args);
-    setTasks(result.tasks);
-    return result.message;
+  const submitDraft = async (
+    actions: DraftAction[],
+    options: { reason?: string; createdBy: Draft['createdBy']; autoApply?: boolean; silent?: boolean }
+  ) => {
+    const result = await apiService.createDraft({
+      projectId: activeProjectId || undefined,
+      createdBy: options.createdBy,
+      reason: options.reason,
+      actions,
+    });
+    setDraftWarnings(result.warnings);
+    if (result.warnings.length > 0 && !options.silent) {
+      appendSystemMessage(`Draft warnings: ${result.warnings.join(' | ')}`);
+    }
+    setDrafts(prev => [...prev, result.draft]);
+    if (options.autoApply) {
+      const applied = await apiService.applyDraft(result.draft.id, options.createdBy);
+      setDrafts(prev => prev.map(draft => (draft.id === applied.draft.id ? applied.draft : draft)));
+      await refreshData();
+      if (!options.silent) {
+        appendSystemMessage(`Draft applied: ${applied.draft.id}`);
+      }
+      return applied.draft;
+    }
+    setPendingDraftId(result.draft.id);
+    if (!options.silent) {
+      appendSystemMessage(`Draft created: ${result.draft.id}. Awaiting approval.`);
+    }
+    return result.draft;
+  };
+
+  const handleApplyDraft = async (draftId: string) => {
+    const result = await apiService.applyDraft(draftId, 'user');
+    setDrafts(prev => prev.map(draft => (draft.id === result.draft.id ? result.draft : draft)));
+    setPendingDraftId(null);
+    await refreshData();
+    await refreshDrafts();
+    appendSystemMessage(`Draft applied: ${draftId}`);
+  };
+
+  const handleDiscardDraft = async (draftId: string) => {
+    const result = await apiService.discardDraft(draftId);
+    setDrafts(prev => prev.map(draft => (draft.id === result.id ? result : draft)));
+    if (pendingDraftId === draftId) setPendingDraftId(null);
+    await refreshDrafts();
+    appendSystemMessage(`Draft discarded: ${draftId}`);
+  };
+
+  const handleSelectProject = (id: string) => {
+    setActiveProjectId(id);
+    window.localStorage.setItem('flowsync:activeProjectId', id);
+  };
+
+  const queueTaskUpdate = (id: string, updates: Partial<Task>) => {
+    setTasks(prev =>
+      prev.map(task =>
+        task.id === id
+          ? { ...task, ...updates }
+          : task
+      )
+    );
+
+    pendingTaskUpdatesRef.current[id] = {
+      ...(pendingTaskUpdatesRef.current[id] || {}),
+      ...updates,
+    };
+
+    const existing = taskUpdateTimers.current.get(id);
+    if (existing) window.clearTimeout(existing);
+
+    const timer = window.setTimeout(async () => {
+      const payload = pendingTaskUpdatesRef.current[id];
+      if (!payload) return;
+      delete pendingTaskUpdatesRef.current[id];
+      taskUpdateTimers.current.delete(id);
+      await submitDraft(
+        [
+          {
+            id: generateId(),
+            entityType: 'task',
+            action: 'update',
+            entityId: id,
+            after: payload,
+          },
+        ],
+        { createdBy: 'user', autoApply: true, reason: 'Inline task update', silent: true }
+      );
+    }, 600);
+
+    taskUpdateTimers.current.set(id, timer);
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -506,8 +325,9 @@ export default function App() {
             total: activeTasks.length,
             taskIdMap,
           });
-      const systemContext = `Active Project: ${activeProject.name}. 
-                             Available Projects: ${projects.map(p => p.name).join(', ')}.
+      const systemContext = `Active Project: ${activeProject.name || 'None'}. 
+                             Active Project ID: ${activeProject.id || 'N/A'}.
+                             Available Projects: ${projects.map(p => `${p.name} (${p.id})`).join(', ')}.
                              ${
                                shouldIncludeFullMappings
                                  ? `Task IDs in Active Project (JSON): ${mappingJson}.`
@@ -518,38 +338,169 @@ export default function App() {
 
       let finalText = response.text;
       const toolResults: string[] = [];
+      const draftActions: DraftAction[] = [];
+      let draftReason: string | undefined;
 
       if (response.toolCalls && response.toolCalls.length > 0) {
-        let draftState: AppState = { projects, tasks, activeProjectId };
         for (const call of response.toolCalls) {
-          if (call.name === 'manageTasks') {
-            const result = applyTaskAction(draftState, call.args as TaskActionArgs);
-            draftState = { ...draftState, tasks: result.tasks };
-            toolResults.push(result.message);
-          } else if (call.name === 'manageProjects') {
-            const result = applyProjectAction(draftState, call.args as ProjectActionArgs);
-            draftState = {
-              projects: result.projects,
-              tasks: result.tasks,
-              activeProjectId: result.activeProjectId,
-            };
-            toolResults.push(result.message);
+          const args = (call.args || {}) as Record<string, unknown>;
+          if (call.name === 'listProjects') {
+            const list = await apiService.listProjects();
+            toolResults.push(`Projects (${list.length}): ${list.map(p => `${p.name} (${p.id})`).join(', ')}`);
+            continue;
+          }
+          if (call.name === 'getProject') {
+            if (typeof args.id === 'string') {
+              const project = await apiService.getProject(args.id);
+              toolResults.push(`Project: ${project.name} (${project.id})`);
+            }
+            continue;
+          }
+          if (call.name === 'listTasks' || call.name === 'searchTasks') {
+            const result = await apiService.listTasks({
+              projectId: typeof args.projectId === 'string' ? args.projectId : undefined,
+              status: typeof args.status === 'string' ? args.status : undefined,
+              assignee: typeof args.assignee === 'string' ? args.assignee : undefined,
+              q: typeof args.q === 'string' ? args.q : undefined,
+              page: typeof args.page === 'number' ? args.page : undefined,
+              pageSize: typeof args.pageSize === 'number' ? args.pageSize : undefined,
+            });
+            const sample = result.data.slice(0, 5).map(task => task.title).join(', ');
+            toolResults.push(`Tasks (${result.total}): ${sample}${result.total > 5 ? '…' : ''}`);
+            continue;
+          }
+          if (call.name === 'getTask') {
+            if (typeof args.id === 'string') {
+              const task = await apiService.getTask(args.id);
+              toolResults.push(`Task: ${task.title} (${task.id})`);
+            }
+            continue;
+          }
+          if (call.name === 'planChanges') {
+            if (Array.isArray(args.actions)) {
+              const actions = (args.actions as DraftAction[]).map(action => ({
+                id: action.id || generateId(),
+                entityType: action.entityType,
+                action: action.action,
+                entityId: action.entityId,
+                after: action.after,
+              }));
+              draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
+              await submitDraft(actions, { createdBy: 'agent', autoApply: false, reason: draftReason });
+            }
+            continue;
+          }
+          if (call.name === 'applyChanges') {
+            if (typeof args.draftId === 'string') {
+              await handleApplyDraft(args.draftId);
+              toolResults.push(`Applied draft ${args.draftId}.`);
+            }
+            continue;
+          }
+          if (call.name === 'createProject') {
+            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
+            draftActions.push({
+              id: generateId(),
+              entityType: 'project',
+              action: 'create',
+              after: {
+                name: args.name,
+                description: args.description,
+                icon: args.icon,
+              },
+            });
+            continue;
+          }
+          if (call.name === 'updateProject') {
+            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
+            draftActions.push({
+              id: generateId(),
+              entityType: 'project',
+              action: 'update',
+              entityId: args.id as string | undefined,
+              after: {
+                name: args.name,
+                description: args.description,
+                icon: args.icon,
+              },
+            });
+            continue;
+          }
+          if (call.name === 'deleteProject') {
+            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
+            draftActions.push({
+              id: generateId(),
+              entityType: 'project',
+              action: 'delete',
+              entityId: args.id as string | undefined,
+            });
+            continue;
+          }
+          if (call.name === 'createTask') {
+            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
+            draftActions.push({
+              id: generateId(),
+              entityType: 'task',
+              action: 'create',
+              after: {
+                projectId: args.projectId,
+                title: args.title,
+                description: args.description,
+                status: args.status,
+                priority: args.priority,
+                wbs: args.wbs,
+                startDate: args.startDate,
+                dueDate: args.dueDate,
+                completion: args.completion,
+                assignee: args.assignee,
+                isMilestone: args.isMilestone,
+                predecessors: args.predecessors,
+              },
+            });
+            continue;
+          }
+          if (call.name === 'updateTask') {
+            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
+            draftActions.push({
+              id: generateId(),
+              entityType: 'task',
+              action: 'update',
+              entityId: args.id as string | undefined,
+              after: {
+                title: args.title,
+                description: args.description,
+                status: args.status,
+                priority: args.priority,
+                wbs: args.wbs,
+                startDate: args.startDate,
+                dueDate: args.dueDate,
+                completion: args.completion,
+                assignee: args.assignee,
+                isMilestone: args.isMilestone,
+                predecessors: args.predecessors,
+              },
+            });
+            continue;
+          }
+          if (call.name === 'deleteTask') {
+            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
+            draftActions.push({
+              id: generateId(),
+              entityType: 'task',
+              action: 'delete',
+              entityId: args.id as string | undefined,
+            });
           }
         }
-        
+
+        if (draftActions.length > 0) {
+          const draft = await submitDraft(draftActions, { createdBy: 'agent', autoApply: false, reason: draftReason });
+          toolResults.push(`Draft ${draft.id} created with ${draftActions.length} action(s).`);
+        }
+
         if (toolResults.length > 0) {
-           setProjects(draftState.projects);
-           setTasks(draftState.tasks);
-           setActiveProjectId(draftState.activeProjectId);
-           const resultMsg = toolResults.join(" | ");
-           setMessages(prev => [...prev, {
-             id: generateId(),
-             role: 'system',
-             text: resultMsg,
-             timestamp: Date.now()
-           }]);
-           
-           if (!finalText) finalText = "Updates applied to the project board.";
+          appendSystemMessage(toolResults.join(' | '));
+          if (!finalText) finalText = 'Draft created. Review pending changes before applying.';
         }
       }
 
@@ -592,9 +543,34 @@ export default function App() {
     });
   };
 
-  const manualCreateProject = () => {
+  const manualCreateProject = async () => {
     const name = prompt("Enter project name:");
-    if (name) handleProjectAction({ action: 'create', name });
+    if (!name) return;
+    await submitDraft(
+      [
+        {
+          id: generateId(),
+          entityType: 'project',
+          action: 'create',
+          after: { name },
+        },
+      ],
+      { createdBy: 'user', autoApply: true, reason: 'Manual project create' }
+    );
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    await submitDraft(
+      [
+        {
+          id: generateId(),
+          entityType: 'project',
+          action: 'delete',
+          entityId: id,
+        },
+      ],
+      { createdBy: 'user', autoApply: true, reason: 'Manual project delete' }
+    );
   };
 
   const formatDateInput = (value?: number) => {
@@ -698,21 +674,6 @@ export default function App() {
     });
   };
 
-  const makeSheetName = (value: string, usedNames: Set<string>) => {
-    const base = value
-      .replace(/[\[\]\:\*\?\/\\]/g, '')
-      .trim()
-      .slice(0, 31) || 'Sheet';
-    let name = base;
-    let counter = 1;
-    while (usedNames.has(name)) {
-      const suffix = `-${counter}`;
-      name = base.slice(0, Math.max(1, 31 - suffix.length)) + suffix;
-      counter += 1;
-    }
-    usedNames.add(name);
-    return name;
-  };
 
   const recordExportPreference = (format: ExportFormat, scope: ExportScope) => {
     setLastExportFormat(format);
@@ -873,28 +834,61 @@ export default function App() {
         id: importStrategy === 'append' && existingIds.has(task.id) ? generateId() : task.id,
       }));
 
-      setProjects(prev => {
-        const next = [...prev];
-        importedProjects.forEach(project => {
-          if (!next.find(item => item.name === project.name)) {
-            next.push(project);
+      const runImport = async () => {
+        if (importedProjects.length > 0) {
+          const projectActions: DraftAction[] = importedProjects
+            .filter(project => !projects.find(item => item.name === project.name))
+            .map(project => ({
+              id: generateId(),
+              entityType: 'project',
+              action: 'create',
+              after: { name: project.name, description: project.description, icon: project.icon },
+            }));
+          if (projectActions.length > 0) {
+            await submitDraft(projectActions, { createdBy: 'user', autoApply: true, reason: 'Import projects', silent: true });
           }
+        }
+
+        const projectList = await apiService.listProjects();
+        const existingTasks = await fetchAllTasks();
+        const existingTaskIds = new Set(existingTasks.map(item => item.id));
+        const projectMap = new Map(projectList.map(project => [project.name, project.id]));
+        const taskActions: DraftAction[] = normalizedTasks.map(task => {
+          const projectName = projectList.find(project => project.id === task.projectId)?.name || activeProject.name;
+          const projectId = projectMap.get(projectName) || task.projectId;
+          const shouldUpdate = importStrategy === 'merge' && existingTaskIds.has(task.id);
+          const baseAction: DraftAction = {
+            id: generateId(),
+            entityType: 'task',
+            action: shouldUpdate ? 'update' : 'create',
+            entityId: shouldUpdate ? task.id : undefined,
+            after: {
+              projectId,
+              title: task.title,
+              description: task.description,
+              status: task.status,
+              priority: task.priority,
+              wbs: task.wbs,
+              createdAt: task.createdAt,
+              startDate: task.startDate,
+              dueDate: task.dueDate,
+              completion: task.completion,
+              assignee: task.assignee,
+              isMilestone: task.isMilestone,
+              predecessors: task.predecessors,
+            },
+          };
+          return baseAction;
         });
-        return next;
-      });
-      if (importStrategy === 'merge') {
-        setTasks(prev => {
-          const map = new Map(prev.map(task => [task.id, task]));
-          normalizedTasks.forEach(task => {
-            map.set(task.id, task);
-          });
-          return Array.from(map.values());
-        });
-        alert(`Merged ${normalizedTasks.length} tasks by ID.`);
-      } else {
-        setTasks(prev => [...prev, ...normalizedTasks]);
-        alert(`Imported ${normalizedTasks.length} tasks.`);
-      }
+
+        if (taskActions.length > 0) {
+          await submitDraft(taskActions, { createdBy: 'user', autoApply: true, reason: 'Import tasks', silent: true });
+          await refreshData();
+          alert(`${importStrategy === 'merge' ? 'Merged' : 'Imported'} ${normalizedTasks.length} tasks.`);
+        }
+      };
+
+      void runImport();
     };
     reader.readAsText(file);
   };
@@ -924,45 +918,6 @@ export default function App() {
       return;
     }
 
-    if (format === 'xlsx') {
-      const XLSX = await import('xlsx');
-      const headers = exportHeaders;
-      const workbook = XLSX.utils.book_new();
-      const usedNames = new Set<string>();
-      const toRows = (dataRows: typeof rows) => dataRows.map(row => ([
-        row.project,
-        row.id,
-        row.title,
-        row.status,
-        row.priority,
-        row.assignee,
-        row.wbs,
-        row.startDate,
-        row.dueDate,
-        String(row.completion),
-        row.isMilestone,
-        row.predecessors,
-        row.description,
-        row.createdAt,
-      ]));
-
-      if (scope === 'all') {
-        const allSheet = XLSX.utils.aoa_to_sheet([headers, ...toRows(rows)]);
-        XLSX.utils.book_append_sheet(workbook, allSheet, makeSheetName('All Tasks', usedNames));
-        projects.forEach(project => {
-          const projectRows = rows.filter(row => row.project === project.name);
-          if (projectRows.length === 0) return;
-          const projectSheet = XLSX.utils.aoa_to_sheet([headers, ...toRows(projectRows)]);
-          XLSX.utils.book_append_sheet(workbook, projectSheet, makeSheetName(project.name, usedNames));
-        });
-      } else {
-        const sheet = XLSX.utils.aoa_to_sheet([headers, ...toRows(rows)]);
-        XLSX.utils.book_append_sheet(workbook, sheet, makeSheetName(activeProject.name, usedNames));
-      }
-      XLSX.writeFile(workbook, `${baseName}.xlsx`);
-      recordExportPreference(format, scope);
-      return;
-    }
 
     if (format === 'pdf') {
       const [{ jsPDF }, autoTableModule] = await Promise.all([
@@ -1139,6 +1094,51 @@ export default function App() {
           </button>
         </div>
 
+        {pendingDraft && (
+          <div className="px-4 py-3 border-b border-slate-100 bg-amber-50/40">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs font-bold text-amber-900">Pending Draft</p>
+                <p className="text-[10px] text-amber-700">ID: {pendingDraft.id}</p>
+              </div>
+              <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                {pendingDraft.actions.length} action(s)
+              </span>
+            </div>
+            <div className="space-y-1">
+              {pendingDraft.actions.slice(0, 4).map(action => (
+                <div key={action.id} className="text-[10px] text-amber-700">
+                  {action.action.toUpperCase()} {action.entityType} {action.entityId ? `(${action.entityId})` : ''}
+                </div>
+              ))}
+              {pendingDraft.actions.length > 4 && (
+                <div className="text-[10px] text-amber-600">+{pendingDraft.actions.length - 4} more</div>
+              )}
+            </div>
+            {draftWarnings.length > 0 && (
+              <div className="mt-2 text-[10px] text-amber-800">
+                Warnings: {draftWarnings.join(' | ')}
+              </div>
+            )}
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleApplyDraft(pendingDraft.id)}
+                className="flex-1 rounded-lg bg-emerald-600 text-white text-xs font-semibold py-1.5 hover:bg-emerald-700 transition-colors"
+              >
+                Apply
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDiscardDraft(pendingDraft.id)}
+                className="flex-1 rounded-lg bg-white border border-amber-200 text-amber-700 text-xs font-semibold py-1.5 hover:bg-amber-100 transition-colors"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/50 scroll-smooth">
           {messages.map((msg) => (
             <ChatBubble key={msg.id} message={msg} />
@@ -1230,9 +1230,9 @@ export default function App() {
       <ProjectSidebar 
         projects={projects}
         activeProjectId={activeProjectId}
-        onSelectProject={setActiveProjectId}
+        onSelectProject={handleSelectProject}
         onCreateProject={manualCreateProject}
-        onDeleteProject={(id) => handleProjectAction({ action: 'delete', name: projects.find(p => p.id === id)?.name })}
+        onDeleteProject={handleDeleteProject}
         showChatToggle={!isChatOpen}
         onToggleChat={() => setIsChatOpen(true)}
       />
@@ -1352,7 +1352,6 @@ export default function App() {
                    <div className="grid grid-cols-1 gap-0.5">
                      {([
                        { id: 'csv', label: 'CSV', desc: 'Spreadsheet compatible' },
-                       { id: 'xlsx', label: 'Excel', desc: 'Formatted workbook' },
                        { id: 'pdf', label: 'PDF', desc: 'Document view' },
                        { id: 'json', label: 'JSON', desc: 'Raw data' },
                        { id: 'markdown', label: 'Markdown', desc: 'Documentation' },
@@ -1382,6 +1381,12 @@ export default function App() {
           </div>
         </div>
 
+        {(isLoadingData || dataError) && (
+          <div className={`px-6 py-3 text-xs font-medium ${dataError ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-500'} border-b border-slate-200`}>
+            {dataError ? `Failed to load data: ${dataError}` : 'Loading data from server...'}
+          </div>
+        )}
+
         {/* View Area */}
         <div className="p-6 flex-1 overflow-hidden relative z-10">
             {viewMode === 'BOARD' && <KanbanBoard tasks={activeTasks} />}
@@ -1394,13 +1399,7 @@ export default function App() {
                     selectedTaskId={selectedTaskId}
                     onSelectTask={(id) => setSelectedTaskId(id)}
                     onUpdateTaskDates={(id, startDate, dueDate) => {
-                      setTasks(prev =>
-                        prev.map(task =>
-                          task.id === id
-                            ? { ...task, startDate, dueDate }
-                            : task
-                        )
-                      );
+                      queueTaskUpdate(id, { startDate, dueDate });
                     }}
                   />
                 </div>
@@ -1428,13 +1427,7 @@ export default function App() {
                           value={selectedTask.title}
                           onChange={(event) => {
                             const title = event.target.value;
-                            setTasks(prev =>
-                              prev.map(task =>
-                                task.id === selectedTask.id
-                                  ? { ...task, title }
-                                  : task
-                              )
-                            );
+                            queueTaskUpdate(selectedTask.id, { title });
                           }}
                         />
                       </div>
@@ -1448,13 +1441,7 @@ export default function App() {
                             value={selectedTask.status}
                             onChange={(event) => {
                               const status = event.target.value as TaskStatus;
-                              setTasks(prev =>
-                                prev.map(task =>
-                                  task.id === selectedTask.id
-                                    ? { ...task, status }
-                                    : task
-                                )
-                              );
+                              queueTaskUpdate(selectedTask.id, { status });
                             }}
                           >
                             <option value={TaskStatus.TODO}>Todo</option>
@@ -1469,13 +1456,7 @@ export default function App() {
                             value={selectedTask.priority}
                             onChange={(event) => {
                               const priority = event.target.value as Priority;
-                              setTasks(prev =>
-                                prev.map(task =>
-                                  task.id === selectedTask.id
-                                    ? { ...task, priority }
-                                    : task
-                                )
-                              );
+                              queueTaskUpdate(selectedTask.id, { priority });
                             }}
                           >
                             <option value={Priority.LOW}>Low</option>
@@ -1497,13 +1478,7 @@ export default function App() {
                               onChange={(event) => {
                                 const startDate = parseDateInput(event.target.value);
                                 if (!startDate) return;
-                                setTasks(prev =>
-                                  prev.map(task =>
-                                    task.id === selectedTask.id
-                                      ? { ...task, startDate }
-                                      : task
-                                  )
-                                );
+                                queueTaskUpdate(selectedTask.id, { startDate });
                               }}
                             />
                           </div>
@@ -1516,13 +1491,7 @@ export default function App() {
                               onChange={(event) => {
                                 const dueDate = parseDateInput(event.target.value);
                                 if (!dueDate) return;
-                                setTasks(prev =>
-                                  prev.map(task =>
-                                    task.id === selectedTask.id
-                                      ? { ...task, dueDate }
-                                      : task
-                                  )
-                                );
+                                queueTaskUpdate(selectedTask.id, { dueDate });
                               }}
                             />
                           </div>
@@ -1539,13 +1508,7 @@ export default function App() {
                             value={selectedTask.assignee || ''}
                             onChange={(event) => {
                               const assignee = event.target.value;
-                              setTasks(prev =>
-                                prev.map(task =>
-                                  task.id === selectedTask.id
-                                    ? { ...task, assignee }
-                                    : task
-                                )
-                              );
+                              queueTaskUpdate(selectedTask.id, { assignee });
                             }}
                           />
                         </div>
@@ -1557,13 +1520,7 @@ export default function App() {
                             value={selectedTask.wbs || ''}
                             onChange={(event) => {
                               const wbs = event.target.value;
-                              setTasks(prev =>
-                                prev.map(task =>
-                                  task.id === selectedTask.id
-                                    ? { ...task, wbs }
-                                    : task
-                                )
-                              );
+                              queueTaskUpdate(selectedTask.id, { wbs });
                             }}
                           />
                         </div>
@@ -1582,13 +1539,7 @@ export default function App() {
                           value={selectedTask.completion ?? 0}
                           onChange={(event) => {
                             const completion = clampCompletion(Number(event.target.value));
-                            setTasks(prev =>
-                              prev.map(task =>
-                                task.id === selectedTask.id
-                                  ? { ...task, completion }
-                                  : task
-                              )
-                            );
+                            queueTaskUpdate(selectedTask.id, { completion });
                           }}
                           className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                         />
@@ -1610,13 +1561,7 @@ export default function App() {
                                 .split(',')
                                 .map(item => item.trim())
                                 .filter(Boolean);
-                              setTasks(prev =>
-                                prev.map(task =>
-                                  task.id === selectedTask.id
-                                    ? { ...task, predecessors }
-                                    : task
-                                )
-                              );
+                              queueTaskUpdate(selectedTask.id, { predecessors });
                             }}
                           />
                           <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1642,13 +1587,7 @@ export default function App() {
                                 const duration = Math.max(day, currentEnd - currentStart);
                                 const nextStart = maxEnd;
                                 const nextEnd = Math.max(nextStart + day, nextStart + duration);
-                                setTasks(prev =>
-                                  prev.map(task =>
-                                    task.id === selectedTask.id
-                                      ? { ...task, startDate: nextStart, dueDate: nextEnd }
-                                      : task
-                                  )
-                                );
+                                queueTaskUpdate(selectedTask.id, { startDate: nextStart, dueDate: nextEnd });
                               }}
                               className="w-full rounded-md bg-white border border-rose-200 py-1.5 text-xs font-bold text-rose-600 shadow-sm hover:bg-rose-50 transition-colors"
                             >
@@ -1669,13 +1608,7 @@ export default function App() {
                             checked={!!selectedTask.isMilestone}
                             onChange={(event) => {
                               const isMilestone = event.target.checked;
-                              setTasks(prev =>
-                                prev.map(task =>
-                                  task.id === selectedTask.id
-                                    ? { ...task, isMilestone }
-                                    : task
-                                )
-                              );
+                              queueTaskUpdate(selectedTask.id, { isMilestone });
                             }}
                           />
                           <span className="text-sm text-slate-700 font-medium">Mark as Milestone</span>

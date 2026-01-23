@@ -2,29 +2,44 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# FlowSync AI Studio App
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/drive/108LxxUEBaRbOP9K_usWgcFdsMTlGD5tz
+FlowSync is a data-driven project management app with a Cloudflare Worker (Hono) backend,
+D1 persistence via Drizzle, and a React/Vite frontend.
 
 ## Run Locally
 
 **Prerequisites:**  Node.js
 
-
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+2. Set `GEMINI_API_KEY` in `.env.local`.
+3. Start the frontend and Worker:
+   - `npm run dev`
+   - `npm run dev:worker`
+
+Vite proxies `/api` to the Worker (default `http://127.0.0.1:8788`).
+
+### Database (D1)
+Migrations live in the project root at `migrations/` to match Wrangler's expectations.
+Drizzle uses `drizzle.config.ts` and reads Cloudflare credentials from environment variables:
+
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_D1_DATABASE_ID` (optional, defaults to current database id)
+
+Generate a migration (if schema changes):
+`npx drizzle-kit generate --config drizzle.config.ts --name <name>`
+
+Apply migrations:
+- Local: `npx wrangler d1 migrations apply flowsync --local`
+- Remote: `npx wrangler d1 migrations apply flowsync --remote`
 
 ## Data Export & Import
 
 ### Export
-- Formats: CSV, TSV, JSON, Markdown, PDF, XLSX
+- Formats: CSV, TSV, JSON, Markdown, PDF
 - Scope: Active project or All projects
-- XLSX includes an "All Tasks" sheet plus per-project sheets when exporting all projects
 
 ### Import
 - Formats: JSON, CSV, TSV

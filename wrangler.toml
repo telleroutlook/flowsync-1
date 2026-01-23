@@ -4,3 +4,8 @@ compatibility_date = "2026-01-22"
 
 [vars]
 # GEMINI_API_KEY should be set via `wrangler secret put GEMINI_API_KEY`
+
+[[d1_databases]]
+binding = "DB"
+database_name = "flowsync"
+database_id = "376955eb-a3f2-48c0-a8f2-056be5b1c9ea"
