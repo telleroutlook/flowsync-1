@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { jsonError, jsonOk } from './helpers';
 import { createTask, deleteTask, getTaskById, listTasks, updateTask } from '../services/taskService';
+import { recordAudit } from '../services/auditService';
 
 const statusEnum = z.enum(['TODO', 'IN_PROGRESS', 'DONE']);
 const priorityEnum = z.enum(['LOW', 'MEDIUM', 'HIGH']);
@@ -76,12 +77,26 @@ tasksRoute.post('/', zValidator('json', taskInputSchema), async (c) => {
     isMilestone: data.isMilestone,
     predecessors: data.predecessors,
   });
+  await recordAudit(c.get('db'), {
+    entityType: 'task',
+    entityId: task.id,
+    action: 'create',
+    before: null,
+    after: task,
+    actor: 'user',
+    reason: null,
+    projectId: task.projectId,
+    taskId: task.id,
+    draftId: null,
+  });
   return jsonOk(c, task, 201);
 });
 
 tasksRoute.patch('/:id', zValidator('json', taskUpdateSchema), async (c) => {
+  const id = c.req.param('id');
+  const before = await getTaskById(c.get('db'), id);
   const data = c.req.valid('json');
-  const task = await updateTask(c.get('db'), c.req.param('id'), {
+  const task = await updateTask(c.get('db'), id, {
     title: data.title,
     description: data.description,
     status: data.status,
@@ -95,11 +110,37 @@ tasksRoute.patch('/:id', zValidator('json', taskUpdateSchema), async (c) => {
     predecessors: data.predecessors,
   });
   if (!task) return jsonError(c, 'NOT_FOUND', 'Task not found.', 404);
+  await recordAudit(c.get('db'), {
+    entityType: 'task',
+    entityId: task.id,
+    action: 'update',
+    before,
+    after: task,
+    actor: 'user',
+    reason: null,
+    projectId: task.projectId,
+    taskId: task.id,
+    draftId: null,
+  });
   return jsonOk(c, task);
 });
 
 tasksRoute.delete('/:id', async (c) => {
-  const task = await deleteTask(c.get('db'), c.req.param('id'));
+  const id = c.req.param('id');
+  const before = await getTaskById(c.get('db'), id);
+  const task = await deleteTask(c.get('db'), id);
   if (!task) return jsonError(c, 'NOT_FOUND', 'Task not found.', 404);
+  await recordAudit(c.get('db'), {
+    entityType: 'task',
+    entityId: task.id,
+    action: 'delete',
+    before: before ?? task,
+    after: null,
+    actor: 'user',
+    reason: null,
+    projectId: task.projectId,
+    taskId: task.id,
+    draftId: null,
+  });
   return jsonOk(c, task);
 });

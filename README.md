@@ -5,7 +5,8 @@
 # FlowSync AI Studio App
 
 FlowSync is a data-driven project management app with a Cloudflare Worker (Hono) backend,
-D1 persistence via Drizzle, and a React/Vite frontend.
+D1 persistence via Drizzle, and a React/Vite frontend. The backend supports draft-first
+changes, audit logging, and rollback via audit snapshots.
 
 ## Run Locally
 
@@ -34,6 +35,12 @@ Generate a migration (if schema changes):
 Apply migrations:
 - Local: `npx wrangler d1 migrations apply flowsync --local`
 - Remote: `npx wrangler d1 migrations apply flowsync --remote`
+
+## API Notes
+- Draft-first flow: `POST /api/drafts` then `POST /api/drafts/:id/apply`
+- Audit log + rollback: `GET /api/audit` and `POST /api/audit/:id/rollback`
+- Direct write APIs still exist for `/api/projects` and `/api/tasks` (POST/PATCH/DELETE) and are audited,
+  but do not go through the draft approval flow.
 
 ## Data Export & Import
 

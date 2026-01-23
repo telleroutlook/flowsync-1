@@ -11,8 +11,10 @@
 ## Build, Test, and Development Commands
 - `npm install` — install dependencies.
 - `npm run dev` — start the Vite dev server for local development.
+- `npm run dev:worker` — start the Cloudflare Worker locally.
 - `npm run build` — create a production build in `dist/`.
 - `npm run preview` — serve the production build locally.
+- `npm run deploy` — deploy the Worker via Wrangler.
 
 ## Coding Style & Naming Conventions
 - TypeScript + React with ES modules (`"type": "module"`).

@@ -8,13 +8,14 @@
 - Agent 工具已具备 read + plan/apply。
 - 前端已改为 API 驱动，并提供 Draft 审阅入口。
 - 约束引擎（依赖/日期）已在草案阶段自动修正。
-- 回滚能力尚未实现（需要 diff 反向操作或版本快照）。
+- 回滚能力已实现（基于审计快照的反向操作）。
+- 当前仍保留直写 API（非草案）：`/api/projects` 与 `/api/tasks` 的 POST/PATCH/DELETE 可直接写入（已审计但不经过 Draft）。
 
-## 1. 当前结论摘要
-- 单一事实来源在前端（`App.tsx` state），导致数据不可共享、不可审计、不可并发协作。
-- Agent 仅具备写工具（manageTasks/manageProjects），缺少读工具，导致“盲写”。
-- 业务规则（依赖冲突、状态变更）固化在 UI，不利于扩展与复用。
-- Worker 仅做 LLM 转发，缺少真正的业务层。
+## 1. 当前结论摘要（已达成）
+- SoR 已迁移到后端（D1/Drizzle），支持多端共享、可审计、可并发协作。
+- Agent 已具备 read + plan/apply 工具，避免“盲写”。
+- 业务规则下沉至 Worker service 层，可复用与扩展。
+- Worker 不再仅做 LLM 转发，已具备业务服务层与约束逻辑。
 
 ## 2. 重构核心目标
 - **SoR（Single Source of Truth）**：任务与项目数据在后端持久化（D1/SQLite）。
@@ -139,6 +140,7 @@ Agent Tooling
 - 前端逻辑下沉后，UI 需适配 API 的异步与错误处理。
 - 迁移期需支持“本地状态 -> DB”的导入或一次性初始化。
 - Agent 工具调用需要更加严格的输入校验与错误可解释性。
+- 若需要强制 Draft 审批流程，应收紧或禁用直写 API。
 
 ## 8. 验收标准
 - Agent 通过读工具能完整理解项目现状。
