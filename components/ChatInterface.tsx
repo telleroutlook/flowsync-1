@@ -21,7 +21,7 @@ interface ChatInterfaceProps {
   setInputText: (text: string) => void;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({
+export const ChatInterface = React.memo<ChatInterfaceProps>(({
   isChatOpen,
   setIsChatOpen,
   pendingDraft,
@@ -206,4 +206,4 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       </div>
     </div>
   );
-};
+});

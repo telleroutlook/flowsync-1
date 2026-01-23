@@ -11,7 +11,7 @@ interface ProjectSidebarProps {
   onToggleChat?: () => void;
 }
 
-export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
+export const ProjectSidebar = React.memo<ProjectSidebarProps>(({
   projects,
   activeProjectId,
   onSelectProject,
@@ -104,4 +104,4 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
       </div>
     </div>
   );
-};
+});

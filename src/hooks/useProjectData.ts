@@ -1,0 +1,94 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { apiService } from '../../services/apiService';
+import { Project, Task } from '../../types';
+
+export const useProjectData = () => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string>('');
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const activeProject = useMemo(() => {
+    return projects.find(p => p.id === activeProjectId) || projects[0] || { id: '', name: 'No Project', description: '' };
+  }, [projects, activeProjectId]);
+
+  const activeTasks = useMemo(() => {
+    if (!activeProjectId) return [];
+    return tasks.filter(t => t.projectId === activeProjectId);
+  }, [tasks, activeProjectId]);
+
+  const fetchAllTasks = useCallback(async () => {
+    const collected: Task[] = [];
+    let page = 1;
+    let total = 0;
+    try {
+      do {
+        const result = await apiService.listTasks({ page, pageSize: 100 });
+        collected.push(...result.data);
+        total = result.total;
+        page += 1;
+      } while (collected.length < total);
+      return collected;
+    } catch (err) {
+      console.error("Failed to fetch tasks", err);
+      throw err;
+    }
+  }, []);
+
+  const refreshData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const [projectList, taskList] = await Promise.all([
+        apiService.listProjects(),
+        fetchAllTasks(),
+      ]);
+      setProjects(projectList);
+      setTasks(taskList);
+      
+      setActiveProjectId((prev) => {
+        const stored = window.localStorage.getItem('flowsync:activeProjectId');
+        const candidate = stored && projectList.find(project => project.id === stored) ? stored : prev;
+        return candidate && projectList.find(project => project.id === candidate)
+          ? candidate
+          : projectList[0]?.id || '';
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAllTasks]);
+
+  const handleSelectProject = useCallback((id: string) => {
+    setActiveProjectId(id);
+    window.localStorage.setItem('flowsync:activeProjectId', id);
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+
+  // Persist active project selection
+  useEffect(() => {
+    if (activeProjectId) {
+      window.localStorage.setItem('flowsync:activeProjectId', activeProjectId);
+    }
+  }, [activeProjectId]);
+
+  return {
+    projects,
+    tasks,
+    setTasks, // Exposed for optimistic updates
+    activeProjectId,
+    activeProject,
+    activeTasks,
+    isLoading,
+    error,
+    refreshData,
+    handleSelectProject,
+    fetchAllTasks
+  };
+};

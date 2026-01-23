@@ -87,7 +87,7 @@ const auditBadgeClass = (action: string) => {
   }
 };
 
-export const AuditPanel: React.FC<AuditPanelProps> = ({
+export const AuditPanel = React.memo<AuditPanelProps>(({
   isOpen,
   isLoading,
   onRefresh,
@@ -366,4 +366,4 @@ export const AuditPanel: React.FC<AuditPanelProps> = ({
       )}
     </>
   );
-};
+});
