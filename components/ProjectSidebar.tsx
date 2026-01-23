@@ -7,6 +7,8 @@ interface ProjectSidebarProps {
   onSelectProject: (id: string) => void;
   onCreateProject: () => void;
   onDeleteProject: (id: string) => void;
+  showChatToggle?: boolean;
+  onToggleChat?: () => void;
 }
 
 export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
@@ -14,12 +16,27 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
   activeProjectId,
   onSelectProject,
   onCreateProject,
-  onDeleteProject
+  onDeleteProject,
+  showChatToggle,
+  onToggleChat
 }) => {
   return (
     <div className="w-[280px] bg-white border-r border-slate-200 flex flex-col h-full shrink-0 shadow-sm z-10 flex flex-col">
       <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Projects</h3>
+        <div className="flex items-center gap-2">
+           {showChatToggle && (
+             <button 
+               onClick={onToggleChat}
+               className="text-slate-400 hover:text-indigo-600 transition-colors"
+               title="Open Chat AI"
+             >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                </svg>
+             </button>
+           )}
+           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Projects</h3>
+        </div>
         <button 
           onClick={onCreateProject}
           className="text-slate-400 hover:text-primary hover:bg-indigo-50 transition-all p-1.5 rounded-md"

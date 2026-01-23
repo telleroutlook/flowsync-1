@@ -372,6 +372,7 @@ export default function App() {
   const [exportScope, setExportScope] = useState<ExportScope>('active');
   const [lastExportFormat, setLastExportFormat] = useState<ExportFormat>('csv');
   const [importStrategy, setImportStrategy] = useState<ImportStrategy>('append');
+  const [isChatOpen, setIsChatOpen] = useState(true);
   const importInputRef = useRef<HTMLInputElement>(null);
   
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -1104,23 +1105,38 @@ export default function App() {
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       
       {/* 1. Chat Interface (Left) */}
-      <div className="w-[340px] flex flex-col border-r border-slate-200 bg-white relative z-20 shrink-0 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
-        <div className="h-16 px-5 border-b border-slate-100 flex items-center gap-3 bg-white/80 backdrop-blur-md sticky top-0 z-10">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200 ring-1 ring-black/5">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="font-bold text-base text-slate-900 tracking-tight leading-tight">FlowSync</h1>
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">AI Assistant Online</p>
+      <div 
+        className={`${
+          isChatOpen ? 'w-[340px] border-r' : 'w-0 border-none'
+        } flex flex-col border-slate-200 bg-white relative z-20 shrink-0 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] transition-all duration-300 overflow-hidden`}
+      >
+        <div className="h-16 px-5 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200 ring-1 ring-black/5">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="font-bold text-base text-slate-900 tracking-tight leading-tight">FlowSync</h1>
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">AI Assistant Online</p>
+              </div>
             </div>
           </div>
+          <button 
+             onClick={() => setIsChatOpen(false)}
+             className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors"
+             title="Close Chat"
+          >
+             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+             </svg>
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/50 scroll-smooth">
@@ -1217,6 +1233,8 @@ export default function App() {
         onSelectProject={setActiveProjectId}
         onCreateProject={manualCreateProject}
         onDeleteProject={(id) => handleProjectAction({ action: 'delete', name: projects.find(p => p.id === id)?.name })}
+        showChatToggle={!isChatOpen}
+        onToggleChat={() => setIsChatOpen(true)}
       />
 
       {/* 3. Workspace (Right) */}

@@ -6,14 +6,14 @@ interface ListViewProps {
 }
 
 const priorityColors: Record<Priority, string> = {
-  [Priority.LOW]: 'text-green-600 bg-green-50 border-green-200',
-  [Priority.MEDIUM]: 'text-yellow-600 bg-yellow-50 border-yellow-200',
-  [Priority.HIGH]: 'text-red-600 bg-red-50 border-red-200',
+  [Priority.LOW]: 'text-emerald-700 bg-emerald-50 border-emerald-100',
+  [Priority.MEDIUM]: 'text-amber-700 bg-amber-50 border-amber-100',
+  [Priority.HIGH]: 'text-rose-700 bg-rose-50 border-rose-100',
 };
 
 const statusColors: Record<TaskStatus, string> = {
   [TaskStatus.TODO]: 'text-slate-500 bg-slate-100',
-  [TaskStatus.IN_PROGRESS]: 'text-blue-600 bg-blue-50',
+  [TaskStatus.IN_PROGRESS]: 'text-indigo-600 bg-indigo-50',
   [TaskStatus.DONE]: 'text-emerald-600 bg-emerald-50',
 };
 
@@ -25,63 +25,99 @@ export const ListView: React.FC<ListViewProps> = ({ tasks }) => {
   });
 
   return (
-    <div className="w-full h-full overflow-y-auto custom-scrollbar p-1">
-      <div className="min-w-[900px] w-full bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="grid grid-cols-12 gap-2 p-4 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider sticky top-0 z-10">
-          <div className="col-span-1">WBS</div>
-          <div className="col-span-4">Task Name</div>
-          <div className="col-span-2">Assignee</div>
-          <div className="col-span-1">Progress</div>
-          <div className="col-span-1">Status</div>
-          <div className="col-span-1">Start</div>
-          <div className="col-span-2">Finish</div>
-        </div>
-        
-        {sortedTasks.length === 0 ? (
-           <div className="p-8 text-center text-slate-400 italic">No tasks found</div>
-        ) : (
-          sortedTasks.map((task) => (
-            <div key={task.id} className="grid grid-cols-12 gap-2 p-3 border-b border-slate-100 hover:bg-slate-50 transition-colors items-center group text-sm">
-              <div className="col-span-1 font-mono text-slate-400 text-xs">{task.wbs || '-'}</div>
-              
-              <div className="col-span-4">
-                <div className={`font-medium ${task.isMilestone ? 'text-accent' : 'text-slate-800'} flex items-center gap-2`}>
-                   {task.isMilestone && <span className="text-xs">◆</span>}
-                   {task.title}
-                </div>
-                {task.description && <div className="text-[10px] text-slate-500 truncate mt-0.5">{task.description}</div>}
-              </div>
-
-              <div className="col-span-2 text-xs text-slate-500 truncate">
-                  {task.assignee || <span className="opacity-30">Unassigned</span>}
-              </div>
-
-              <div className="col-span-1 text-xs">
-                 <div className="flex items-center gap-2">
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-primary h-full rounded-full" style={{ width: `${task.completion || 0}%`}}></div>
+    <div className="w-full h-full overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col">
+       <div className="overflow-auto custom-scrollbar flex-1">
+        <table className="w-full text-left border-collapse">
+          <thead className="bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10 border-b border-slate-200">
+            <tr>
+              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-16">WBS</th>
+              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-[200px]">Task Name</th>
+              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Assignee</th>
+              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-24">Priority</th>
+              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Status</th>
+              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Progress</th>
+              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Start</th>
+              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Due</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {sortedTasks.length === 0 ? (
+               <tr>
+                 <td colSpan={8} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                       <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center mb-2">
+                          <svg className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                       </div>
+                       <span className="text-xs text-slate-400 italic">No tasks in this list</span>
                     </div>
-                    <span className="text-[10px] w-6 text-right text-slate-600">{task.completion || 0}%</span>
-                 </div>
-              </div>
-
-              <div className="col-span-1">
-                <span className={`text-[10px] px-2 py-1 rounded-full font-medium whitespace-nowrap ${statusColors[task.status]}`}>
-                  {task.status === TaskStatus.IN_PROGRESS ? 'In Prog' : task.status.replace('_', ' ')}
-                </span>
-              </div>
-
-              <div className="col-span-1 text-xs text-slate-500">
-                {task.startDate ? new Date(task.startDate).toLocaleDateString() : '-'}
-              </div>
-              
-              <div className="col-span-2 text-xs text-slate-500">
-                 {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-'}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+                 </td>
+               </tr>
+            ) : (
+              sortedTasks.map((task) => (
+                <tr key={task.id} className="hover:bg-slate-50/60 transition-colors group">
+                  <td className="py-3 px-4 text-xs font-mono text-slate-400">{task.wbs || '-'}</td>
+                  <td className="py-3 px-4">
+                     <div className="flex flex-col">
+                        <span className={`text-sm font-medium flex items-center gap-1.5 ${task.isMilestone ? 'text-amber-700' : 'text-slate-700'}`}>
+                           {task.isMilestone && (
+                             <svg className="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" /></svg>
+                           )}
+                           {task.title}
+                        </span>
+                        {task.description && (
+                           <span className="text-[10px] text-slate-400 truncate max-w-[200px] mt-0.5">{task.description}</span>
+                        )}
+                     </div>
+                  </td>
+                  <td className="py-3 px-4">
+                     {task.assignee ? (
+                       <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[9px] font-bold">
+                             {task.assignee.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-xs text-slate-600 truncate max-w-[100px]">{task.assignee}</span>
+                       </div>
+                     ) : (
+                        <span className="text-xs text-slate-300 italic">Unassigned</span>
+                     )}
+                  </td>
+                  <td className="py-3 px-4">
+                     <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${priorityColors[task.priority]}`}>
+                        {task.priority}
+                     </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className={`flex items-center gap-1.5 text-xs font-medium ${statusColors[task.status]}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${task.status === TaskStatus.TODO ? 'bg-slate-400' : task.status === TaskStatus.IN_PROGRESS ? 'bg-indigo-500' : 'bg-emerald-500'}`}></span>
+                        {task.status === TaskStatus.IN_PROGRESS ? 'In Progress' : task.status.charAt(0).toUpperCase() + task.status.slice(1).toLowerCase().replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                     <div className="flex items-center gap-2 w-full max-w-[120px]">
+                        <div className="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                           <div className={`h-full rounded-full ${task.completion === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${task.completion || 0}%`}}></div>
+                        </div>
+                        <span className="text-[10px] w-6 text-right text-slate-500">{task.completion || 0}%</span>
+                     </div>
+                  </td>
+                  <td className="py-3 px-4 text-xs text-slate-500">
+                     {task.startDate ? new Date(task.startDate).toLocaleDateString(undefined, {month:'short', day:'numeric'}) : '-'}
+                  </td>
+                  <td className="py-3 px-4 text-xs text-slate-500 font-medium">
+                     {task.dueDate ? (
+                       <span className={task.dueDate < Date.now() && task.status !== TaskStatus.DONE ? 'text-rose-600' : ''}>
+                          {new Date(task.dueDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
+                       </span>
+                     ) : '-'}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+       </div>
     </div>
   );
 };
