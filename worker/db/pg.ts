@@ -1,8 +1,9 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import * as schema from './schema';
 
 let pool: Pool | null = null;
-let db: ReturnType<typeof drizzle> | null = null;
+let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 export const getPgDb = () => {
   if (!db) {
@@ -11,7 +12,7 @@ export const getPgDb = () => {
       throw new Error('DATABASE_URL environment variable is not set');
     }
     pool = new Pool({ connectionString });
-    db = drizzle(pool);
+    db = drizzle(pool, { schema });
   }
   return db;
 };

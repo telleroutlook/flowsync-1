@@ -13,7 +13,7 @@ export const getProjectById = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string
 ): Promise<ProjectRecord | null> => {
-  const row = await db.select().from(projects).where(eq(projects.id, id)).get();
+  const [row] = await db.select().from(projects).where(eq(projects.id, id));
   return row ? toProjectRecord(row) : null;
 };
 
@@ -39,7 +39,7 @@ export const updateProject = async (
   id: string,
   data: { name?: string; description?: string; icon?: string }
 ): Promise<ProjectRecord | null> => {
-  const existing = await db.select().from(projects).where(eq(projects.id, id)).get();
+  const [existing] = await db.select().from(projects).where(eq(projects.id, id));
   if (!existing) return null;
 
   const next = {
@@ -57,7 +57,7 @@ export const deleteProject = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string
 ): Promise<{ project: ProjectRecord | null; deletedTasks: number }> => {
-  const existing = await db.select().from(projects).where(eq(projects.id, id)).get();
+  const [existing] = await db.select().from(projects).where(eq(projects.id, id));
   if (!existing) return { project: null, deletedTasks: 0 };
 
   const [{ count: taskCount }] = await db
@@ -67,7 +67,7 @@ export const deleteProject = async (
   await db.delete(tasks).where(eq(tasks.projectId, id));
   await db.delete(projects).where(eq(projects.id, id));
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(projects);
-  if (count === 0) {
+  if (Number(count) === 0) {
     await db.insert(projects).values({
       id: generateId(),
       name: 'New Project',
@@ -78,5 +78,5 @@ export const deleteProject = async (
     });
   }
 
-  return { project: toProjectRecord(existing), deletedTasks: taskCount };
+  return { project: toProjectRecord(existing), deletedTasks: Number(taskCount) };
 };

@@ -1,11 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { projects, tasks } from '../db/schema';
 import { seedProjects, seedTasks } from '../db/seed';
-import { toSqlBoolean, now } from './utils';
+import { now } from './utils';
 
 export const ensureSeedData = async (db: ReturnType<typeof import('../db').getDb>) => {
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(projects);
-  if (count > 0) return;
+  if (Number(count) > 0) return;
 
   const timestamp = now();
   await db.insert(projects).values(
@@ -33,8 +33,8 @@ export const ensureSeedData = async (db: ReturnType<typeof import('../db').getDb
       dueDate: task.dueDate ?? null,
       completion: task.completion ?? null,
       assignee: task.assignee ?? null,
-      isMilestone: toSqlBoolean(task.isMilestone),
-      predecessors: JSON.stringify(task.predecessors ?? []),
+      isMilestone: !!task.isMilestone,
+      predecessors: task.predecessors ?? [],
       updatedAt: task.createdAt,
     }))
   );

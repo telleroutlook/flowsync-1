@@ -251,7 +251,7 @@ export const getDraftById = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string
 ): Promise<DraftRecord | null> => {
-  const row = await db.select().from(drafts).where(eq(drafts.id, id)).get();
+  const [row] = await db.select().from(drafts).where(eq(drafts.id, id));
   return row ? parseDraftRow(row) : null;
 };
 

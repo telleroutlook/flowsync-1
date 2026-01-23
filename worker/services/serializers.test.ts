@@ -16,8 +16,8 @@ describe('serializers', () => {
       dueDate: 2,
       completion: 0,
       assignee: null,
-      isMilestone: 1,
-      predecessors: '["a","b"]',
+      isMilestone: true,
+      predecessors: ['a', 'b'],
       updatedAt: 1,
     });
 
@@ -25,7 +25,7 @@ describe('serializers', () => {
     expect(record.predecessors).toEqual(['a', 'b']);
   });
 
-  it('falls back on invalid predecessors JSON', () => {
+  it('handles empty predecessors', () => {
     const record = toTaskRecord({
       id: 't1',
       projectId: 'p1',
@@ -39,8 +39,8 @@ describe('serializers', () => {
       dueDate: 2,
       completion: 0,
       assignee: null,
-      isMilestone: 0,
-      predecessors: '{bad',
+      isMilestone: false,
+      predecessors: null,
       updatedAt: 1,
     });
 

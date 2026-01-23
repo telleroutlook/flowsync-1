@@ -200,14 +200,14 @@ export const listAuditLogs = async (
     taskId: row.taskId,
     draftId: row.draftId,
   }));
-  return { data, total: count, page, pageSize };
+  return { data, total: Number(count), page, pageSize };
 };
 
 export const getAuditLogById = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string
 ): Promise<AuditRecord | null> => {
-  const row = await db.select().from(auditLogs).where(eq(auditLogs.id, id)).get();
+  const [row] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
   if (!row) return null;
   return {
     id: row.id,
@@ -241,7 +241,7 @@ export const rollbackAuditLog = async (
   let afterState: ProjectRecord | TaskRecord | null = null;
 
   if (entry.entityType === 'project') {
-    const existingRow = await db.select().from(projects).where(eq(projects.id, entry.entityId)).get();
+    const [existingRow] = await db.select().from(projects).where(eq(projects.id, entry.entityId));
     const existing = existingRow ? toProjectRecord(existingRow) : null;
 
     if (entry.action === 'create') {
@@ -318,7 +318,7 @@ export const rollbackAuditLog = async (
       throw new RollbackError('INVALID_ROLLBACK', 'Unsupported action for rollback.', 400);
     }
   } else if (entry.entityType === 'task') {
-    const existingRow = await db.select().from(tasks).where(eq(tasks.id, entry.entityId)).get();
+    const [existingRow] = await db.select().from(tasks).where(eq(tasks.id, entry.entityId));
     const existing = existingRow ? toTaskRecord(existingRow) : null;
 
     if (entry.action === 'create') {
@@ -329,7 +329,7 @@ export const rollbackAuditLog = async (
     } else if (entry.action === 'update') {
       if (!existing) throw new RollbackError('NOT_FOUND', 'Task not found for rollback.', 404);
       const snapshot = parseTaskSnapshot(entry.before ?? null);
-      const projectRow = await db.select().from(projects).where(eq(projects.id, snapshot.projectId)).get();
+      const [projectRow] = await db.select().from(projects).where(eq(projects.id, snapshot.projectId));
       if (!projectRow) throw new RollbackError('INVALID_ROLLBACK', 'Project missing for task rollback.', 409);
       beforeState = existing;
       await db
@@ -355,7 +355,7 @@ export const rollbackAuditLog = async (
       entity = snapshot;
     } else if (entry.action === 'delete') {
       const snapshot = parseTaskSnapshot(entry.before ?? null);
-      const projectRow = await db.select().from(projects).where(eq(projects.id, snapshot.projectId)).get();
+      const [projectRow] = await db.select().from(projects).where(eq(projects.id, snapshot.projectId));
       if (!projectRow) throw new RollbackError('INVALID_ROLLBACK', 'Project missing for task rollback.', 409);
       beforeState = existing;
       if (existing) {

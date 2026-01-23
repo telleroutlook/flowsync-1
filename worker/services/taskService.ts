@@ -52,7 +52,7 @@ export const getTaskById = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string
 ): Promise<TaskRecord | null> => {
-  const row = await db.select().from(tasks).where(eq(tasks.id, id)).get();
+  const [row] = await db.select().from(tasks).where(eq(tasks.id, id));
   return row ? toTaskRecord(row) : null;
 };
 
@@ -114,7 +114,7 @@ export const updateTask = async (
     predecessors: string[];
   }>
 ): Promise<TaskRecord | null> => {
-  const existing = await db.select().from(tasks).where(eq(tasks.id, id)).get();
+  const [existing] = await db.select().from(tasks).where(eq(tasks.id, id));
   if (!existing) return null;
 
   const next = {
@@ -140,7 +140,7 @@ export const deleteTask = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string
 ): Promise<TaskRecord | null> => {
-  const existing = await db.select().from(tasks).where(eq(tasks.id, id)).get();
+  const [existing] = await db.select().from(tasks).where(eq(tasks.id, id));
   if (!existing) return null;
   await db.delete(tasks).where(eq(tasks.id, id));
   return toTaskRecord(existing);
