@@ -10,3 +10,4 @@ applications:
       - flowsync-postgres-db
     env:
       NODE_ENV: production
+      PGSSLMODE: require
