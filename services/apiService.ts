@@ -93,4 +93,11 @@ export const apiService = {
     const suffix = query.toString();
     return fetchJson<AuditLog[]>(`/api/audit${suffix ? `?${suffix}` : ''}`);
   },
+  getAuditLog: (id: string) => fetchJson<AuditLog>(`/api/audit/${id}`),
+  rollbackAuditLog: (id: string, actor: Draft['createdBy'], reason?: string) =>
+    fetchJson<{ audit: AuditLog; entity: Project | Task | null }>(`/api/audit/${id}/rollback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor, reason }),
+    }),
 };

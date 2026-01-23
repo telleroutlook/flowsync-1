@@ -78,7 +78,7 @@ Agent Tooling
 - [x] 引入 Audit Log：
   - 每次变更记录 diff
   - 变更原因、触发者（user/agent/system）
-- [ ] 支持回滚（基于 diff 逆向操作或版本快照）
+- [x] 支持回滚（基于 diff 逆向操作或版本快照）
 
 交付物：
 - Draft/Audit API

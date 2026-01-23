@@ -6,7 +6,7 @@ import { ListView } from './components/ListView';
 import { GanttChart } from './components/GanttChart';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { apiService } from './services/apiService';
-import { Task, ChatMessage, ChatAttachment, TaskStatus, Priority, Project, Draft, DraftAction } from './types';
+import { Task, ChatMessage, ChatAttachment, TaskStatus, Priority, Project, Draft, DraftAction, AuditLog } from './types';
 
 // Simple ID generator
 const generateId = () =>
@@ -21,6 +21,57 @@ type ImportStrategy = 'append' | 'merge';
 
 const day = 86400000;
 const clampCompletion = (value: number) => Math.min(100, Math.max(0, value));
+const formatAuditTimestamp = (timestamp: number) =>
+  new Date(timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+const formatAuditValue = (value: unknown) => {
+  if (value === undefined) return 'undefined';
+  if (value === null) return 'null';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
+};
+const diffAuditRecords = (before: Record<string, unknown> | null | undefined, after: Record<string, unknown> | null | undefined) => {
+  const entries: { path: string; before: string; after: string }[] = [];
+  const visited = new Set<string>();
+  const walk = (path: string, a: unknown, b: unknown) => {
+    const key = `${path}:${typeof a}:${typeof b}`;
+    if (visited.has(key)) return;
+    visited.add(key);
+
+    const aIsObject = a && typeof a === 'object' && !Array.isArray(a);
+    const bIsObject = b && typeof b === 'object' && !Array.isArray(b);
+    if (aIsObject || bIsObject) {
+      const aObj = (aIsObject ? (a as Record<string, unknown>) : {}) as Record<string, unknown>;
+      const bObj = (bIsObject ? (b as Record<string, unknown>) : {}) as Record<string, unknown>;
+      const keys = new Set([...Object.keys(aObj), ...Object.keys(bObj)]);
+      keys.forEach((k) => walk(path ? `${path}.${k}` : k, aObj[k], bObj[k]));
+      return;
+    }
+
+    const aVal = formatAuditValue(a);
+    const bVal = formatAuditValue(b);
+    if (aVal !== bVal) {
+      entries.push({ path: path || 'root', before: aVal, after: bVal });
+    }
+  };
+
+  walk('', before ?? null, after ?? null);
+  return entries;
+};
+const auditBadgeClass = (action: string) => {
+  switch (action) {
+    case 'create':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    case 'update':
+      return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    case 'delete':
+      return 'bg-rose-50 text-rose-700 border-rose-200';
+    case 'rollback':
+      return 'bg-slate-100 text-slate-600 border-slate-200';
+    default:
+      return 'bg-slate-50 text-slate-600 border-slate-200';
+  }
+};
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -29,6 +80,24 @@ export default function App() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [pendingDraftId, setPendingDraftId] = useState<string | null>(null);
   const [draftWarnings, setDraftWarnings] = useState<string[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
+  const [isAuditLoading, setIsAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [rollbackingAuditId, setRollbackingAuditId] = useState<string | null>(null);
+  const [selectedAudit, setSelectedAudit] = useState<AuditLog | null>(null);
+  const [isAuditDetailOpen, setIsAuditDetailOpen] = useState(false);
+  const [showAuditRaw, setShowAuditRaw] = useState(false);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize, setAuditPageSize] = useState(8);
+  const [auditFilters, setAuditFilters] = useState({
+    actor: 'all',
+    action: 'all',
+    entityType: 'all',
+    q: '',
+    from: '',
+    to: '',
+  });
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('GANTT'); 
@@ -71,6 +140,32 @@ export default function App() {
     () => (selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null),
     [tasks, selectedTaskId]
   );
+  const filteredAuditLogs = useMemo(() => {
+    const query = auditFilters.q.trim().toLowerCase();
+    const fromTs = auditFilters.from ? new Date(`${auditFilters.from}T00:00:00`).getTime() : null;
+    const toTs = auditFilters.to ? new Date(`${auditFilters.to}T23:59:59`).getTime() : null;
+    return auditLogs.filter((log) => {
+      if (auditFilters.actor !== 'all' && log.actor !== auditFilters.actor) return false;
+      if (auditFilters.action !== 'all' && log.action !== auditFilters.action) return false;
+      if (auditFilters.entityType !== 'all' && log.entityType !== auditFilters.entityType) return false;
+      if (fromTs && log.timestamp < fromTs) return false;
+      if (toTs && log.timestamp > toTs) return false;
+      if (query) {
+        const haystack = `${log.entityType} ${log.entityId} ${log.reason ?? ''}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+  }, [auditLogs, auditFilters]);
+  const auditTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredAuditLogs.length / auditPageSize)),
+    [filteredAuditLogs.length, auditPageSize]
+  );
+  const pagedAuditLogs = useMemo(() => {
+    const page = Math.min(auditPage, auditTotalPages);
+    const start = (page - 1) * auditPageSize;
+    return filteredAuditLogs.slice(start, start + auditPageSize);
+  }, [filteredAuditLogs, auditPage, auditPageSize, auditTotalPages]);
   const predecessorDetails = useMemo(() => {
     if (!selectedTask) return [];
     const refs = selectedTask.predecessors || [];
@@ -103,6 +198,23 @@ export default function App() {
     setDrafts(items);
     if (pendingDraftId && !items.find(item => item.id === pendingDraftId && item.status === 'pending')) {
       setPendingDraftId(null);
+    }
+  };
+
+  const refreshAuditLogs = async (projectId?: string) => {
+    if (!projectId) {
+      setAuditLogs([]);
+      return;
+    }
+    try {
+      setIsAuditLoading(true);
+      setAuditError(null);
+      const items = await apiService.listAuditLogs({ projectId });
+      setAuditLogs(items);
+    } catch (error) {
+      setAuditError(error instanceof Error ? error.message : 'Failed to load audit logs.');
+    } finally {
+      setIsAuditLoading(false);
     }
   };
 
@@ -144,6 +256,14 @@ export default function App() {
       window.localStorage.setItem('flowsync:activeProjectId', activeProjectId);
     }
   }, [activeProjectId]);
+
+  useEffect(() => {
+    void refreshAuditLogs(activeProjectId);
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    setAuditPage(1);
+  }, [auditFilters, auditPageSize, auditLogs.length]);
 
   useEffect(() => {
     if (selectedTaskId && !tasks.find(task => task.id === selectedTaskId)) {
@@ -201,6 +321,7 @@ export default function App() {
       const applied = await apiService.applyDraft(result.draft.id, options.createdBy);
       setDrafts(prev => prev.map(draft => (draft.id === applied.draft.id ? applied.draft : draft)));
       await refreshData();
+      await refreshAuditLogs(activeProjectId);
       if (!options.silent) {
         appendSystemMessage(`Draft applied: ${applied.draft.id}`);
       }
@@ -219,6 +340,7 @@ export default function App() {
     setPendingDraftId(null);
     await refreshData();
     await refreshDrafts();
+    await refreshAuditLogs(activeProjectId);
     appendSystemMessage(`Draft applied: ${draftId}`);
   };
 
@@ -228,6 +350,34 @@ export default function App() {
     if (pendingDraftId === draftId) setPendingDraftId(null);
     await refreshDrafts();
     appendSystemMessage(`Draft discarded: ${draftId}`);
+  };
+
+  const handleRollbackAudit = async (auditId: string) => {
+    if (rollbackingAuditId) return;
+    const confirmed = window.confirm('Rollback this audit entry? This will reverse the recorded change.');
+    if (!confirmed) return;
+    try {
+      setRollbackingAuditId(auditId);
+      await apiService.rollbackAuditLog(auditId, 'user');
+      appendSystemMessage(`Rollback applied: ${auditId}`);
+      await refreshData();
+      await refreshAuditLogs(activeProjectId);
+    } catch (error) {
+      appendSystemMessage(error instanceof Error ? `Rollback failed: ${error.message}` : 'Rollback failed.');
+    } finally {
+      setRollbackingAuditId(null);
+    }
+  };
+
+  const openAuditDetail = (log: AuditLog) => {
+    setSelectedAudit(log);
+    setIsAuditDetailOpen(true);
+    setShowAuditRaw(false);
+  };
+
+  const closeAuditDetail = () => {
+    setIsAuditDetailOpen(false);
+    setSelectedAudit(null);
   };
 
   const handleSelectProject = (id: string) => {
@@ -1304,11 +1454,28 @@ export default function App() {
              </div>
 
              <div className="relative">
-               <button
-                 type="button"
-                 onClick={(event) => {
-                   event.stopPropagation();
-                   setIsExportOpen(prev => !prev);
+              <button
+                type="button"
+                onClick={() => setIsAuditOpen(prev => !prev)}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition-all ${
+                  isAuditOpen
+                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+                }`}
+              >
+                <span>Audit</span>
+                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                  {filteredAuditLogs.length}
+                </span>
+              </button>
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsExportOpen(prev => !prev);
                  }}
                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm hover:border-indigo-200 hover:text-indigo-600 transition-all"
                >
@@ -1384,6 +1551,174 @@ export default function App() {
         {(isLoadingData || dataError) && (
           <div className={`px-6 py-3 text-xs font-medium ${dataError ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-500'} border-b border-slate-200`}>
             {dataError ? `Failed to load data: ${dataError}` : 'Loading data from server...'}
+          </div>
+        )}
+
+        {isAuditOpen && (
+          <div className="px-6 py-4 border-b border-slate-200 bg-white/70 backdrop-blur-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-widest">Audit Trail</p>
+                <p className="text-[11px] text-slate-500">Recent activity for this project</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => refreshAuditLogs(activeProjectId)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-colors"
+                disabled={isAuditLoading}
+              >
+                {isAuditLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <input
+                value={auditFilters.q}
+                onChange={(event) => setAuditFilters(prev => ({ ...prev, q: event.target.value }))}
+                placeholder="Search id or reason..."
+                className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-indigo-400 outline-none"
+              />
+              <select
+                value={auditFilters.actor}
+                onChange={(event) => setAuditFilters(prev => ({ ...prev, actor: event.target.value }))}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
+              >
+                <option value="all">All Actors</option>
+                <option value="user">User</option>
+                <option value="agent">Agent</option>
+                <option value="system">System</option>
+              </select>
+              <select
+                value={auditFilters.action}
+                onChange={(event) => setAuditFilters(prev => ({ ...prev, action: event.target.value }))}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
+              >
+                <option value="all">All Actions</option>
+                <option value="create">Create</option>
+                <option value="update">Update</option>
+                <option value="delete">Delete</option>
+                <option value="rollback">Rollback</option>
+              </select>
+              <select
+                value={auditFilters.entityType}
+                onChange={(event) => setAuditFilters(prev => ({ ...prev, entityType: event.target.value }))}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
+              >
+                <option value="all">All Entities</option>
+                <option value="project">Project</option>
+                <option value="task">Task</option>
+              </select>
+              <input
+                type="date"
+                value={auditFilters.from}
+                onChange={(event) => setAuditFilters(prev => ({ ...prev, from: event.target.value }))}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
+              />
+              <input
+                type="date"
+                value={auditFilters.to}
+                onChange={(event) => setAuditFilters(prev => ({ ...prev, to: event.target.value }))}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setAuditFilters({ actor: 'all', action: 'all', entityType: 'all', q: '', from: '', to: '' })}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+
+            {auditError && (
+              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {auditError}
+              </div>
+            )}
+
+            {!auditError && filteredAuditLogs.length === 0 && !isAuditLoading && (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                No audit entries match the filters.
+              </div>
+            )}
+
+            <div className="mt-3 grid gap-2">
+              {pagedAuditLogs.map((log) => (
+                <div key={log.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${auditBadgeClass(log.action)}`}>
+                      {log.action}
+                    </span>
+                    <div>
+                      <div className="text-xs font-semibold text-slate-700">
+                        {log.entityType} · {log.entityId}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {log.actor} · {formatAuditTimestamp(log.timestamp)}
+                      </div>
+                      {log.reason && (
+                        <div className="text-[11px] text-slate-500">Reason: {log.reason}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openAuditDetail(log)}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-colors"
+                    >
+                      Details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRollbackAudit(log.id)}
+                      disabled={log.action === 'rollback' || rollbackingAuditId === log.id}
+                      className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                        log.action === 'rollback'
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                      }`}
+                    >
+                      {rollbackingAuditId === log.id ? 'Rolling back...' : 'Rollback'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {filteredAuditLogs.length > 0 && (
+              <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
+                <div>
+                  Page {Math.min(auditPage, auditTotalPages)} of {auditTotalPages} · {filteredAuditLogs.length} items
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={auditPageSize}
+                    onChange={(event) => setAuditPageSize(Number(event.target.value))}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 focus:border-indigo-400 outline-none"
+                  >
+                    {[6, 8, 12, 20].map((size) => (
+                      <option key={size} value={size}>{size}/page</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
+                    disabled={auditPage <= 1}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed hover:border-indigo-200 hover:text-indigo-600 transition-colors"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
+                    disabled={auditPage >= auditTotalPages}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed hover:border-indigo-200 hover:text-indigo-600 transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1631,6 +1966,81 @@ export default function App() {
               </div>
             )}
         </div>
+
+        {isAuditDetailOpen && selectedAudit && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+            <div className="w-[760px] max-w-[90vw] rounded-2xl bg-white shadow-2xl border border-slate-100">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Audit Detail</p>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {selectedAudit.entityType} · {selectedAudit.entityId}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAuditRaw(prev => !prev)}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-colors"
+                  >
+                    {showAuditRaw ? 'Hide JSON' : 'Show JSON'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeAuditDetail}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <div className="flex flex-wrap gap-2 text-[11px] text-slate-500">
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 font-bold uppercase tracking-wider ${auditBadgeClass(selectedAudit.action)}`}>
+                    {selectedAudit.action}
+                  </span>
+                  <span>{selectedAudit.actor}</span>
+                  <span>· {formatAuditTimestamp(selectedAudit.timestamp)}</span>
+                  {selectedAudit.reason && <span>· {selectedAudit.reason}</span>}
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Field Diff</div>
+                  {diffAuditRecords(selectedAudit.before ?? null, selectedAudit.after ?? null).length === 0 ? (
+                    <div className="text-[11px] text-slate-500">No field changes detected.</div>
+                  ) : (
+                    <div className="max-h-[260px] overflow-auto space-y-2 text-[11px] text-slate-700">
+                      {diffAuditRecords(selectedAudit.before ?? null, selectedAudit.after ?? null).map((row) => (
+                        <div key={row.path} className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{row.path}</div>
+                          <div className="mt-1 grid grid-cols-2 gap-2">
+                            <div className="rounded-md bg-rose-50 px-2 py-1 text-rose-700 break-all">- {row.before}</div>
+                            <div className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700 break-all">+ {row.after}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {showAuditRaw && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Before JSON</div>
+                      <pre className="max-h-[220px] overflow-auto text-[11px] text-slate-700 whitespace-pre-wrap">
+                        {JSON.stringify(selectedAudit.before ?? {}, null, 2)}
+                      </pre>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">After JSON</div>
+                      <pre className="max-h-[220px] overflow-auto text-[11px] text-slate-700 whitespace-pre-wrap">
+                        {JSON.stringify(selectedAudit.after ?? {}, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         
       </div>
     </div>

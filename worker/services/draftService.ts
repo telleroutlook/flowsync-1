@@ -330,6 +330,8 @@ export const applyDraft = async (
         }
       } else if (action.action === 'delete' && action.entityId) {
         const before = await getProjectById(db, action.entityId);
+        const taskRows = await db.select().from(tasks).where(eq(tasks.projectId, action.entityId));
+        const tasksBefore = taskRows.map(toTaskRecord);
         const deleted = await deleteProject(db, action.entityId);
         results.push({ ...action, before: before ?? undefined, after: null });
         if (deleted.project) {
@@ -337,7 +339,7 @@ export const applyDraft = async (
             entityType: 'project',
             entityId: deleted.project.id,
             action: 'delete',
-            before: before ?? null,
+            before: { project: before ?? deleted.project, tasks: tasksBefore },
             after: null,
             actor,
             reason: draft.reason ?? null,
