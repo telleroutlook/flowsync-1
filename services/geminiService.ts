@@ -5,7 +5,7 @@ export class GeminiService {
     systemContext?: string
   ): Promise<{ text: string; toolCalls?: { name: string; args: unknown }[] }> {
     try {
-      const response = await fetch('/api/gemini', {
+      const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ history, message: newMessage, systemContext }),

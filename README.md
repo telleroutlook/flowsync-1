@@ -14,7 +14,9 @@ changes, audit logging, and rollback via audit snapshots.
 
 1. Install dependencies:
    `npm install`
-2. Set `GEMINI_API_KEY` in `.env.local`.
+2. Set `OPENAI_API_KEY` in `.env.local`.
+   - Optional: `OPENAI_BASE_URL` (full chat completions URL; default `https://api.openai.com/v1/chat/completions`)
+   - Optional: `OPENAI_MODEL` (default `GLM-4.7`)
 3. Start the frontend and Worker:
    - `npm run dev`
    - `npm run dev:worker`

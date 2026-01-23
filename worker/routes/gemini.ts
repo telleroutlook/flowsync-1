@@ -1,22 +1,38 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { GoogleGenAI, Type, Tool, FunctionDeclaration } from '@google/genai';
 import { jsonError, jsonOk } from './helpers';
 import { recordLog } from '../services/logService';
+
+type JsonSchema = Record<string, unknown>;
+
+type OpenAITool = {
+  type: 'function';
+  function: {
+    name: string;
+    description?: string;
+    parameters: JsonSchema;
+  };
+};
+
+type FunctionDeclaration = {
+  name: string;
+  description?: string;
+  parameters: JsonSchema;
+};
 
 const listProjectsTool: FunctionDeclaration = {
   name: 'listProjects',
   description: 'List all projects with ids, names, and descriptions.',
-  parameters: { type: Type.OBJECT, properties: {} },
+  parameters: { type: 'object', properties: {} },
 };
 
 const getProjectTool: FunctionDeclaration = {
   name: 'getProject',
   description: 'Fetch a single project by id.',
   parameters: {
-    type: Type.OBJECT,
-    properties: { id: { type: Type.STRING } },
+    type: 'object',
+    properties: { id: { type: 'string' } },
     required: ['id'],
   },
 };
@@ -25,14 +41,14 @@ const listTasksTool: FunctionDeclaration = {
   name: 'listTasks',
   description: 'List tasks with optional filters and pagination.',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      projectId: { type: Type.STRING },
-      status: { type: Type.STRING, enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-      assignee: { type: Type.STRING },
-      q: { type: Type.STRING },
-      page: { type: Type.NUMBER },
-      pageSize: { type: Type.NUMBER },
+      projectId: { type: 'string' },
+      status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
+      assignee: { type: 'string' },
+      q: { type: 'string' },
+      page: { type: 'number' },
+      pageSize: { type: 'number' },
     },
   },
 };
@@ -41,8 +57,8 @@ const getTaskTool: FunctionDeclaration = {
   name: 'getTask',
   description: 'Fetch a single task by id.',
   parameters: {
-    type: Type.OBJECT,
-    properties: { id: { type: Type.STRING } },
+    type: 'object',
+    properties: { id: { type: 'string' } },
     required: ['id'],
   },
 };
@@ -51,12 +67,12 @@ const searchTasksTool: FunctionDeclaration = {
   name: 'searchTasks',
   description: 'Search tasks by keyword and optional filters.',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      projectId: { type: Type.STRING },
-      q: { type: Type.STRING },
-      status: { type: Type.STRING, enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-      assignee: { type: Type.STRING },
+      projectId: { type: 'string' },
+      q: { type: 'string' },
+      status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
+      assignee: { type: 'string' },
     },
   },
 };
@@ -65,12 +81,12 @@ const createProjectTool: FunctionDeclaration = {
   name: 'createProject',
   description: 'Create a new project (draft-first).',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      name: { type: Type.STRING },
-      description: { type: Type.STRING },
-      icon: { type: Type.STRING },
-      reason: { type: Type.STRING },
+      name: { type: 'string' },
+      description: { type: 'string' },
+      icon: { type: 'string' },
+      reason: { type: 'string' },
     },
     required: ['name'],
   },
@@ -80,13 +96,13 @@ const updateProjectTool: FunctionDeclaration = {
   name: 'updateProject',
   description: 'Update an existing project by id (draft-first).',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      id: { type: Type.STRING },
-      name: { type: Type.STRING },
-      description: { type: Type.STRING },
-      icon: { type: Type.STRING },
-      reason: { type: Type.STRING },
+      id: { type: 'string' },
+      name: { type: 'string' },
+      description: { type: 'string' },
+      icon: { type: 'string' },
+      reason: { type: 'string' },
     },
     required: ['id'],
   },
@@ -96,10 +112,10 @@ const deleteProjectTool: FunctionDeclaration = {
   name: 'deleteProject',
   description: 'Delete a project by id (draft-first).',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      id: { type: Type.STRING },
-      reason: { type: Type.STRING },
+      id: { type: 'string' },
+      reason: { type: 'string' },
     },
     required: ['id'],
   },
@@ -109,21 +125,21 @@ const createTaskTool: FunctionDeclaration = {
   name: 'createTask',
   description: 'Create a new task (draft-first).',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      projectId: { type: Type.STRING },
-      title: { type: Type.STRING },
-      description: { type: Type.STRING },
-      status: { type: Type.STRING, enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-      priority: { type: Type.STRING, enum: ['LOW', 'MEDIUM', 'HIGH'] },
-      wbs: { type: Type.STRING },
-      startDate: { type: Type.NUMBER },
-      dueDate: { type: Type.NUMBER },
-      completion: { type: Type.NUMBER },
-      assignee: { type: Type.STRING },
-      isMilestone: { type: Type.BOOLEAN },
-      predecessors: { type: Type.ARRAY, items: { type: Type.STRING } },
-      reason: { type: Type.STRING },
+      projectId: { type: 'string' },
+      title: { type: 'string' },
+      description: { type: 'string' },
+      status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
+      priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      wbs: { type: 'string' },
+      startDate: { type: 'number' },
+      dueDate: { type: 'number' },
+      completion: { type: 'number' },
+      assignee: { type: 'string' },
+      isMilestone: { type: 'boolean' },
+      predecessors: { type: 'array', items: { type: 'string' } },
+      reason: { type: 'string' },
     },
     required: ['projectId', 'title'],
   },
@@ -133,21 +149,21 @@ const updateTaskTool: FunctionDeclaration = {
   name: 'updateTask',
   description: 'Update a task by id (draft-first).',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      id: { type: Type.STRING },
-      title: { type: Type.STRING },
-      description: { type: Type.STRING },
-      status: { type: Type.STRING, enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-      priority: { type: Type.STRING, enum: ['LOW', 'MEDIUM', 'HIGH'] },
-      wbs: { type: Type.STRING },
-      startDate: { type: Type.NUMBER },
-      dueDate: { type: Type.NUMBER },
-      completion: { type: Type.NUMBER },
-      assignee: { type: Type.STRING },
-      isMilestone: { type: Type.BOOLEAN },
-      predecessors: { type: Type.ARRAY, items: { type: Type.STRING } },
-      reason: { type: Type.STRING },
+      id: { type: 'string' },
+      title: { type: 'string' },
+      description: { type: 'string' },
+      status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
+      priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      wbs: { type: 'string' },
+      startDate: { type: 'number' },
+      dueDate: { type: 'number' },
+      completion: { type: 'number' },
+      assignee: { type: 'string' },
+      isMilestone: { type: 'boolean' },
+      predecessors: { type: 'array', items: { type: 'string' } },
+      reason: { type: 'string' },
     },
     required: ['id'],
   },
@@ -157,10 +173,10 @@ const deleteTaskTool: FunctionDeclaration = {
   name: 'deleteTask',
   description: 'Delete a task by id (draft-first).',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      id: { type: Type.STRING },
-      reason: { type: Type.STRING },
+      id: { type: 'string' },
+      reason: { type: 'string' },
     },
     required: ['id'],
   },
@@ -170,19 +186,19 @@ const planChangesTool: FunctionDeclaration = {
   name: 'planChanges',
   description: 'Create a draft plan consisting of multiple actions before applying changes.',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      projectId: { type: Type.STRING },
-      reason: { type: Type.STRING },
+      projectId: { type: 'string' },
+      reason: { type: 'string' },
       actions: {
-        type: Type.ARRAY,
+        type: 'array',
         items: {
-          type: Type.OBJECT,
+          type: 'object',
           properties: {
-            entityType: { type: Type.STRING, enum: ['task', 'project'] },
-            action: { type: Type.STRING, enum: ['create', 'update', 'delete'] },
-            entityId: { type: Type.STRING },
-            after: { type: Type.OBJECT },
+            entityType: { type: 'string', enum: ['task', 'project'] },
+            action: { type: 'string', enum: ['create', 'update', 'delete'] },
+            entityId: { type: 'string' },
+            after: { type: 'object' },
           },
           required: ['entityType', 'action'],
         },
@@ -196,34 +212,37 @@ const applyChangesTool: FunctionDeclaration = {
   name: 'applyChanges',
   description: 'Apply a previously created draft by draftId.',
   parameters: {
-    type: Type.OBJECT,
+    type: 'object',
     properties: {
-      draftId: { type: Type.STRING },
-      actor: { type: Type.STRING, enum: ['user', 'agent', 'system'] },
+      draftId: { type: 'string' },
+      actor: { type: 'string', enum: ['user', 'agent', 'system'] },
     },
     required: ['draftId'],
   },
 };
 
-const tools: Tool[] = [
-  {
-    functionDeclarations: [
-      listProjectsTool,
-      getProjectTool,
-      listTasksTool,
-      getTaskTool,
-      searchTasksTool,
-      createProjectTool,
-      updateProjectTool,
-      deleteProjectTool,
-      createTaskTool,
-      updateTaskTool,
-      deleteTaskTool,
-      planChangesTool,
-      applyChangesTool,
-    ],
+const tools: OpenAITool[] = [
+  listProjectsTool,
+  getProjectTool,
+  listTasksTool,
+  getTaskTool,
+  searchTasksTool,
+  createProjectTool,
+  updateProjectTool,
+  deleteProjectTool,
+  createTaskTool,
+  updateTaskTool,
+  deleteTaskTool,
+  planChangesTool,
+  applyChangesTool,
+].map((tool) => ({
+  type: 'function',
+  function: {
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
   },
-];
+}));
 
 const historySchema = z.array(
   z.object({
@@ -243,19 +262,20 @@ const requestSchema = z.object({
 });
 
 export const geminiRoute = new Hono<{
-  Bindings: { GEMINI_API_KEY: string };
+  Bindings: { OPENAI_API_KEY: string; OPENAI_BASE_URL?: string; OPENAI_MODEL?: string };
   Variables: { db: ReturnType<typeof import('../db').getDb> };
 }>();
 
-geminiRoute.post('/api/gemini', zValidator('json', requestSchema), async (c) => {
+geminiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
   const { history, message, systemContext } = c.req.valid('json');
 
-  if (!c.env.GEMINI_API_KEY) {
-    return jsonError(c, 'MISSING_API_KEY', 'Missing GEMINI_API_KEY binding.', 500);
+  if (!c.env.OPENAI_API_KEY) {
+    return jsonError(c, 'MISSING_API_KEY', 'Missing OPENAI_API_KEY binding.', 500);
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey: c.env.GEMINI_API_KEY });
+    const baseUrl = (c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1/chat/completions').replace(/\/+$/, '');
+    const model = c.env.OPENAI_MODEL || 'GLM-4.7';
     const systemInstruction = `You are FlowSync AI, an expert project manager.\n${systemContext || ''}\nYou must read before you write: call listProjects/listTasks/searchTasks first.\nAll edits must go through planChanges and require user approval before applyChanges.\nResolve dependency conflicts and date issues automatically when planning.\nCurrent Date: ${new Date().toISOString().split('T')[0]}`;
 
     await recordLog(c.get('db'), 'gemini_request', {
@@ -263,34 +283,65 @@ geminiRoute.post('/api/gemini', zValidator('json', requestSchema), async (c) => 
       history: history.slice(-10),
     });
 
-    const chat = ai.chats.create({
-      model: 'gemini-3-flash-preview',
-      config: {
-        systemInstruction,
-        tools,
-        temperature: 0.5,
-      },
-      history: history.map((h) => ({
-        role: h.role,
-        parts: h.parts,
+    const messages = [
+      { role: 'system', content: systemInstruction },
+      ...history.map((item) => ({
+        role: item.role === 'model' ? 'assistant' : item.role,
+        content: item.parts.map((part) => part.text).join(''),
       })),
+      { role: 'user', content: message },
+    ];
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${c.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        tools,
+        tool_choice: 'auto',
+        temperature: 0.5,
+      }),
     });
 
-    const result = await chat.sendMessage({ message });
-    const candidate = result.candidates?.[0];
+    if (!response.ok) {
+      const errorText = await response.text();
+      return jsonError(c, 'OPENAI_ERROR', errorText || 'OpenAI request failed.', 502);
+    }
 
-    if (!candidate) {
+    const payload: {
+      choices?: Array<{
+        message?: {
+          content?: string | null;
+          tool_calls?: Array<{
+            function?: { name?: string; arguments?: string };
+          }>;
+        };
+      }>;
+    } = await response.json();
+
+    const messagePayload = payload.choices?.[0]?.message;
+    if (!messagePayload) {
       return jsonError(c, 'NO_RESPONSE', 'No response from model.', 502);
     }
 
-    const modelText = candidate.content?.parts?.find((p) => p.text)?.text || '';
-    const parts = candidate.content?.parts || [];
-    const functionCalls = parts
-      .filter((part) => part.functionCall)
-      .map((part) => ({
-        name: part.functionCall!.name,
-        args: part.functionCall!.args,
-      }));
+    const modelText = messagePayload.content || '';
+    const functionCalls = (messagePayload.tool_calls || [])
+      .map((call) => {
+        const name = call.function?.name;
+        const rawArgs = call.function?.arguments;
+        if (!name) return null;
+        if (!rawArgs) return { name, args: {} };
+        try {
+          return { name, args: JSON.parse(rawArgs) as unknown };
+        } catch {
+          return { name, args: rawArgs };
+        }
+      })
+      .filter((call): call is { name: string; args: unknown } => Boolean(call));
 
     await recordLog(c.get('db'), 'gemini_response', {
       text: modelText,
@@ -303,9 +354,9 @@ geminiRoute.post('/api/gemini', zValidator('json', requestSchema), async (c) => 
     });
   } catch (error) {
     await recordLog(c.get('db'), 'error', {
-      message: 'Gemini request failed.',
+      message: 'OpenAI request failed.',
       detail: error instanceof Error ? error.message : String(error),
     });
-    return jsonError(c, 'GEMINI_ERROR', 'Gemini request failed.', 502);
+    return jsonError(c, 'OPENAI_ERROR', 'OpenAI request failed.', 502);
   }
 });
