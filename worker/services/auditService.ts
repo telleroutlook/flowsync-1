@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql, like, or, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { auditLogs, projects, tasks } from '../db/schema';
 import type { AuditRecord, ProjectRecord, TaskRecord } from './types';
@@ -143,19 +143,50 @@ export const recordAudit = async (
 
 export const listAuditLogs = async (
   db: ReturnType<typeof import('../db').getDb>,
-  filters: { projectId?: string; taskId?: string }
-): Promise<AuditRecord[]> => {
+  filters: {
+    projectId?: string;
+    taskId?: string;
+    page?: number;
+    pageSize?: number;
+    actor?: string;
+    action?: string;
+    entityType?: string;
+    q?: string;
+    from?: number;
+    to?: number;
+  }
+): Promise<{ data: AuditRecord[]; total: number; page: number; pageSize: number }> => {
   const clauses = [];
   if (filters.projectId) clauses.push(eq(auditLogs.projectId, filters.projectId));
   if (filters.taskId) clauses.push(eq(auditLogs.taskId, filters.taskId));
+  if (filters.actor) clauses.push(eq(auditLogs.actor, filters.actor));
+  if (filters.action) clauses.push(eq(auditLogs.action, filters.action));
+  if (filters.entityType) clauses.push(eq(auditLogs.entityType, filters.entityType));
+  if (filters.from) clauses.push(gte(auditLogs.timestamp, filters.from));
+  if (filters.to) clauses.push(lte(auditLogs.timestamp, filters.to));
+  if (filters.q) {
+    const q = `%${filters.q}%`;
+    clauses.push(or(like(auditLogs.entityId, q), like(auditLogs.reason, q)));
+  }
+  const whereClause = clauses.length ? and(...clauses) : undefined;
+
+  const page = Math.max(1, filters.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(auditLogs)
+    .where(whereClause);
 
   const rows = await db
     .select()
     .from(auditLogs)
-    .where(clauses.length ? and(...clauses) : undefined)
-    .orderBy(desc(auditLogs.timestamp));
+    .where(whereClause)
+    .orderBy(desc(auditLogs.timestamp))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
 
-  return rows.map((row) => ({
+  const data = rows.map((row) => ({
     id: row.id,
     entityType: row.entityType as AuditRecord['entityType'],
     entityId: row.entityId,
@@ -169,6 +200,7 @@ export const listAuditLogs = async (
     taskId: row.taskId,
     draftId: row.draftId,
   }));
+  return { data, total: count, page, pageSize };
 };
 
 export const getAuditLogById = async (

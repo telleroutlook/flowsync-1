@@ -6,6 +6,14 @@ import { getAuditLogById, isRollbackError, listAuditLogs, rollbackAuditLog } fro
 const querySchema = z.object({
   projectId: z.string().optional(),
   taskId: z.string().optional(),
+  page: z.coerce.number().optional(),
+  pageSize: z.coerce.number().optional(),
+  actor: z.enum(['user', 'agent', 'system']).optional(),
+  action: z.string().optional(),
+  entityType: z.enum(['project', 'task']).optional(),
+  q: z.string().optional(),
+  from: z.coerce.number().optional(),
+  to: z.coerce.number().optional(),
 });
 
 const rollbackSchema = z

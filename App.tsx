@@ -81,6 +81,7 @@ export default function App() {
   const [pendingDraftId, setPendingDraftId] = useState<string | null>(null);
   const [draftWarnings, setDraftWarnings] = useState<string[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isAuditLoading, setIsAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
@@ -140,32 +141,11 @@ export default function App() {
     () => (selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null),
     [tasks, selectedTaskId]
   );
-  const filteredAuditLogs = useMemo(() => {
-    const query = auditFilters.q.trim().toLowerCase();
-    const fromTs = auditFilters.from ? new Date(`${auditFilters.from}T00:00:00`).getTime() : null;
-    const toTs = auditFilters.to ? new Date(`${auditFilters.to}T23:59:59`).getTime() : null;
-    return auditLogs.filter((log) => {
-      if (auditFilters.actor !== 'all' && log.actor !== auditFilters.actor) return false;
-      if (auditFilters.action !== 'all' && log.action !== auditFilters.action) return false;
-      if (auditFilters.entityType !== 'all' && log.entityType !== auditFilters.entityType) return false;
-      if (fromTs && log.timestamp < fromTs) return false;
-      if (toTs && log.timestamp > toTs) return false;
-      if (query) {
-        const haystack = `${log.entityType} ${log.entityId} ${log.reason ?? ''}`.toLowerCase();
-        if (!haystack.includes(query)) return false;
-      }
-      return true;
-    });
-  }, [auditLogs, auditFilters]);
+  const filteredAuditLogs = useMemo(() => auditLogs, [auditLogs]);
   const auditTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredAuditLogs.length / auditPageSize)),
-    [filteredAuditLogs.length, auditPageSize]
+    () => Math.max(1, Math.ceil(auditTotal / auditPageSize)),
+    [auditTotal, auditPageSize]
   );
-  const pagedAuditLogs = useMemo(() => {
-    const page = Math.min(auditPage, auditTotalPages);
-    const start = (page - 1) * auditPageSize;
-    return filteredAuditLogs.slice(start, start + auditPageSize);
-  }, [filteredAuditLogs, auditPage, auditPageSize, auditTotalPages]);
   const predecessorDetails = useMemo(() => {
     if (!selectedTask) return [];
     const refs = selectedTask.predecessors || [];
@@ -201,16 +181,30 @@ export default function App() {
     }
   };
 
-  const refreshAuditLogs = async (projectId?: string) => {
+  const refreshAuditLogs = async (projectId?: string, pageOverride?: number, pageSizeOverride?: number) => {
     if (!projectId) {
       setAuditLogs([]);
+      setAuditTotal(0);
       return;
     }
     try {
       setIsAuditLoading(true);
       setAuditError(null);
-      const items = await apiService.listAuditLogs({ projectId });
-      setAuditLogs(items);
+      const from = auditFilters.from ? new Date(`${auditFilters.from}T00:00:00`).getTime() : undefined;
+      const to = auditFilters.to ? new Date(`${auditFilters.to}T23:59:59`).getTime() : undefined;
+      const result = await apiService.listAuditLogs({
+        projectId,
+        page: pageOverride ?? auditPage,
+        pageSize: pageSizeOverride ?? auditPageSize,
+        actor: auditFilters.actor === 'all' ? undefined : auditFilters.actor,
+        action: auditFilters.action === 'all' ? undefined : auditFilters.action,
+        entityType: auditFilters.entityType === 'all' ? undefined : auditFilters.entityType,
+        q: auditFilters.q.trim() ? auditFilters.q.trim() : undefined,
+        from,
+        to,
+      });
+      setAuditLogs(result.data);
+      setAuditTotal(result.total);
     } catch (error) {
       setAuditError(error instanceof Error ? error.message : 'Failed to load audit logs.');
     } finally {
@@ -263,7 +257,11 @@ export default function App() {
 
   useEffect(() => {
     setAuditPage(1);
-  }, [auditFilters, auditPageSize, auditLogs.length]);
+  }, [auditFilters, auditPageSize]);
+
+  useEffect(() => {
+    void refreshAuditLogs(activeProjectId);
+  }, [auditPage, auditPageSize, activeProjectId, auditFilters]);
 
   useEffect(() => {
     if (selectedTaskId && !tasks.find(task => task.id === selectedTaskId)) {
@@ -340,7 +338,7 @@ export default function App() {
     setPendingDraftId(null);
     await refreshData();
     await refreshDrafts();
-    await refreshAuditLogs(activeProjectId);
+    await refreshAuditLogs(activeProjectId, auditPage, auditPageSize);
     appendSystemMessage(`Draft applied: ${draftId}`);
   };
 
@@ -361,7 +359,7 @@ export default function App() {
       await apiService.rollbackAuditLog(auditId, 'user');
       appendSystemMessage(`Rollback applied: ${auditId}`);
       await refreshData();
-      await refreshAuditLogs(activeProjectId);
+      await refreshAuditLogs(activeProjectId, auditPage, auditPageSize);
     } catch (error) {
       appendSystemMessage(error instanceof Error ? `Rollback failed: ${error.message}` : 'Rollback failed.');
     } finally {
@@ -1642,7 +1640,7 @@ export default function App() {
             )}
 
             <div className="mt-3 grid gap-2">
-              {pagedAuditLogs.map((log) => (
+              {filteredAuditLogs.map((log) => (
                 <div key={log.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
                   <div className="flex items-start gap-3">
                     <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${auditBadgeClass(log.action)}`}>
@@ -1685,10 +1683,10 @@ export default function App() {
               ))}
             </div>
 
-            {filteredAuditLogs.length > 0 && (
+            {auditTotal > 0 && (
               <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
                 <div>
-                  Page {Math.min(auditPage, auditTotalPages)} of {auditTotalPages} · {filteredAuditLogs.length} items
+                  Page {Math.min(auditPage, auditTotalPages)} of {auditTotalPages} · {auditTotal} items
                 </div>
                 <div className="flex items-center gap-2">
                   <select

@@ -85,13 +85,26 @@ export const apiService = {
       method: 'POST',
     }),
 
-  listAuditLogs: (params: { projectId?: string; taskId?: string }) => {
+  listAuditLogs: (params: {
+    projectId?: string;
+    taskId?: string;
+    page?: number;
+    pageSize?: number;
+    actor?: string;
+    action?: string;
+    entityType?: string;
+    q?: string;
+    from?: number;
+    to?: number;
+  }) => {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value) query.set(key, value);
+      if (value !== undefined && value !== '') query.set(key, String(value));
     });
     const suffix = query.toString();
-    return fetchJson<AuditLog[]>(`/api/audit${suffix ? `?${suffix}` : ''}`);
+    return fetchJson<{ data: AuditLog[]; total: number; page: number; pageSize: number }>(
+      `/api/audit${suffix ? `?${suffix}` : ''}`
+    );
   },
   getAuditLog: (id: string) => fetchJson<AuditLog>(`/api/audit/${id}`),
   rollbackAuditLog: (id: string, actor: Draft['createdBy'], reason?: string) =>
