@@ -16,8 +16,6 @@ export const safeJsonParse = <T>(value: string | null | undefined, fallback: T):
   }
 };
 
-export const toSqlBoolean = (value: boolean | undefined) => (value ? 1 : 0);
-
 export const clampNumber = (value: number | undefined, min: number, max: number) => {
   if (value === undefined || Number.isNaN(value)) return undefined;
   return Math.min(max, Math.max(min, value));

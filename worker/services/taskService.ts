@@ -2,7 +2,7 @@ import { and, eq, like, sql } from 'drizzle-orm';
 import type { SQLWrapper } from 'drizzle-orm';
 import { tasks } from '../db/schema';
 import { toTaskRecord } from './serializers';
-import { clampNumber, generateId, now, toSqlBoolean } from './utils';
+import { clampNumber, generateId, now } from './utils';
 import type { TaskRecord } from './types';
 
 export type TaskFilters = {
@@ -89,8 +89,8 @@ export const createTask = async (
     dueDate: data.dueDate ?? null,
     completion: clampNumber(data.completion, 0, 100) ?? 0,
     assignee: data.assignee ?? null,
-    isMilestone: toSqlBoolean(data.isMilestone),
-    predecessors: JSON.stringify(data.predecessors ?? []),
+    isMilestone: data.isMilestone ?? false,
+    predecessors: data.predecessors ?? [],
     updatedAt: timestamp,
   };
   await db.insert(tasks).values(record);
@@ -127,8 +127,8 @@ export const updateTask = async (
     dueDate: data.dueDate ?? existing.dueDate,
     completion: clampNumber(data.completion ?? existing.completion ?? undefined, 0, 100),
     assignee: data.assignee ?? existing.assignee,
-    isMilestone: data.isMilestone === undefined ? existing.isMilestone : toSqlBoolean(data.isMilestone),
-    predecessors: data.predecessors ? JSON.stringify(data.predecessors) : existing.predecessors,
+    isMilestone: data.isMilestone === undefined ? existing.isMilestone : data.isMilestone,
+    predecessors: data.predecessors ?? existing.predecessors,
     updatedAt: now(),
   };
 

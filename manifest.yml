@@ -1,0 +1,12 @@
+---
+applications:
+  - name: flowsync-ai
+    memory: 512M
+    disk_quota: 1024M
+    buildpacks:
+      - nodejs_buildpack
+    command: npm run start:prod
+    services:
+      - flowsync-postgres-db
+    env:
+      NODE_ENV: production

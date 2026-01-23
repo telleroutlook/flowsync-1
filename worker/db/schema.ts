@@ -1,15 +1,15 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, bigint, boolean, jsonb } from 'drizzle-orm/pg-core';
 
-export const projects = sqliteTable('projects', {
+export const projects = pgTable('projects', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   description: text('description'),
   icon: text('icon'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
 });
 
-export const tasks = sqliteTable('tasks', {
+export const tasks = pgTable('tasks', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),
   title: text('title').notNull(),
@@ -17,44 +17,44 @@ export const tasks = sqliteTable('tasks', {
   status: text('status').notNull(),
   priority: text('priority').notNull(),
   wbs: text('wbs'),
-  createdAt: integer('created_at').notNull(),
-  startDate: integer('start_date'),
-  dueDate: integer('due_date'),
-  completion: integer('completion'),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  startDate: bigint('start_date', { mode: 'number' }),
+  dueDate: bigint('due_date', { mode: 'number' }),
+  completion: bigint('completion', { mode: 'number' }),
   assignee: text('assignee'),
-  isMilestone: integer('is_milestone').notNull().default(0),
-  predecessors: text('predecessors'),
-  updatedAt: integer('updated_at').notNull(),
+  isMilestone: boolean('is_milestone').notNull().default(false),
+  predecessors: jsonb('predecessors').$type<string[]>(),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
 });
 
-export const drafts = sqliteTable('drafts', {
+export const drafts = pgTable('drafts', {
   id: text('id').primaryKey(),
   projectId: text('project_id'),
   status: text('status').notNull(),
-  actions: text('actions').notNull(),
-  createdAt: integer('created_at').notNull(),
+  actions: jsonb('actions').notNull().$type<any[]>(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   createdBy: text('created_by').notNull(),
   reason: text('reason'),
 });
 
-export const auditLogs = sqliteTable('audit_logs', {
+export const auditLogs = pgTable('audit_logs', {
   id: text('id').primaryKey(),
   entityType: text('entity_type').notNull(),
   entityId: text('entity_id').notNull(),
   action: text('action').notNull(),
-  before: text('before'),
-  after: text('after'),
+  before: jsonb('before').$type<Record<string, unknown> | null>(),
+  after: jsonb('after').$type<Record<string, unknown> | null>(),
   actor: text('actor').notNull(),
   reason: text('reason'),
-  timestamp: integer('timestamp').notNull(),
+  timestamp: bigint('timestamp', { mode: 'number' }).notNull(),
   projectId: text('project_id'),
   taskId: text('task_id'),
   draftId: text('draft_id'),
 });
 
-export const observabilityLogs = sqliteTable('observability_logs', {
+export const observabilityLogs = pgTable('observability_logs', {
   id: text('id').primaryKey(),
   kind: text('kind').notNull(),
-  payload: text('payload').notNull(),
-  createdAt: integer('created_at').notNull(),
+  payload: jsonb('payload').notNull().$type<Record<string, unknown>>(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 });

@@ -9,7 +9,7 @@ export const recordLog = async (
   await db.insert(observabilityLogs).values({
     id: generateId(),
     kind,
-    payload: JSON.stringify(payload),
+    payload,
     createdAt: now(),
   });
 };

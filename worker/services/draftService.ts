@@ -12,7 +12,7 @@ const parseDraftRow = (row: {
   id: string;
   projectId: string | null;
   status: string;
-  actions: string;
+  actions: any[];
   createdAt: number;
   createdBy: string;
   reason: string | null;
@@ -20,7 +20,7 @@ const parseDraftRow = (row: {
   id: row.id,
   projectId: row.projectId,
   status: row.status as DraftRecord['status'],
-  actions: JSON.parse(row.actions) as DraftAction[],
+  actions: row.actions as DraftAction[],
   createdAt: row.createdAt,
   createdBy: row.createdBy as DraftRecord['createdBy'],
   reason: row.reason,
@@ -238,7 +238,7 @@ export const createDraft = async (
     id: draft.id,
     projectId: draft.projectId,
     status: draft.status,
-    actions: JSON.stringify(draft.actions),
+    actions: draft.actions,
     createdAt: draft.createdAt,
     createdBy: draft.createdBy,
     reason: draft.reason,
@@ -446,6 +446,6 @@ export const refreshDraftActions = async (
   if (!draft) return null;
   const planned = await planActions(db, draft.actions);
   const next = { ...draft, actions: planned.actions };
-  await db.update(drafts).set({ actions: JSON.stringify(next.actions) }).where(eq(drafts.id, id));
+  await db.update(drafts).set({ actions: next.actions }).where(eq(drafts.id, id));
   return next;
 };

@@ -1,4 +1,7 @@
-import { drizzle } from 'drizzle-orm/d1';
-import type { D1Database } from '@cloudflare/workers-types';
+// Re-export everything for convenience
+export * from './schema';
+export { getPgDb as getDb, closePgDb } from './pg';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import * as schema from './schema';
 
-export const getDb = (db: D1Database) => drizzle(db);
+export type DrizzleDB = NodePgDatabase<typeof schema>;

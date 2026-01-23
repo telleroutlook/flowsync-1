@@ -1,5 +1,4 @@
 import type { ProjectRecord, TaskRecord } from './types';
-import { safeJsonParse } from './utils';
 
 export const toProjectRecord = (row: {
   id: string;
@@ -30,8 +29,8 @@ export const toTaskRecord = (row: {
   dueDate: number | null;
   completion: number | null;
   assignee: string | null;
-  isMilestone: number;
-  predecessors: string | null;
+  isMilestone: boolean;
+  predecessors: string[] | null;
   updatedAt: number;
 }): TaskRecord => ({
   id: row.id,
@@ -46,7 +45,7 @@ export const toTaskRecord = (row: {
   dueDate: row.dueDate,
   completion: row.completion,
   assignee: row.assignee,
-  isMilestone: row.isMilestone === 1,
-  predecessors: safeJsonParse<string[]>(row.predecessors, []),
+  isMilestone: row.isMilestone,
+  predecessors: row.predecessors ?? [],
   updatedAt: row.updatedAt,
 });

@@ -2,7 +2,7 @@ import { and, desc, eq, sql, like, or, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { auditLogs, projects, tasks } from '../db/schema';
 import type { AuditRecord, ProjectRecord, TaskRecord } from './types';
-import { generateId, now, safeJsonParse, toSqlBoolean } from './utils';
+import { generateId, now } from './utils';
 import { toProjectRecord, toTaskRecord } from './serializers';
 
 class RollbackError extends Error {
@@ -128,8 +128,8 @@ export const recordAudit = async (
     entityType: record.entityType,
     entityId: record.entityId,
     action: record.action,
-    before: record.before ? JSON.stringify(record.before) : null,
-    after: record.after ? JSON.stringify(record.after) : null,
+    before: record.before,
+    after: record.after,
     actor: record.actor,
     reason: record.reason ?? null,
     timestamp: record.timestamp,
@@ -191,8 +191,8 @@ export const listAuditLogs = async (
     entityType: row.entityType as AuditRecord['entityType'],
     entityId: row.entityId,
     action: row.action,
-    before: safeJsonParse<Record<string, unknown> | null>(row.before, null),
-    after: safeJsonParse<Record<string, unknown> | null>(row.after, null),
+    before: row.before as Record<string, unknown> | null,
+    after: row.after as Record<string, unknown> | null,
     actor: row.actor as AuditRecord['actor'],
     reason: row.reason,
     timestamp: row.timestamp,
@@ -214,8 +214,8 @@ export const getAuditLogById = async (
     entityType: row.entityType as AuditRecord['entityType'],
     entityId: row.entityId,
     action: row.action,
-    before: safeJsonParse<Record<string, unknown> | null>(row.before, null),
-    after: safeJsonParse<Record<string, unknown> | null>(row.after, null),
+    before: row.before as Record<string, unknown> | null,
+    after: row.after as Record<string, unknown> | null,
     actor: row.actor as AuditRecord['actor'],
     reason: row.reason,
     timestamp: row.timestamp,
@@ -306,8 +306,8 @@ export const rollbackAuditLog = async (
             dueDate: task.dueDate,
             completion: task.completion,
             assignee: task.assignee,
-            isMilestone: toSqlBoolean(task.isMilestone),
-            predecessors: JSON.stringify(task.predecessors),
+            isMilestone: task.isMilestone,
+            predecessors: task.predecessors,
             updatedAt: task.updatedAt,
           });
         }
@@ -346,8 +346,8 @@ export const rollbackAuditLog = async (
           dueDate: snapshot.dueDate,
           completion: snapshot.completion,
           assignee: snapshot.assignee,
-          isMilestone: toSqlBoolean(snapshot.isMilestone),
-          predecessors: JSON.stringify(snapshot.predecessors),
+          isMilestone: snapshot.isMilestone,
+          predecessors: snapshot.predecessors,
           updatedAt: snapshot.updatedAt,
         })
         .where(eq(tasks.id, snapshot.id));
@@ -373,8 +373,8 @@ export const rollbackAuditLog = async (
             dueDate: snapshot.dueDate,
             completion: snapshot.completion,
             assignee: snapshot.assignee,
-            isMilestone: toSqlBoolean(snapshot.isMilestone),
-            predecessors: JSON.stringify(snapshot.predecessors),
+            isMilestone: snapshot.isMilestone,
+            predecessors: snapshot.predecessors,
             updatedAt: snapshot.updatedAt,
           })
           .where(eq(tasks.id, snapshot.id));
@@ -392,8 +392,8 @@ export const rollbackAuditLog = async (
           dueDate: snapshot.dueDate,
           completion: snapshot.completion,
           assignee: snapshot.assignee,
-          isMilestone: toSqlBoolean(snapshot.isMilestone),
-          predecessors: JSON.stringify(snapshot.predecessors),
+          isMilestone: snapshot.isMilestone,
+          predecessors: snapshot.predecessors,
           updatedAt: snapshot.updatedAt,
         });
       }

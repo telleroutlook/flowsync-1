@@ -4,39 +4,66 @@
 
 # FlowSync AI Studio App
 
-FlowSync is a data-driven project management app with a Cloudflare Worker (Hono) backend,
-D1 persistence via Drizzle, and a React/Vite frontend. The backend supports draft-first
+FlowSync is a data-driven project management app with a Node.js (Hono) backend,
+PostgreSQL persistence via Drizzle, and a React/Vite frontend. The backend supports draft-first
 changes, audit logging, and rollback via audit snapshots.
+
+**Deployment Platform:** SAP BTP (Cloud Foundry)
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js, PostgreSQL
 
 1. Install dependencies:
    `npm install`
-2. Set `OPENAI_API_KEY` in `.env.local`.
-   - Optional: `OPENAI_BASE_URL` (full chat completions URL; default `https://api.openai.com/v1/chat/completions`)
-   - Optional: `OPENAI_MODEL` (default `GLM-4.7`)
-3. Start the frontend and Worker:
-   - `npm run dev`
-   - `npm run dev:worker`
+2. Copy environment variables:
+   `cp .env.example .env`
+3. Configure `.env`:
+   - Required: `DATABASE_URL` (PostgreSQL connection string)
+   - Required: `OPENAI_API_KEY`
+   - Optional: `OPENAI_BASE_URL` (default: `https://api.openai.com/v1`)
+   - Optional: `OPENAI_MODEL` (default: `gpt-4`)
+4. Setup database:
+   `npm run db:push`
+5. Start the servers:
+   - Frontend: `npm run dev` (http://localhost:5173)
+   - Backend: `npm run dev:server` (http://localhost:3000)
 
-Vite proxies `/api` to the Worker (default `http://127.0.0.1:8788`).
+Vite proxies `/api` to the backend server.
 
-### Database (D1)
-Migrations live in the project root at `migrations/` to match Wrangler's expectations.
-Drizzle uses `drizzle.config.ts` and reads Cloudflare credentials from environment variables:
+### Database (PostgreSQL)
+Migrations are managed via Drizzle Kit:
 
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_D1_DATABASE_ID` (optional, defaults to current database id)
+```bash
+# Generate migration (if schema changes)
+npm run db:generate
 
-Generate a migration (if schema changes):
-`npx drizzle-kit generate --config drizzle.config.ts --name <name>`
+# Push schema to database
+npm run db:push
 
-Apply migrations:
-- Local: `npx wrangler d1 migrations apply flowsync --local`
-- Remote: `npx wrangler d1 migrations apply flowsync --remote`
+# Open database studio
+npm run db:studio
+```
+
+## Deploy to SAP BTP
+
+1. Build the application:
+   `npm run build:prod`
+
+2. Create PostgreSQL service (if not exists):
+   ```bash
+   cf create-service postgresql db-small flowsync-postgres-db
+   ```
+
+3. Set environment variables:
+   ```bash
+   cf set-env flowsync-ai OPENAI_API_KEY your-api-key
+   ```
+
+4. Deploy:
+   `cf push`
+
+See [manifest.yml](./manifest.yml) for deployment configuration.
 
 ## API Notes
 - Draft-first flow: `POST /api/drafts` then `POST /api/drafts/:id/apply`
@@ -55,3 +82,7 @@ Apply migrations:
 - Strategy: Append (add new tasks) or Merge by ID (overwrite tasks with matching IDs)
 - Required headers for CSV/TSV (case-insensitive):
   `project,id,title,status,priority,assignee,wbs,startDate,dueDate,completion,isMilestone,predecessors,description,createdAt`
+
+## Migration from Cloudflare Workers
+
+If you're migrating from the Cloudflare Workers (D1) version, see [MIGRATION.md](./MIGRATION.md) for detailed steps.
