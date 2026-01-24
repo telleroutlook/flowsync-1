@@ -494,6 +494,7 @@ export const useChat = ({
     messages,
     activeTasks,
     activeProject,
+    selectedTask,
     projects,
     pushProcessingStep,
     processConversationTurn 

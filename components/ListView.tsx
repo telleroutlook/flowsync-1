@@ -3,6 +3,8 @@ import { Task, Priority, TaskStatus } from '../types';
 
 interface ListViewProps {
   tasks: Task[];
+  selectedTaskId?: string | null;
+  onSelectTask?: (id: string) => void;
 }
 
 const priorityColors: Record<Priority, string> = {
@@ -17,7 +19,7 @@ const statusColors: Record<TaskStatus, string> = {
   [TaskStatus.DONE]: 'text-emerald-600 bg-emerald-50',
 };
 
-export const ListView: React.FC<ListViewProps> = ({ tasks }) => {
+export const ListView: React.FC<ListViewProps> = ({ tasks, selectedTaskId, onSelectTask }) => {
   // Sort by WBS if available, otherwise createdAt
   const sortedTasks = [...tasks].sort((a, b) => {
       if (a.wbs && b.wbs) return a.wbs.localeCompare(b.wbs, undefined, { numeric: true });
@@ -56,7 +58,14 @@ export const ListView: React.FC<ListViewProps> = ({ tasks }) => {
                </tr>
             ) : (
               sortedTasks.map((task) => (
-                <tr key={task.id} className="hover:bg-slate-50/60 transition-colors group">
+                <tr
+                  key={task.id}
+                  onClick={() => onSelectTask?.(task.id)}
+                  aria-selected={selectedTaskId === task.id}
+                  className={`transition-colors group ${onSelectTask ? 'cursor-pointer' : ''} ${
+                    selectedTaskId === task.id ? 'bg-indigo-50/70' : 'hover:bg-slate-50/60'
+                  }`}
+                >
                   <td className="py-3 px-4 text-xs font-mono text-slate-400">{task.wbs || '-'}</td>
                   <td className="py-3 px-4">
                      <div className="flex flex-col">

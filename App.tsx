@@ -503,8 +503,20 @@ export default function App() {
                </div>
             </div>
           }>
-            {viewMode === 'BOARD' && <KanbanBoard tasks={activeTasks} />}
-            {viewMode === 'LIST' && <ListView tasks={activeTasks} />}
+            {viewMode === 'BOARD' && (
+              <KanbanBoard
+                tasks={activeTasks}
+                selectedTaskId={selectedTaskId}
+                onSelectTask={(id) => setSelectedTaskId(id)}
+              />
+            )}
+            {viewMode === 'LIST' && (
+              <ListView
+                tasks={activeTasks}
+                selectedTaskId={selectedTaskId}
+                onSelectTask={(id) => setSelectedTaskId(id)}
+              />
+            )}
             {viewMode === 'GANTT' && (
               <div className="flex h-full gap-6">
                 <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

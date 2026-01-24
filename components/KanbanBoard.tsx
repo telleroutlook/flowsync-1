@@ -3,6 +3,8 @@ import { Task, TaskStatus, Priority } from '../types';
 
 interface KanbanBoardProps {
   tasks: Task[];
+  selectedTaskId?: string | null;
+  onSelectTask?: (id: string) => void;
 }
 
 const statusMap: Record<TaskStatus, string> = {
@@ -17,12 +19,27 @@ const priorityColors: Record<Priority, string> = {
   [Priority.HIGH]: 'bg-rose-50 text-rose-700 border-rose-100 ring-rose-200',
 };
 
-const TaskCard: React.FC<{ task: Task }> = ({ task }) => (
-  <div className={`bg-white p-3.5 rounded-xl border transition-all duration-200 cursor-pointer group animate-fade-in relative overflow-hidden ${
-    task.isMilestone 
-      ? 'border-amber-200/50 shadow-[0_4px_20px_-12px_rgba(251,191,36,0.5)] ring-1 ring-amber-100' 
-      : 'border-slate-200/60 shadow-sm hover:shadow-md hover:border-indigo-200/60 hover:-translate-y-0.5'
-  }`}>
+const TaskCard: React.FC<{ task: Task; isSelected?: boolean; onSelect?: (id: string) => void }> = ({ task, isSelected, onSelect }) => (
+  <div
+    role="button"
+    tabIndex={0}
+    aria-pressed={isSelected}
+    onClick={() => onSelect?.(task.id)}
+    onKeyDown={(event) => {
+      if (!onSelect) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onSelect(task.id);
+      }
+    }}
+    className={`bg-white p-3.5 rounded-xl border transition-all duration-200 cursor-pointer group animate-fade-in relative overflow-hidden ${
+      isSelected
+        ? 'border-indigo-300 ring-2 ring-indigo-200 shadow-[0_6px_18px_-12px_rgba(99,102,241,0.6)]'
+        : task.isMilestone 
+          ? 'border-amber-200/50 shadow-[0_4px_20px_-12px_rgba(251,191,36,0.5)] ring-1 ring-amber-100' 
+          : 'border-slate-200/60 shadow-sm hover:shadow-md hover:border-indigo-200/60 hover:-translate-y-0.5'
+    }`}
+  >
     {task.isMilestone && (
        <div className="absolute top-0 right-0 w-8 h-8 bg-gradient-to-bl from-amber-100 to-transparent -mr-4 -mt-4 rotate-45"></div>
     )}
@@ -89,7 +106,7 @@ const TaskCard: React.FC<{ task: Task }> = ({ task }) => (
   </div>
 );
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks }) => {
+export const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, selectedTaskId, onSelectTask }) => {
   const groupedTasks = useMemo(() => {
     const groups = {
       [TaskStatus.TODO]: [] as Task[],
@@ -134,7 +151,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks }) => {
               </div>
             ) : (
               groupedTasks[status].map((task) => (
-                <TaskCard key={task.id} task={task} />
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  isSelected={selectedTaskId === task.id}
+                  onSelect={onSelectTask}
+                />
               ))
             )}
           </div>
