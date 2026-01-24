@@ -871,21 +871,26 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
   const startTime = Date.now();
   const runAbortController = new AbortController();
   let closed = false;
-  let lock = false; // Prevent concurrent send attempts
+  let finalizing = false;
+  const sendQueue: Array<{ event: string; data: Record<string, unknown> }> = [];
+  let sending = false;
 
   const stream = new ReadableStream({
     start(controller) {
-      const send = (event: string, data: Record<string, unknown>) => {
-        if (closed || lock) return;
-        lock = true;
+      const flushQueue = () => {
+        if (sending) return;
+        sending = true;
         try {
-          // Check closed again inside lock to prevent race condition
-          if (closed) return;
-          const payload = {
-            ...data,
-            elapsedMs: Date.now() - startTime,
-          };
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+          while (sendQueue.length > 0) {
+            if (closed) break;
+            const item = sendQueue.shift();
+            if (!item) break;
+            const payload = {
+              ...item.data,
+              elapsedMs: Date.now() - startTime,
+            };
+            controller.enqueue(encoder.encode(`event: ${item.event}\ndata: ${JSON.stringify(payload)}\n\n`));
+          }
         } catch (error) {
           console.error('[AI Route] Error sending stream event:', error);
           closed = true;
@@ -897,13 +902,19 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
             // Controller already closed, ignore
           }
         } finally {
-          lock = false;
+          sending = false;
         }
+      };
+
+      const send = (event: string, data: Record<string, unknown>) => {
+        if (closed) return;
+        sendQueue.push({ event, data });
+        flushQueue();
       };
 
       // Wrap the emit callback to prevent errors from propagating
       const safeEmit: ProgressEmitter = (event, data) => {
-        if (closed) return; // Early exit if stream is closed
+        if (closed || finalizing) return; // Early exit if stream is closed
         try {
           send(event, data);
         } catch (error) {
@@ -914,16 +925,18 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
       runAIRequest(c, input, requestId, safeEmit, runAbortController.signal)
         .then((result) => {
           if (!closed) {
-            closed = true;
+            finalizing = true;
             runAbortController.abort();
             try {
               send('result', result as unknown as Record<string, unknown>);
               send('done', { requestId });
+              closed = true;
               controller.close();
             } catch (error) {
               console.error('[AI Route] Error sending final stream events:', error);
               // Try to close controller even if sending failed
               try {
+                closed = true;
                 controller.close();
               } catch (closeError) {
                 // Controller already closed, ignore
@@ -933,10 +946,11 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
         })
         .catch((error) => {
           if (!closed) {
-            closed = true;
+            finalizing = true;
             runAbortController.abort();
             try {
               if (error instanceof StreamAbortError) {
+                closed = true;
                 controller.close();
                 return;
               }
@@ -945,11 +959,13 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
               } else {
                 send('error', { code: 'OPENAI_ERROR', message: 'OpenAI request failed.', status: 502 });
               }
+              closed = true;
               controller.close();
             } catch (sendError) {
               console.error('[AI Route] Error sending error event:', sendError);
               // Try to close controller even if sending failed
               try {
+                closed = true;
                 controller.close();
               } catch (closeError) {
                 // Controller already closed, ignore
