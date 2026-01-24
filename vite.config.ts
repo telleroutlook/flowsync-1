@@ -13,6 +13,7 @@ export default defineConfig(() => {
       test: {
         environment: 'jsdom',
         setupFiles: './src/test/setupTests.ts',
+        exclude: ['dist/**', 'dist-server/**', 'node_modules/**'],
       },
       plugins: [react()],
       resolve: {

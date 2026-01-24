@@ -5,8 +5,14 @@ export class AIService {
     systemContext: string | undefined,
     onEvent?: (event: string, data: Record<string, unknown>) => void
   ): Promise<{ text: string; toolCalls?: { name: string; args: unknown }[] }> {
+    const STREAM_IDLE_TIMEOUT_MS = 120000;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const resetTimeout = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => controller.abort(), STREAM_IDLE_TIMEOUT_MS);
+    };
+    resetTimeout();
 
     try {
       const response = await fetch('/api/ai/stream', {
@@ -75,6 +81,7 @@ export class AIService {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        resetTimeout();
         flushBuffer(decoder.decode(value, { stream: true }));
       }
 
@@ -83,8 +90,13 @@ export class AIService {
       }
 
       return result;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Streaming request timed out.');
+      }
+      throw error;
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -94,8 +106,9 @@ export class AIService {
     systemContext?: string
   ): Promise<{ text: string; toolCalls?: { name: string; args: unknown }[] }> {
     try {
+      const REQUEST_TIMEOUT_MS = 180000;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,6 +130,10 @@ export class AIService {
 
       return payload.data;
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.warn('AI API timeout:', error);
+        return { text: '请求超时，请稍后重试。' };
+      }
       console.error("AI API Error:", error);
       return { text: "Sorry, I encountered an error processing your request." };
     }
