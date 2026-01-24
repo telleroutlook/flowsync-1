@@ -119,6 +119,9 @@ export const updateTask = async (
   const existing = existingRows[0];
   if (!existing) return null;
 
+  console.log('[updateTask] Before:', { id, existing: { startDate: existing.startDate, dueDate: existing.dueDate } });
+  console.log('[updateTask] Input data:', { startDate: data.startDate, dueDate: data.dueDate });
+
   const next = {
     title: data.title ?? existing.title,
     description: data.description ?? existing.description,
@@ -134,8 +137,12 @@ export const updateTask = async (
     updatedAt: now(),
   };
 
+  console.log('[updateTask] After merge:', { startDate: next.startDate, dueDate: next.dueDate });
+
   await db.update(tasks).set(next).where(eq(tasks.id, id));
-  return toTaskRecord({ ...existing, ...next });
+  const result = toTaskRecord({ ...existing, ...next });
+  console.log('[updateTask] Result:', { startDate: result.startDate, dueDate: result.dueDate });
+  return result;
 };
 
 export const deleteTask = async (

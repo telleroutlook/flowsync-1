@@ -151,6 +151,7 @@ async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables
     case 'listTasks':
     case 'searchTasks': {
       const { and, eq, like, or, sql } = await import('drizzle-orm');
+      const { toTaskRecord } = await import('../services/serializers');
       const conditions = [];
 
       if (args.projectId) {
@@ -182,7 +183,7 @@ async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables
 
       return JSON.stringify({
         success: true,
-        data: taskList,
+        data: taskList.map(toTaskRecord),
         total: totalCount.length,
         page,
         pageSize
@@ -192,9 +193,10 @@ async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables
     case 'getTask': {
       const id = typeof args.id === 'string' ? args.id : '';
       const { eq } = await import('drizzle-orm');
+      const { toTaskRecord } = await import('../services/serializers');
       const taskList = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
       if (taskList.length === 0) return JSON.stringify({ success: false, error: { code: 'NOT_FOUND', message: 'Task not found' } });
-      return JSON.stringify({ success: true, data: taskList[0] });
+      return JSON.stringify({ success: true, data: toTaskRecord(taskList[0]) });
     }
 
     case 'createTask':
@@ -354,8 +356,8 @@ const createTaskTool: FunctionDeclaration = {
       status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
       priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
       wbs: { type: 'string' },
-      startDate: { type: 'number' },
-      dueDate: { type: 'number' },
+      startDate: { type: 'number', description: 'Task start date as Unix timestamp in milliseconds (e.g., Date.now()). Use the actual current date from the task context for calculations.' },
+      dueDate: { type: 'number', description: 'Task due date as Unix timestamp in milliseconds (e.g., Date.now()). Use the actual current date from the task context for calculations.' },
       completion: { type: 'number' },
       assignee: { type: 'string' },
       isMilestone: { type: 'boolean' },
@@ -368,7 +370,7 @@ const createTaskTool: FunctionDeclaration = {
 
 const updateTaskTool: FunctionDeclaration = {
   name: 'updateTask',
-  description: 'Update an EXISTING task. Use this when the user refers to "this task", "the task", or wants to modify/set attributes of an existing task. Creates a draft that requires user approval.',
+  description: 'Update an EXISTING task. Use this when the user refers to "this task", "the task", or wants to modify/set attributes of an existing task. Creates a draft that requires user approval. IMPORTANT: When adjusting dates, ALWAYS read the current task first using getTask to get the existing startDate/dueDate values, then calculate the new dates based on those actual values, not from scratch.',
   parameters: {
     type: 'object',
     properties: {
@@ -378,8 +380,8 @@ const updateTaskTool: FunctionDeclaration = {
       status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
       priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
       wbs: { type: 'string' },
-      startDate: { type: 'number' },
-      dueDate: { type: 'number' },
+      startDate: { type: 'number', description: 'Task start date as Unix timestamp in milliseconds. When updating, base calculations on the existing task.startDate value from getTask result.' },
+      dueDate: { type: 'number', description: 'Task due date as Unix timestamp in milliseconds. When updating, base calculations on the existing task.dueDate value from getTask result.' },
       completion: { type: 'number' },
       assignee: { type: 'string' },
       isMilestone: { type: 'boolean' },
@@ -513,9 +515,18 @@ IMPORTANT - How to make changes:
 - All changes create drafts that require user approval
 - When creating tasks, ALWAYS include the projectId. Use the "Active Project ID" from the system context for new tasks.
 
+CRITICAL - Date Calculations:
+- ALL dates (startDate, dueDate) are Unix timestamps in MILLISECONDS
+- When UPDATING an existing task's dates: ALWAYS call getTask FIRST to get the current startDate/dueDate values
+- Calculate new dates based on the EXISTING task's dates, not from scratch or using the current system date
+- Example: "move task forward by 1 day" → getTask to get current startDate, then newStartDate = currentStartDate + 86400000
+- Example: "move task forward by 1 week" → getTask to get current startDate, then newStartDate = currentStartDate + (7 * 86400000)
+- NEVER assume the task's current date - always read it from getTask result
+
 Workflow:
 - Understand the user's intent
 - If they mention existing tasks or use demonstrative pronouns (this, that, these), call searchTasks FIRST
+- For date changes on existing tasks: call getTask FIRST to get current dates
 - Then immediately call the appropriate create/update/delete tool in the SAME response
 - Always explain what you're doing
 

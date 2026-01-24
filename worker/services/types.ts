@@ -36,6 +36,7 @@ export type DraftAction = {
   before?: Record<string, unknown> | null;
   after?: Record<string, unknown> | null;
   warnings?: string[];
+  explicitFields?: string[];  // Fields explicitly modified by user/AI (e.g., ['startDate', 'dueDate'])
 };
 
 export type DraftRecord = {

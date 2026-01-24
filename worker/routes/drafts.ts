@@ -41,22 +41,27 @@ draftsRoute.get('/:id', async (c) => {
 });
 
 draftsRoute.post('/', zValidator('json', createDraftSchema), async (c) => {
-  const payload = c.req.valid('json') as z.infer<typeof createDraftSchema>;
-  const actions: DraftAction[] = payload.actions.map(action => ({
-    id: action.id ?? generateId(),
-    entityType: action.entityType,
-    action: action.action,
-    entityId: action.entityId,
-    after: action.after,
-  }));
-  const createdBy = payload.createdBy ?? 'agent';
-  const result = await createDraft(c.get('db'), { ...payload, createdBy, actions });
-  await recordLog(c.get('db'), 'tool_execution', {
-    tool: 'planChanges',
-    draftId: result.draft.id,
-    warnings: result.warnings,
-  });
-  return jsonOk(c, result, 201);
+  try {
+    const payload = c.req.valid('json') as z.infer<typeof createDraftSchema>;
+    const actions: DraftAction[] = payload.actions.map(action => ({
+      id: action.id ?? generateId(),
+      entityType: action.entityType,
+      action: action.action,
+      entityId: action.entityId,
+      after: action.after,
+    }));
+    const createdBy = payload.createdBy ?? 'agent';
+    const result = await createDraft(c.get('db'), { ...payload, createdBy, actions });
+    await recordLog(c.get('db'), 'tool_execution', {
+      tool: 'planChanges',
+      draftId: result.draft.id,
+      warnings: result.warnings,
+    });
+    return jsonOk(c, result, 201);
+  } catch (error) {
+    console.error('[Drafts Route] Failed to create draft:', error);
+    return jsonError(c, 'CREATE_FAILED', error instanceof Error ? error.message : 'Failed to create draft.', 400);
+  }
 });
 
 draftsRoute.post('/:id/apply', zValidator('json', applySchema), async (c) => {

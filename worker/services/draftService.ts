@@ -184,7 +184,73 @@ const planActions = async (
 
       if (action.action === 'update') {
         const merged = normalizeTaskInput(action.after ?? {}, existing, existing.projectId);
+
+        // Detect which fields were explicitly modified
+        const explicitFields: string[] = [];
+        const afterObj = action.after ?? {};
+        if (afterObj.startDate !== undefined && afterObj.startDate !== existing.startDate) {
+          explicitFields.push('startDate');
+        }
+        if (afterObj.dueDate !== undefined && afterObj.dueDate !== existing.dueDate) {
+          explicitFields.push('dueDate');
+        }
+        if (afterObj.title !== undefined && afterObj.title !== existing.title) {
+          explicitFields.push('title');
+        }
+        if (afterObj.status !== undefined && afterObj.status !== existing.status) {
+          explicitFields.push('status');
+        }
+        if (afterObj.priority !== undefined && afterObj.priority !== existing.priority) {
+          explicitFields.push('priority');
+        }
+        if (afterObj.assignee !== undefined && afterObj.assignee !== existing.assignee) {
+          explicitFields.push('assignee');
+        }
+
+        console.log('[planActions] Task update explicit fields:', { id: existing.id, explicitFields });
+
+        // Check if dates were explicitly modified
+        const datesModified = explicitFields.includes('startDate') || explicitFields.includes('dueDate');
+
+        // First, check what the constraints would require
         const constraintResult = applyTaskConstraints(merged, taskState.map((item) => (item.id === existing.id ? merged : item)));
+
+        // If dates were modified and constraints would change them, it's a violation
+        if (datesModified && constraintResult.changed) {
+          const originalStart = existing.startDate;
+          const originalDue = existing.dueDate;
+          const constrainedStart = constraintResult.task.startDate;
+          const constrainedDue = constraintResult.task.dueDate;
+
+          // Check if the constrained dates differ from the user's requested dates
+          const startViolated = explicitFields.includes('startDate') && constrainedStart !== merged.startDate;
+          const dueViolated = explicitFields.includes('dueDate') && constrainedDue !== merged.dueDate;
+
+          if (startViolated || dueViolated) {
+            console.log('[planActions] Date modification violates predecessor dependencies:', {
+              id: existing.id,
+              requested: { startDate: merged.startDate, dueDate: merged.dueDate },
+              constrained: { startDate: constrainedStart, dueDate: constrainedDue },
+              violations: { start: startViolated, due: dueViolated }
+            });
+
+            // Throw an error to prevent draft creation
+            const errorMessage = [
+              `❌ 无法修改任务日期：${startViolated ? '开始日期' : ''}${startViolated && dueViolated ? '和' : ''}${dueViolated ? '截止日期' : ''}违反了前置依赖约束`,
+              ``,
+              `任务 "${existing.title}" 有必须满足的前置依赖。`,
+              ``,
+              `请求的日期：${merged.startDate ? new Date(merged.startDate).toISOString().split('T')[0] : 'N/A'} - ${merged.dueDate ? new Date(merged.dueDate).toISOString().split('T')[0] : 'N/A'}`,
+              `依赖要求的日期：${constrainedStart ? new Date(constrainedStart).toISOString().split('T')[0] : 'N/A'} - ${constrainedDue ? new Date(constrainedDue).toISOString().split('T')[0] : 'N/A'}`,
+              ``,
+              `请先修改前置任务，或移除依赖关系。`
+            ].join('\n');
+
+            throw new Error(errorMessage);
+          }
+        }
+
+        // If no violation, apply the constraints and proceed
         taskState = taskState.map((item) => (item.id === existing.id ? constraintResult.task : item));
         if (constraintResult.warnings.length) warnings.push(...constraintResult.warnings);
         planned.push({
@@ -385,6 +451,25 @@ export const applyDraft = async (
         });
       } else if (action.action === 'update' && action.entityId) {
         const before = await getTaskById(db, action.entityId);
+        console.log('[applyDraft] Updating task:', action.entityId, {
+          before: before ? { startDate: before.startDate, dueDate: before.dueDate } : null,
+          after: {
+            startDate: action.after?.startDate,
+            dueDate: action.after?.dueDate,
+            fullAfter: action.after
+          }
+        });
+
+        if (!before) {
+          console.error('[applyDraft] Task not found:', action.entityId);
+          throw new Error(`Task not found: ${action.entityId}. The task may have been deleted or the draft is outdated.`);
+        }
+
+        if (!action.after) {
+          console.error('[applyDraft] No after data for task update:', action.entityId);
+          throw new Error(`Invalid draft: No update data provided for task ${action.entityId}. This draft may be corrupted.`);
+        }
+
         const updated = await updateTask(db, action.entityId, {
           title: (action.after?.title as string) ?? undefined,
           description: (action.after?.description as string) ?? undefined,
@@ -398,6 +483,7 @@ export const applyDraft = async (
           isMilestone: (action.after?.isMilestone as boolean) ?? undefined,
           predecessors: (action.after?.predecessors as string[]) ?? undefined,
         });
+        console.log('[applyDraft] Task updated:', { updated: updated ? { startDate: updated.startDate, dueDate: updated.dueDate } : null });
         if (updated) {
           results.push({ ...action, before: before ?? undefined, after: updated });
           await recordAudit(db, {

@@ -171,6 +171,11 @@ export const useChat = ({
           const args = (call.args || {}) as Record<string, unknown>;
           console.log('[useChat] Processing tool:', call.name, 'args:', args);
           pushProcessingStep(`执行工具: ${call.name}`);
+
+          // Log if AI is trying to update a task without first calling getTask
+          if (call.name === 'updateTask' || call.name === 'deleteTask') {
+            console.warn('[useChat] AI called', call.name, 'without calling getTask first. This may cause incorrect date calculations.');
+          }
           
           if (call.name === 'listProjects') {
             pushProcessingStep('读取项目列表');
@@ -196,7 +201,16 @@ export const useChat = ({
               page: typeof args.page === 'number' ? args.page : undefined,
               pageSize: typeof args.pageSize === 'number' ? args.pageSize : undefined,
             });
-            const sample = result.data.slice(0, 5).map(task => task.title).join(', ');
+            console.log('[useChat] searchTasks result:', {
+              query: args.q,
+              count: result.total,
+              tasks: result.data.map(t => ({ id: t.id, title: t.title, startDate: t.startDate, dueDate: t.dueDate }))
+            });
+            const sample = result.data.slice(0, 5).map(task => {
+              const startDateStr = task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : 'N/A';
+              const dueDateStr = task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : 'N/A';
+              return `${task.title} (${startDateStr} - ${dueDateStr})`;
+            }).join(', ');
             toolResults.push(`Tasks (${result.total}): ${sample}${result.total > 5 ? '…' : ''}`);
             continue;
           }
@@ -204,7 +218,12 @@ export const useChat = ({
             if (typeof args.id === 'string') {
               pushProcessingStep('读取任务详情');
               const task = await apiService.getTask(args.id);
-              toolResults.push(`Task: ${task.title} (${task.id})`);
+              // Include full task data with dates so AI can calculate correctly
+              const startDateStr = task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : 'N/A';
+              const dueDateStr = task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : 'N/A';
+              const taskInfo = `Task: ${task.title} (ID: ${task.id}, Start: ${startDateStr}, Due: ${dueDateStr}, Status: ${task.status})`;
+              console.log('[useChat] getTask result:', taskInfo, 'Raw startDate:', task.startDate, 'Raw dueDate:', task.dueDate);
+              toolResults.push(taskInfo);
             }
             continue;
           }
@@ -363,7 +382,10 @@ export const useChat = ({
               toolResults.push(`Draft ${draft.id} created with ${draftActions.length} action(s).`);
             } catch (draftError) {
               console.error('[useChat] Failed to create draft:', draftError);
-              toolResults.push(`Failed to create draft: ${draftError instanceof Error ? draftError.message : String(draftError)}`);
+              const errorMessage = draftError instanceof Error ? draftError.message : String(draftError);
+              toolResults.push(`Failed to create draft: ${errorMessage}`);
+              // Replace AI's success message with the actual error
+              finalText = errorMessage;
             }
           }
 
@@ -462,13 +484,17 @@ export const useChat = ({
             total: activeTasks.length,
             taskIdMap,
           });
-      const systemContext = `Active Project: ${activeProject.name || 'None'}. 
+      const systemContext = `Active Project: ${activeProject.name || 'None'}.
                              Active Project ID: ${activeProject.id || 'N/A'}.
-                             ${selectedTask ? `User is currently inspecting task: ${selectedTask.title} (ID: ${selectedTask.id}, Status: ${selectedTask.status}).` : ''}
+                             ${selectedTask ? (() => {
+                               const startDateStr = selectedTask.startDate ? new Date(selectedTask.startDate).toISOString().split('T')[0] : 'N/A';
+                               const dueDateStr = selectedTask.dueDate ? new Date(selectedTask.dueDate).toISOString().split('T')[0] : 'N/A';
+                               return `User is currently inspecting task: ${selectedTask.title} (ID: ${selectedTask.id}, Status: ${selectedTask.status}, Start: ${startDateStr}, Due: ${dueDateStr}).`;
+                             })() : ''}
                              Available Projects: ${projects.map(p => `${p.name} (${p.id})`).join(', ')}.
-                             ${ 
+                             ${
                                shouldIncludeFullMappings
-                                 ? `Task IDs in Active Project (JSON): ${mappingJson}.` 
+                                 ? `Task IDs in Active Project (JSON): ${mappingJson}.`
                                  : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
                              }`;
 
