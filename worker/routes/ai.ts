@@ -203,11 +203,21 @@ async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables
     case 'createProject':
     case 'updateProject':
     case 'deleteProject':
-    case 'planChanges':
+    case 'planChanges': {
+      // Return detailed summary to help AI generate response text
+      const actions = Array.isArray(args.actions) ? args.actions : [];
+      const summary = actions.map((action: any) => {
+        const type = action.entityType || 'unknown';
+        const op = action.action || 'unknown';
+        const id = action.entityId || 'new';
+        return `${op} ${type}(${id})`;
+      }).join(', ');
+      return JSON.stringify({ success: true, message: `Draft created with ${actions.length} action(s): ${summary}. Awaiting user approval.` });
+    }
+
     case 'applyChanges': {
-      // These tools don't need execution here - they'll be handled by frontend
       // Return success to prevent AI from retrying
-      return JSON.stringify({ success: true, message: 'Draft created successfully. No further action needed.' });
+      return JSON.stringify({ success: true, message: 'Draft applied successfully.' });
     }
 
     default:
@@ -869,6 +879,8 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
         if (closed || lock) return;
         lock = true;
         try {
+          // Check closed again inside lock to prevent race condition
+          if (closed) return;
           const payload = {
             ...data,
             elapsedMs: Date.now() - startTime,
