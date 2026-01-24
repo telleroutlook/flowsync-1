@@ -253,8 +253,11 @@ export const useChat = ({
             if (Array.isArray(args.actions)) {
               pushProcessingStep('生成草稿计划');
               // Directly submit draft from planChanges
-              const actions = (args.actions as DraftAction[]).map(action => {
-                const processedAfter = { ...action.after };
+              const rawActions = Array.isArray(args.actions) ? args.actions : [];
+              const actions = rawActions.map((action: any) => {
+                if (!action || typeof action !== 'object') return null;
+                
+                const processedAfter = { ...(action.after || {}) };
                 // Auto-fill projectId for task creation actions if not provided
                 if (action.entityType === 'task' && action.action === 'create' && !processedAfter.projectId) {
                   processedAfter.projectId = activeProjectId;
@@ -266,9 +269,16 @@ export const useChat = ({
                   entityId: action.entityId,
                   after: processedAfter,
                 };
-              });
+              }).filter((a) => a !== null) as DraftAction[];
+              
               draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
-              await submitDraft(actions, { createdBy: 'agent', autoApply: false, reason: draftReason });
+              
+              if (actions.length === 0) {
+                console.warn('[useChat] planChanges called with no actions');
+                toolResults.push('No changes to apply.');
+              } else {
+                await submitDraft(actions, { createdBy: 'agent', autoApply: false, reason: draftReason });
+              }
             }
             continue;
           }
@@ -416,10 +426,12 @@ export const useChat = ({
       }]);
 
     } catch (error) {
+      console.error('[useChat] Error processing message:', error);
+      const errorMessage = error instanceof Error ? error.message : "Sorry, something went wrong.";
       setMessages(prev => [...prev, {
         id: generateId(),
         role: 'model',
-        text: "Sorry, something went wrong.",
+        text: `Error: ${errorMessage}`,
         timestamp: Date.now()
       }]);
     } finally {
