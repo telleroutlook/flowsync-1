@@ -34,12 +34,15 @@ describe('ChatInterface', () => {
       <ChatInterface
         isChatOpen
         setIsChatOpen={vi.fn()}
+        onResetChat={vi.fn()}
         pendingDraft={draft}
         draftWarnings={['Missing assignee']}
         onApplyDraft={onApplyDraft}
         onDiscardDraft={onDiscardDraft}
         messages={baseMessages}
         isProcessing={false}
+        processingSteps={[]}
+        thinkingPreview=""
         messagesEndRef={React.createRef()}
         onSendMessage={vi.fn()}
         pendingAttachments={attachments}
@@ -68,12 +71,15 @@ describe('ChatInterface', () => {
       <ChatInterface
         isChatOpen
         setIsChatOpen={vi.fn()}
+        onResetChat={vi.fn()}
         pendingDraft={null}
         draftWarnings={[]}
         onApplyDraft={vi.fn()}
         onDiscardDraft={vi.fn()}
         messages={baseMessages}
         isProcessing={false}
+        processingSteps={[]}
+        thinkingPreview=""
         messagesEndRef={React.createRef()}
         onSendMessage={onSendMessage}
         pendingAttachments={[]}
@@ -92,12 +98,15 @@ describe('ChatInterface', () => {
       <ChatInterface
         isChatOpen
         setIsChatOpen={vi.fn()}
+        onResetChat={vi.fn()}
         pendingDraft={null}
         draftWarnings={[]}
         onApplyDraft={vi.fn()}
         onDiscardDraft={vi.fn()}
         messages={baseMessages}
         isProcessing={false}
+        processingSteps={[]}
+        thinkingPreview=""
         messagesEndRef={React.createRef()}
         onSendMessage={onSendMessage}
         pendingAttachments={[]}

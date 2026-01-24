@@ -89,7 +89,7 @@ describe('aiRoute', () => {
     expect(json.data.text).toBe('Hi there');
     expect(json.data.toolCalls).toHaveLength(1);
     expect(json.data.toolCalls[0].name).toBe('listProjects');
-    expect(recordLog).toHaveBeenCalledTimes(2);
+    expect(recordLog).toHaveBeenCalledTimes(3);
   });
 
   it('returns OPENAI_ERROR when upstream fails', async () => {
@@ -110,7 +110,7 @@ describe('aiRoute', () => {
 
     expect(res.status).toBe(502);
     expect(json.error.code).toBe('OPENAI_ERROR');
-    expect(recordLog).toHaveBeenCalledTimes(1);
+    expect(recordLog).toHaveBeenCalledTimes(2);
   });
 
   it('uses custom base URL and model when provided', async () => {
@@ -152,5 +152,6 @@ describe('aiRoute', () => {
     expect(url).toBe('https://example.com/v1/chat/completions');
     const body = JSON.parse(String(options.body));
     expect(body.model).toBe('custom-model');
+    expect(recordLog).toHaveBeenCalledTimes(2);
   });
 });

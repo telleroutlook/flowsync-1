@@ -129,7 +129,7 @@ export default function App() {
   // 5. Chat Logic
   const {
     inputText, setInputText, isProcessing, pendingAttachments,
-    handleAttachFiles, handleRemoveAttachment, handleSendMessage,
+    handleAttachFiles, handleRemoveAttachment, handleSendMessage, processingSteps, thinkingPreview,
     messagesEndRef, fileInputRef
   } = useChat({
     activeProjectId,
@@ -272,6 +272,8 @@ export default function App() {
         onDiscardDraft={handleDiscardDraft}
         messages={messages}
         isProcessing={isProcessing}
+        processingSteps={processingSteps}
+        thinkingPreview={thinkingPreview}
         messagesEndRef={messagesEndRef}
         onSendMessage={handleSendMessage}
         pendingAttachments={pendingAttachments}

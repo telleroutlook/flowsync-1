@@ -23,6 +23,11 @@ interface UseChatProps {
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
 }
 
+type ProcessingStep = {
+  label: string;
+  elapsedMs?: number;
+};
+
 export const useChat = ({
   activeProjectId,
   activeProject,
@@ -38,9 +43,19 @@ export const useChat = ({
 }: UseChatProps) => {
   const [inputText, setInputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>([]);
+  const [thinkingPreview, setThinkingPreview] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const pushProcessingStep = useCallback((step: string, elapsedMs?: number) => {
+    setProcessingSteps(prev => {
+      if (prev[prev.length - 1]?.label === step) return prev;
+      const next = [...prev, { label: step, elapsedMs }];
+      return next.slice(-6);
+    });
+  }, []);
 
   const handleAttachFiles = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -82,8 +97,11 @@ export const useChat = ({
     setInputText('');
     setPendingAttachments([]);
     setIsProcessing(true);
+    setProcessingSteps([]);
+    setThinkingPreview('');
 
     try {
+      pushProcessingStep('整理上下文');
       const history = messages.slice(-10).map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.text }]
@@ -124,7 +142,63 @@ export const useChat = ({
                              }`;
 
       // Call AI Service
-      const response = await aiService.sendMessage(history, userMsg.text, systemContext);
+      pushProcessingStep('调用 AI 模型');
+
+      const stageLabels: Record<string, string> = {
+        received: '收到请求',
+        prepare_request: '准备请求',
+        upstream_request: '请求上游模型',
+        upstream_response: '收到上游响应',
+        done: '完成',
+      };
+
+      let response: { text: string; toolCalls?: { name: string; args: unknown }[] };
+      try {
+        response = await aiService.sendMessageStream(
+          history,
+          userMsg.text,
+          systemContext,
+          (event, data) => {
+            if (event === 'stage' && typeof data.name === 'string') {
+              const label = stageLabels[data.name] || data.name;
+              const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
+              pushProcessingStep(label, elapsedMs);
+              return;
+            }
+            if (event === 'retry') {
+              const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
+              const attempt = typeof data.attempt === 'number' ? data.attempt : undefined;
+              const status = typeof data.status === 'number' ? data.status : undefined;
+              const label = `上游重试${attempt ? ` #${attempt}` : ''}${status ? ` (${status})` : ''}`;
+              pushProcessingStep(label, elapsedMs);
+              return;
+            }
+            if (event === 'tool_start' && typeof data.name === 'string') {
+              const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
+              pushProcessingStep(`执行工具: ${data.name}`, elapsedMs);
+              return;
+            }
+            if (event === 'tool_end' && typeof data.name === 'string') {
+              const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
+              pushProcessingStep(`完成工具: ${data.name}`, elapsedMs);
+              return;
+            }
+            if (event === 'assistant_text' && typeof data.text === 'string') {
+              const trimmed = data.text.trim();
+              if (!trimmed) return;
+              const maxLen = 160;
+              const start = Math.max(0, trimmed.length - maxLen);
+              const tail = trimmed.slice(start);
+              setThinkingPreview(start > 0 ? `...${tail}` : tail);
+            }
+          }
+        );
+      } catch (streamError) {
+        pushProcessingStep('流式失败，回退普通请求');
+        response = await aiService.sendMessage(history, userMsg.text, systemContext);
+      }
+
+      pushProcessingStep('解析 AI 响应');
 
       console.log('[useChat] AI Response:', {
         hasText: !!response.text,
@@ -140,23 +214,28 @@ export const useChat = ({
 
       if (response.toolCalls && response.toolCalls.length > 0) {
         console.log('[useChat] Processing tool calls:', response.toolCalls);
+        pushProcessingStep('执行工具调用');
         for (const call of response.toolCalls) {
           const args = (call.args || {}) as Record<string, unknown>;
           console.log('[useChat] Processing tool:', call.name, 'args:', args);
+          pushProcessingStep(`执行工具: ${call.name}`);
           
           if (call.name === 'listProjects') {
+            pushProcessingStep('读取项目列表');
             const list = await apiService.listProjects();
             toolResults.push(`Projects (${list.length}): ${list.map(p => `${p.name} (${p.id})`).join(', ')}`);
             continue;
           }
           if (call.name === 'getProject') {
             if (typeof args.id === 'string') {
+              pushProcessingStep('读取项目详情');
               const project = await apiService.getProject(args.id);
               toolResults.push(`Project: ${project.name} (${project.id})`);
             }
             continue;
           }
           if (call.name === 'listTasks' || call.name === 'searchTasks') {
+            pushProcessingStep('读取任务列表');
             const result = await apiService.listTasks({
               projectId: typeof args.projectId === 'string' ? args.projectId : undefined,
               status: typeof args.status === 'string' ? args.status : undefined,
@@ -171,6 +250,7 @@ export const useChat = ({
           }
           if (call.name === 'getTask') {
             if (typeof args.id === 'string') {
+              pushProcessingStep('读取任务详情');
               const task = await apiService.getTask(args.id);
               toolResults.push(`Task: ${task.title} (${task.id})`);
             }
@@ -178,6 +258,7 @@ export const useChat = ({
           }
           if (call.name === 'planChanges') {
             if (Array.isArray(args.actions)) {
+              pushProcessingStep('生成草稿计划');
               // Directly submit draft from planChanges
               const actions = (args.actions as DraftAction[]).map(action => ({
                 id: action.id || generateId(),
@@ -193,6 +274,7 @@ export const useChat = ({
           }
           if (call.name === 'applyChanges') {
             if (typeof args.draftId === 'string') {
+              pushProcessingStep('应用草稿');
               await handleApplyDraft(args.draftId);
               toolResults.push(`Applied draft ${args.draftId}.`);
             }
@@ -302,6 +384,7 @@ export const useChat = ({
 
         if (draftActions.length > 0) {
           console.log('[useChat] Submitting draft...');
+          pushProcessingStep('提交草稿');
           try {
             const draft = await submitDraft(draftActions, { createdBy: 'agent', autoApply: false, reason: draftReason });
             console.log('[useChat] Draft created successfully:', draft.id);
@@ -315,12 +398,14 @@ export const useChat = ({
         }
 
         if (toolResults.length > 0) {
+          pushProcessingStep('汇总工具结果');
           appendSystemMessage(toolResults.join(' | '));
           if (!finalText) finalText = 'Draft created. Review pending changes before applying.';
         }
       } else {
         console.log('[useChat] No tool calls received from AI');
         console.log('[useChat] AI response text:', finalText);
+        pushProcessingStep('生成回复');
       }
 
       setMessages(prev => [...prev, {
@@ -339,6 +424,8 @@ export const useChat = ({
       }]);
     } finally {
       setIsProcessing(false);
+      setProcessingSteps([]);
+      setThinkingPreview('');
     }
   }, [
     isProcessing,
@@ -350,7 +437,8 @@ export const useChat = ({
     projects,
     submitDraft,
     handleApplyDraft,
-    appendSystemMessage
+    appendSystemMessage,
+    pushProcessingStep
   ]);
 
   return {
@@ -359,6 +447,8 @@ export const useChat = ({
     inputText,
     setInputText,
     isProcessing,
+    processingSteps,
+    thinkingPreview,
     pendingAttachments,
     handleAttachFiles,
     handleRemoveAttachment,

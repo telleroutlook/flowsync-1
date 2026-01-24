@@ -11,6 +11,8 @@ interface ChatInterfaceProps {
   onDiscardDraft: (draftId: string) => void;
   messages: ChatMessage[];
   isProcessing: boolean;
+  processingSteps: { label: string; elapsedMs?: number }[];
+  thinkingPreview: string;
   messagesEndRef: React.RefObject<HTMLDivElement>;
   onSendMessage: (e?: React.FormEvent) => void;
   pendingAttachments: ChatAttachment[];
@@ -31,6 +33,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
   onDiscardDraft,
   messages,
   isProcessing,
+  processingSteps,
+  thinkingPreview,
   messagesEndRef,
   onSendMessage,
   pendingAttachments,
@@ -138,13 +142,33 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
         ))}
         {isProcessing && (
           <div className="flex justify-start mb-4 animate-fade-in">
-             <div className="bg-white px-4 py-3.5 rounded-2xl rounded-bl-none border border-slate-100 shadow-sm flex items-center gap-2">
-                <span className="text-xs font-medium text-slate-500">Thinking</span>
-                <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></span>
-                  <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-100"></span>
-                  <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-200"></span>
+             <div className="bg-white px-4 py-3.5 rounded-2xl rounded-bl-none border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-slate-500">Thinking</span>
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></span>
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-100"></span>
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-200"></span>
+                  </div>
                 </div>
+                {thinkingPreview && (
+                  <div className="mt-2 text-[10px] text-slate-500 italic">
+                    {thinkingPreview}
+                  </div>
+                )}
+                {processingSteps.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {processingSteps.map((step, index) => (
+                      <div
+                        key={`${step.label}-${index}`}
+                        className="text-[10px] text-slate-500"
+                      >
+                        {step.label}
+                        {typeof step.elapsedMs === 'number' ? ` · ${(step.elapsedMs / 1000).toFixed(1)}s` : ''}
+                      </div>
+                    ))}
+                  </div>
+                )}
              </div>
           </div>
         )}
