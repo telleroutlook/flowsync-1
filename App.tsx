@@ -54,15 +54,35 @@ export default function App() {
     fetchAllTasks
   } = useProjectData();
 
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null),
+    [tasks, selectedTaskId]
+  );
+
   // 2. Chat State (Lifted)
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('flowsync_chat_history');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error("Failed to parse chat history", e);
+        }
+      }
+    }
+    return [{
       id: 'welcome',
       role: 'model',
       text: "Hello! I'm FlowSync. I've loaded your Construction Project WBS. I can help manage schedules, WBS codes, and assignees.",
       timestamp: Date.now(),
-    }
-  ]);
+    }];
+  });
+
+  // Persist chat messages
+  useEffect(() => {
+    localStorage.setItem('flowsync_chat_history', JSON.stringify(messages));
+  }, [messages]);
 
   const appendSystemMessage = useCallback((text: string) => {
     setMessages(prev => [...prev, {
@@ -71,6 +91,17 @@ export default function App() {
       text,
       timestamp: Date.now(),
     }]);
+  }, []);
+
+  const handleResetChat = useCallback(() => {
+    const initialMsg: ChatMessage = {
+      id: 'welcome',
+      role: 'model',
+      text: "Hello! I'm FlowSync. I've loaded your Construction Project WBS. I can help manage schedules, WBS codes, and assignees.",
+      timestamp: Date.now(),
+    };
+    setMessages([initialMsg]);
+    localStorage.removeItem('flowsync_chat_history');
   }, []);
 
   // 3. Audit Logs
@@ -104,6 +135,7 @@ export default function App() {
     activeProjectId,
     activeProject,
     activeTasks,
+    selectedTask: selectedTask || null,
     projects,
     refreshData,
     submitDraft,
@@ -225,10 +257,6 @@ export default function App() {
 
   // Derived State
   const filteredAuditLogs = useMemo(() => auditLogs, [auditLogs]);
-  const selectedTask = useMemo(
-    () => (selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null),
-    [tasks, selectedTaskId]
-  );
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
@@ -237,6 +265,7 @@ export default function App() {
       <ChatInterface
         isChatOpen={isChatOpen}
         setIsChatOpen={setIsChatOpen}
+        onResetChat={handleResetChat}
         pendingDraft={pendingDraft}
         draftWarnings={draftWarnings}
         onApplyDraft={handleApplyDraft}

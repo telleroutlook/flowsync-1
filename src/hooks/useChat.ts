@@ -13,6 +13,7 @@ interface UseChatProps {
   activeProjectId: string;
   activeProject: Project;
   activeTasks: Task[];
+  selectedTask?: Task | null;
   projects: Project[];
   refreshData: () => Promise<void>;
   submitDraft: (actions: DraftAction[], options: { reason?: string; createdBy: string; autoApply?: boolean; silent?: boolean }) => Promise<any>;
@@ -26,6 +27,7 @@ export const useChat = ({
   activeProjectId,
   activeProject,
   activeTasks,
+  selectedTask,
   projects,
   refreshData,
   submitDraft,
@@ -113,6 +115,7 @@ export const useChat = ({
           });
       const systemContext = `Active Project: ${activeProject.name || 'None'}. 
                              Active Project ID: ${activeProject.id || 'N/A'}.
+                             ${selectedTask ? `User is currently inspecting task: ${selectedTask.title} (ID: ${selectedTask.id}, Status: ${selectedTask.status}).` : ''}
                              Available Projects: ${projects.map(p => `${p.name} (${p.id})`).join(', ')}.
                              ${ 
                                shouldIncludeFullMappings

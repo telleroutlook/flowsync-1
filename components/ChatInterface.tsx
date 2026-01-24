@@ -19,6 +19,7 @@ interface ChatInterfaceProps {
   onAttachFiles: (files: FileList | null) => void;
   inputText: string;
   setInputText: (text: string) => void;
+  onResetChat: () => void;
 }
 
 export const ChatInterface = React.memo<ChatInterfaceProps>(({
@@ -38,6 +39,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
   onAttachFiles,
   inputText,
   setInputText,
+  onResetChat,
 }) => {
   return (
     <div 
@@ -63,15 +65,26 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
             </div>
           </div>
         </div>
-        <button 
-           onClick={() => setIsChatOpen(false)}
-           className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors"
-           title="Close Chat"
-        >
-           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-           </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          <button 
+             onClick={onResetChat}
+             className="text-slate-400 hover:text-indigo-600 p-1 rounded-md hover:bg-indigo-50 transition-colors"
+             title="New Chat / Clear History"
+          >
+             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+             </svg>
+          </button>
+          <button 
+             onClick={() => setIsChatOpen(false)}
+             className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors"
+             title="Close Chat"
+          >
+             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+             </svg>
+          </button>
+        </div>
       </div>
 
       {pendingDraft && (
@@ -174,7 +187,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors mb-0.5"
               disabled={isProcessing}
               title="Attach files"
             >
@@ -183,19 +196,32 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
               </svg>
             </button>
             
-            <input
-              type="text"
+            <textarea
+              rows={1}
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => {
+                setInputText(e.target.value);
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  // Reset height
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  onSendMessage();
+                }
+              }}
               placeholder="Ask AI to update tasks..."
-              className="w-full bg-transparent text-slate-900 py-2.5 outline-none placeholder:text-slate-400 text-sm font-medium"
+              className="w-full bg-transparent text-slate-900 py-2.5 outline-none placeholder:text-slate-400 text-sm font-medium resize-none max-h-[120px] custom-scrollbar"
               disabled={isProcessing}
             />
             
             <button 
               type="submit"
               disabled={(inputText.trim().length === 0 && pendingAttachments.length === 0) || isProcessing}
-              className="h-9 w-9 shrink-0 flex items-center justify-center bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-all shadow-md shadow-indigo-200"
+              className="h-9 w-9 shrink-0 flex items-center justify-center bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-all shadow-md shadow-indigo-200 mb-0.5"
             >
               <svg className="w-4 h-4 translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
