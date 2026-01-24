@@ -2,6 +2,9 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { jsonError, jsonOk } from './helpers';
 import { getAuditLogById, isRollbackError, listAuditLogs, rollbackAuditLog } from '../services/auditService';
+import type { Variables } from '../types';
+
+export const auditRoute = new Hono<{ Variables: Variables }>();
 
 const querySchema = z.object({
   projectId: z.string().optional(),
@@ -22,8 +25,6 @@ const rollbackSchema = z
     reason: z.string().optional(),
   })
   .transform((data) => ({ actor: data.actor ?? 'user', reason: data.reason }));
-
-export const auditRoute = new Hono<{ Variables: { db: ReturnType<typeof import('../db').getDb> } }>();
 
 auditRoute.get('/', async (c) => {
   const parsed = querySchema.safeParse(c.req.query());

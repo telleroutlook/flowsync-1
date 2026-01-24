@@ -6,6 +6,9 @@ import { applyDraft, createDraft, discardDraft, getDraftById, listDrafts } from 
 import { recordLog } from '../services/logService';
 import { generateId } from '../services/utils';
 import type { DraftAction } from '../services/types';
+import type { Variables } from '../types';
+
+export const draftsRoute = new Hono<{ Variables: Variables }>();
 
 const actionSchema = z.object({
   id: z.string().optional(),
@@ -25,8 +28,6 @@ const createDraftSchema = z.object({
 const applySchema = z.object({
   actor: z.enum(['user', 'agent', 'system']).default('user'),
 });
-
-export const draftsRoute = new Hono<{ Variables: { db: ReturnType<typeof import('../db').getDb> } }>();
 
 draftsRoute.get('/', async (c) => {
   const drafts = await listDrafts(c.get('db'));

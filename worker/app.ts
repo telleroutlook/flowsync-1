@@ -1,23 +1,22 @@
 import { Hono } from 'hono';
-import type { DrizzleDB } from './db';
+import type { Variables, Bindings, DrizzleDB } from './types';
 import { projectsRoute } from './routes/projects';
 import { tasksRoute } from './routes/tasks';
 import { draftsRoute } from './routes/drafts';
 import { auditRoute } from './routes/audit';
 import { aiRoute } from './routes/ai';
 
-export type Bindings = {
-  OPENAI_API_KEY: string;
-  OPENAI_BASE_URL?: string;
-  OPENAI_MODEL?: string;
-};
+export { Variables, Bindings };
 
-export type Variables = {
-  db: DrizzleDB;
-};
-
-export const createApp = () => {
+export const createApp = (db: DrizzleDB, bindings: Bindings) => {
   const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+  // Middleware to inject db and env bindings - must be before routes
+  app.use('*', async (c, next) => {
+    c.set('db', db);
+    c.env = bindings;
+    await next();
+  });
 
   app.route('/', aiRoute);
   app.route('/api/projects', projectsRoute);

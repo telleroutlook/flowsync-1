@@ -123,14 +123,23 @@ export const useChat = ({
       // Call AI Service
       const response = await aiService.sendMessage(history, userMsg.text, systemContext);
 
+      console.log('[useChat] AI Response:', {
+        hasText: !!response.text,
+        textLength: response.text?.length,
+        toolCallsCount: response.toolCalls?.length || 0,
+        toolCalls: response.toolCalls,
+      });
+
       let finalText = response.text;
       const toolResults: string[] = [];
       const draftActions: DraftAction[] = [];
       let draftReason: string | undefined;
 
       if (response.toolCalls && response.toolCalls.length > 0) {
+        console.log('[useChat] Processing tool calls:', response.toolCalls);
         for (const call of response.toolCalls) {
           const args = (call.args || {}) as Record<string, unknown>;
+          console.log('[useChat] Processing tool:', call.name, 'args:', args);
           
           if (call.name === 'listProjects') {
             const list = await apiService.listProjects();
@@ -283,15 +292,32 @@ export const useChat = ({
           }
         }
 
+        console.log('[useChat] Draft actions collected:', {
+          count: draftActions.length,
+          actions: draftActions,
+        });
+
         if (draftActions.length > 0) {
-          const draft = await submitDraft(draftActions, { createdBy: 'agent', autoApply: false, reason: draftReason });
-          toolResults.push(`Draft ${draft.id} created with ${draftActions.length} action(s).`);
+          console.log('[useChat] Submitting draft...');
+          try {
+            const draft = await submitDraft(draftActions, { createdBy: 'agent', autoApply: false, reason: draftReason });
+            console.log('[useChat] Draft created successfully:', draft.id);
+            toolResults.push(`Draft ${draft.id} created with ${draftActions.length} action(s).`);
+          } catch (draftError) {
+            console.error('[useChat] Failed to create draft:', draftError);
+            toolResults.push(`Failed to create draft: ${draftError instanceof Error ? draftError.message : String(draftError)}`);
+          }
+        } else {
+          console.log('[useChat] No draft actions to submit');
         }
 
         if (toolResults.length > 0) {
           appendSystemMessage(toolResults.join(' | '));
           if (!finalText) finalText = 'Draft created. Review pending changes before applying.';
         }
+      } else {
+        console.log('[useChat] No tool calls received from AI');
+        console.log('[useChat] AI response text:', finalText);
       }
 
       setMessages(prev => [...prev, {

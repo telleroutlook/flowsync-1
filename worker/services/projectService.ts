@@ -13,7 +13,8 @@ export const getProjectById = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string
 ): Promise<ProjectRecord | null> => {
-  const row = await db.select().from(projects).where(eq(projects.id, id)).get();
+  const rows = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+  const row = rows[0];
   return row ? toProjectRecord(row) : null;
 };
 
@@ -39,7 +40,8 @@ export const updateProject = async (
   id: string,
   data: { name?: string; description?: string; icon?: string }
 ): Promise<ProjectRecord | null> => {
-  const existing = await db.select().from(projects).where(eq(projects.id, id)).get();
+  const existingRows = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+  const existing = existingRows[0];
   if (!existing) return null;
 
   const next = {
@@ -57,7 +59,8 @@ export const deleteProject = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string
 ): Promise<{ project: ProjectRecord | null; deletedTasks: number }> => {
-  const existing = await db.select().from(projects).where(eq(projects.id, id)).get();
+  const existingRows = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+  const existing = existingRows[0];
   if (!existing) return { project: null, deletedTasks: 0 };
 
   const [{ count: taskCount }] = await db

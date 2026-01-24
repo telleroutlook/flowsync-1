@@ -7,6 +7,9 @@ import { createProject, deleteProject, getProjectById, listProjects, updateProje
 import { recordAudit } from '../services/auditService';
 import { tasks } from '../db/schema';
 import { toTaskRecord } from '../services/serializers';
+import type { Variables } from '../types';
+
+export const projectsRoute = new Hono<{ Variables: Variables }>();
 
 const projectInputSchema = z.object({
   name: z.string().min(1),
@@ -19,8 +22,6 @@ const projectUpdateSchema = z.object({
   description: z.string().optional(),
   icon: z.string().optional(),
 });
-
-export const projectsRoute = new Hono<{ Variables: { db: ReturnType<typeof import('../db').getDb> } }>();
 
 projectsRoute.get('/', async (c) => {
   const projects = await listProjects(c.get('db'));

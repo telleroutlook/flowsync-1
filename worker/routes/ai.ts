@@ -1,8 +1,95 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
+import { eq } from 'drizzle-orm';
 import { jsonError, jsonOk } from './helpers';
 import { recordLog } from '../services/logService';
+import { getAuthorizationHeader } from '../utils/bigmodelAuth';
+import type { Bindings, Variables } from '../types';
+import type { Context } from 'hono';
+import { projects, tasks } from '../db/schema';
+
+export const aiRoute = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+// Helper function to execute read-only tool calls locally
+async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables }>, toolName: string, args: Record<string, unknown>): Promise<string> {
+  const db = c.get('db');
+
+  switch (toolName) {
+    case 'listProjects': {
+      const projects = await db.select({ id: projects.id, name: projects.name, description: projects.description }).from(projects);
+      return JSON.stringify({ success: true, data: projects });
+    }
+
+    case 'getProject': {
+      const id = typeof args.id === 'string' ? args.id : '';
+      const projectList = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+      if (projectList.length === 0) return JSON.stringify({ success: false, error: { code: 'NOT_FOUND', message: 'Project not found' } });
+      return JSON.stringify({ success: true, data: projectList[0] });
+    }
+
+    case 'listTasks':
+    case 'searchTasks': {
+      const { and, eq, like, or } = await import('drizzle-orm');
+      const conditions = [];
+
+      if (args.projectId) {
+        conditions.push(eq(tasks.projectId, String(args.projectId)));
+      }
+      if (args.status) {
+        conditions.push(eq(tasks.status, String(args.status)));
+      }
+      if (args.assignee) {
+        conditions.push(eq(tasks.assignee, String(args.assignee)));
+      }
+      if (args.q) {
+        conditions.push(or(
+          like(tasks.title, `%${String(args.q)}%`),
+          like(tasks.description || '', `%${String(args.q)}%`)
+        ));
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const page = typeof args.page === 'number' ? args.page : 1;
+      const pageSize = typeof args.pageSize === 'number' ? args.pageSize : 50;
+      const offset = (page - 1) * pageSize;
+
+      const taskList = await db.select().from(tasks).where(whereClause).limit(pageSize).offset(offset);
+      const totalCount = await db.select({ count: tasks.id }).from(tasks).where(whereClause);
+
+      return JSON.stringify({
+        success: true,
+        data: taskList,
+        total: totalCount.length,
+        page,
+        pageSize
+      });
+    }
+
+    case 'getTask': {
+      const id = typeof args.id === 'string' ? args.id : '';
+      const { eq } = await import('drizzle-orm');
+      const taskList = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+      if (taskList.length === 0) return JSON.stringify({ success: false, error: { code: 'NOT_FOUND', message: 'Task not found' } });
+      return JSON.stringify({ success: true, data: taskList[0] });
+    }
+
+    case 'createTask':
+    case 'updateTask':
+    case 'deleteTask':
+    case 'createProject':
+    case 'updateProject':
+    case 'deleteProject':
+    case 'planChanges':
+    case 'applyChanges': {
+      // These tools don't need execution here - they'll be handled by frontend
+      return JSON.stringify({ status: 'pending', message: 'Tool to be executed by frontend' });
+    }
+
+    default:
+      return `Unknown tool: ${toolName}`;
+  }
+}
 
 type JsonSchema = Record<string, unknown>;
 
@@ -79,14 +166,14 @@ const searchTasksTool: FunctionDeclaration = {
 
 const createProjectTool: FunctionDeclaration = {
   name: 'createProject',
-  description: 'Create a new project (draft-first).',
+  description: 'Create a new project. Creates a draft that requires user approval.',
   parameters: {
     type: 'object',
     properties: {
       name: { type: 'string' },
       description: { type: 'string' },
       icon: { type: 'string' },
-      reason: { type: 'string' },
+      reason: { type: 'string', description: 'Reason for creating this project (optional)' },
     },
     required: ['name'],
   },
@@ -94,7 +181,7 @@ const createProjectTool: FunctionDeclaration = {
 
 const updateProjectTool: FunctionDeclaration = {
   name: 'updateProject',
-  description: 'Update an existing project by id (draft-first).',
+  description: 'Update an existing project. Creates a draft that requires user approval.',
   parameters: {
     type: 'object',
     properties: {
@@ -102,7 +189,7 @@ const updateProjectTool: FunctionDeclaration = {
       name: { type: 'string' },
       description: { type: 'string' },
       icon: { type: 'string' },
-      reason: { type: 'string' },
+      reason: { type: 'string', description: 'Reason for updating this project (optional)' },
     },
     required: ['id'],
   },
@@ -110,12 +197,12 @@ const updateProjectTool: FunctionDeclaration = {
 
 const deleteProjectTool: FunctionDeclaration = {
   name: 'deleteProject',
-  description: 'Delete a project by id (draft-first).',
+  description: 'Delete a project. Creates a draft that requires user approval.',
   parameters: {
     type: 'object',
     properties: {
       id: { type: 'string' },
-      reason: { type: 'string' },
+      reason: { type: 'string', description: 'Reason for deleting this project (optional)' },
     },
     required: ['id'],
   },
@@ -123,7 +210,7 @@ const deleteProjectTool: FunctionDeclaration = {
 
 const createTaskTool: FunctionDeclaration = {
   name: 'createTask',
-  description: 'Create a new task (draft-first).',
+  description: 'Create a new task. Creates a draft that requires user approval. Only projectId and title are required; other fields can be inferred from context.',
   parameters: {
     type: 'object',
     properties: {
@@ -139,7 +226,7 @@ const createTaskTool: FunctionDeclaration = {
       assignee: { type: 'string' },
       isMilestone: { type: 'boolean' },
       predecessors: { type: 'array', items: { type: 'string' } },
-      reason: { type: 'string' },
+      reason: { type: 'string', description: 'Reason for creating this task (optional)' },
     },
     required: ['projectId', 'title'],
   },
@@ -147,7 +234,7 @@ const createTaskTool: FunctionDeclaration = {
 
 const updateTaskTool: FunctionDeclaration = {
   name: 'updateTask',
-  description: 'Update a task by id (draft-first).',
+  description: 'Update an existing task. Creates a draft that requires user approval.',
   parameters: {
     type: 'object',
     properties: {
@@ -163,7 +250,7 @@ const updateTaskTool: FunctionDeclaration = {
       assignee: { type: 'string' },
       isMilestone: { type: 'boolean' },
       predecessors: { type: 'array', items: { type: 'string' } },
-      reason: { type: 'string' },
+      reason: { type: 'string', description: 'Reason for updating this task (optional)' },
     },
     required: ['id'],
   },
@@ -171,12 +258,12 @@ const updateTaskTool: FunctionDeclaration = {
 
 const deleteTaskTool: FunctionDeclaration = {
   name: 'deleteTask',
-  description: 'Delete a task by id (draft-first).',
+  description: 'Delete a task. Creates a draft that requires user approval.',
   parameters: {
     type: 'object',
     properties: {
       id: { type: 'string' },
-      reason: { type: 'string' },
+      reason: { type: 'string', description: 'Reason for deleting this task (optional)' },
     },
     required: ['id'],
   },
@@ -184,12 +271,12 @@ const deleteTaskTool: FunctionDeclaration = {
 
 const planChangesTool: FunctionDeclaration = {
   name: 'planChanges',
-  description: 'Create a draft plan consisting of multiple actions before applying changes.',
+  description: 'Create a draft with multiple related actions at once. Use this for making multiple changes together that should be approved as a group. Each action must specify entityType (task/project), action (create/update/delete), and for update/delete include entityId.',
   parameters: {
     type: 'object',
     properties: {
       projectId: { type: 'string' },
-      reason: { type: 'string' },
+      reason: { type: 'string', description: 'Reason for making these changes' },
       actions: {
         type: 'array',
         items: {
@@ -197,8 +284,8 @@ const planChangesTool: FunctionDeclaration = {
           properties: {
             entityType: { type: 'string', enum: ['task', 'project'] },
             action: { type: 'string', enum: ['create', 'update', 'delete'] },
-            entityId: { type: 'string' },
-            after: { type: 'object' },
+            entityId: { type: 'string', description: 'Required for update and delete actions' },
+            after: { type: 'object', description: 'The new state. Required for create and update actions' },
           },
           required: ['entityType', 'action'],
         },
@@ -261,29 +348,66 @@ const requestSchema = z.object({
   systemContext: z.string().optional(),
 });
 
-export const aiRoute = new Hono<{
-  Bindings: { OPENAI_API_KEY: string; OPENAI_BASE_URL?: string; OPENAI_MODEL?: string };
-  Variables: { db: ReturnType<typeof import('../db').getDb> };
-}>();
-
 aiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
   const { history, message, systemContext } = c.req.valid('json');
 
+  console.log('[AI Route] Request received:', {
+    hasHistory: history?.length,
+    messageLength: message?.length,
+    systemContextLength: systemContext?.length,
+  });
+
   if (!c.env.OPENAI_API_KEY) {
+    console.error('[AI Route] Missing OPENAI_API_KEY');
     return jsonError(c, 'MISSING_API_KEY', 'Missing OPENAI_API_KEY binding.', 500);
   }
 
+  console.log('[AI Route] Environment config:', {
+    hasApiKey: !!c.env.OPENAI_API_KEY,
+    apiKeyPrefix: c.env.OPENAI_API_KEY?.substring(0, 10) + '...',
+    baseUrl: c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    model: c.env.OPENAI_MODEL || 'gpt-4',
+  });
+
   try {
-    const baseUrl = (c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1/chat/completions').replace(/\/+$/, '');
-    const model = c.env.OPENAI_MODEL || 'GLM-4.7';
-    const systemInstruction = `You are FlowSync AI, an expert project manager.\n${systemContext || ''}\nYou must read before you write: call listProjects/listTasks/searchTasks first.\nAll edits must go through planChanges and require user approval before applyChanges.\nResolve dependency conflicts and date issues automatically when planning.\nCurrent Date: ${new Date().toISOString().split('T')[0]}`;
+    const baseUrl = (c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const endpoint = `${baseUrl}/chat/completions`;
+    const model = c.env.OPENAI_MODEL || 'gpt-4';
+
+    console.log('[AI Route] Request config:', {
+      baseUrl,
+      endpoint,
+      model,
+    });
+    const systemInstruction = `You are FlowSync AI, an expert project manager.
+${systemContext || ''}
+
+IMPORTANT - How to make changes:
+- For simple/obvious requests (e.g., "create a task named X"), you can call createTask directly without reading first
+- For complex requests or when you need context, call listProjects/listTasks/searchTasks first
+- Use createTask/updateTask/deleteTask for single changes, use planChanges for multiple related changes
+- All changes create drafts that require user approval
+
+You can call multiple tools in a single response. For example:
+- First call listTasks to understand context
+- Then call createTask in the SAME response
+
+Workflow:
+- Understand the user's intent
+- If you need more context, call listTasks/listProjects
+- Then immediately call the appropriate create/update/delete tool
+- You can chain multiple tool calls in one response
+- Always explain what you're doing
+
+Resolve dependency conflicts and date issues automatically when planning changes.
+Current Date: ${new Date().toISOString().split('T')[0]}`;
 
     await recordLog(c.get('db'), 'ai_request', {
       message,
       history: history.slice(-10),
     });
 
-    const messages = [
+    let messages: Array<{ role: string; content?: string; tool_calls?: any[]; tool_call_id?: string }> = [
       { role: 'system', content: systemInstruction },
       ...history.map((item) => ({
         role: item.role === 'model' ? 'assistant' : item.role,
@@ -292,65 +416,128 @@ aiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
       { role: 'user', content: message },
     ];
 
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${c.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        tools,
-        tool_choice: 'auto',
-        temperature: 0.5,
-      }),
-    });
+    // Multi-turn tool calling: keep calling AI until it stops requesting tools
+    let maxTurns = 5; // Prevent infinite loops
+    let currentTurn = 0;
+    let finalText = '';
+    let allFunctionCalls: Array<{ name: string; args: unknown }> = [];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return jsonError(c, 'OPENAI_ERROR', errorText || 'OpenAI request failed.', 502);
-    }
+    while (currentTurn < maxTurns) {
+      currentTurn++;
+      console.log('[AI Route] Turn', currentTurn, 'of', maxTurns);
 
-    const payload: {
-      choices?: Array<{
-        message?: {
-          content?: string | null;
-          tool_calls?: Array<{
-            function?: { name?: string; arguments?: string };
-          }>;
-        };
-      }>;
-    } = await response.json();
+      // 生成认证头（支持智谱AI JWT token）
+      const authorization = getAuthorizationHeader(c.env.OPENAI_API_KEY, baseUrl);
 
-    const messagePayload = payload.choices?.[0]?.message;
-    if (!messagePayload) {
-      return jsonError(c, 'NO_RESPONSE', 'No response from model.', 502);
-    }
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: authorization,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          tools,
+          tool_choice: 'auto',
+          temperature: 0.5,
+        }),
+      });
 
-    const modelText = messagePayload.content || '';
-    const functionCalls = (messagePayload.tool_calls || [])
-      .map((call) => {
-        const name = call.function?.name;
-        const rawArgs = call.function?.arguments;
-        if (!name) return null;
-        if (!rawArgs) return { name, args: {} };
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[AI Route] Request failed:', {
+          status: response.status,
+          errorBody: errorText,
+        });
+        return jsonError(c, 'OPENAI_ERROR', errorText || 'OpenAI request failed.', 502);
+      }
+
+      const payload: {
+        choices?: Array<{
+          message?: {
+            content?: string | null;
+            tool_calls?: Array<{
+              id?: string;
+              function?: { name?: string; arguments?: string };
+            }>;
+          };
+        }>;
+      } = await response.json();
+
+      const messagePayload = payload.choices?.[0]?.message;
+      if (!messagePayload) {
+        return jsonError(c, 'NO_RESPONSE', 'No response from model.', 502);
+      }
+
+      const modelText = messagePayload.content || '';
+      const toolCallsFromAPI = messagePayload.tool_calls || [];
+
+      console.log('[AI Route] Turn', currentTurn, 'response:', {
+        hasText: !!modelText,
+        toolCallsCount: toolCallsFromAPI.length,
+      });
+
+      // Add assistant response to messages
+      messages.push({
+        role: 'assistant',
+        content: modelText,
+        tool_calls: toolCallsFromAPI.length > 0 ? toolCallsFromAPI.map(tc => ({
+          id: tc.id || `call_${Date.now()}`,
+          type: 'function' as const,
+          function: {
+            name: tc.function?.name || '',
+            arguments: tc.function?.arguments || '{}',
+          },
+        })) : undefined,
+      });
+
+      // If no tool calls, we're done
+      if (toolCallsFromAPI.length === 0) {
+        finalText = modelText;
+        console.log('[AI Route] No more tool calls, ending loop');
+        break;
+      }
+
+      // Execute tool calls and add results to messages
+      for (const toolCall of toolCallsFromAPI) {
+        const toolName = toolCall.function?.name;
+        const toolArgs = toolCall.function?.arguments || '{}';
+
+        console.log('[AI Route] Executing tool:', toolName);
+
+        let toolResult: string;
         try {
-          return { name, args: JSON.parse(rawArgs) as unknown };
-        } catch {
-          return { name, args: rawArgs };
+          toolResult = await executeTool(c, toolName || '', JSON.parse(toolArgs));
+        } catch (error) {
+          toolResult = `Error: ${error instanceof Error ? error.message : String(error)}`;
         }
-      })
-      .filter((call): call is { name: string; args: unknown } => Boolean(call));
+
+        // Add tool result to messages
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id || '',
+          content: toolResult,
+        });
+
+        // Also collect for final response
+        const parsedArgs = JSON.parse(toolArgs);
+        allFunctionCalls.push({ name: toolName || '', args: parsedArgs });
+      }
+
+      // Continue loop to get next response from AI
+    }
+
+    console.log('[AI Route] Loop completed. Total tool calls:', allFunctionCalls.length);
 
     await recordLog(c.get('db'), 'ai_response', {
-      text: modelText,
-      toolCalls: functionCalls,
+      text: finalText,
+      toolCalls: allFunctionCalls,
     });
 
     return jsonOk(c, {
-      text: modelText,
-      toolCalls: functionCalls.length > 0 ? functionCalls : undefined,
+      text: finalText,
+      toolCalls: allFunctionCalls.length > 0 ? allFunctionCalls : undefined,
     });
   } catch (error) {
     await recordLog(c.get('db'), 'error', {

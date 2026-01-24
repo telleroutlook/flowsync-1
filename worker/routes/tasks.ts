@@ -4,6 +4,9 @@ import { zValidator } from '@hono/zod-validator';
 import { jsonError, jsonOk } from './helpers';
 import { createTask, deleteTask, getTaskById, listTasks, updateTask } from '../services/taskService';
 import { recordAudit } from '../services/auditService';
+import type { Variables } from '../types';
+
+export const tasksRoute = new Hono<{ Variables: Variables }>();
 
 const statusEnum = z.enum(['TODO', 'IN_PROGRESS', 'DONE']);
 const priorityEnum = z.enum(['LOW', 'MEDIUM', 'HIGH']);
@@ -45,8 +48,6 @@ const listQuerySchema = z.object({
   page: z.coerce.number().optional(),
   pageSize: z.coerce.number().optional(),
 });
-
-export const tasksRoute = new Hono<{ Variables: { db: ReturnType<typeof import('../db').getDb> } }>();
 
 tasksRoute.get('/', async (c) => {
   const parsed = listQuerySchema.safeParse(c.req.query());
