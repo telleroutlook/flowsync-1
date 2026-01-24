@@ -53,25 +53,47 @@ const getRetryDelay = (attempt: number, retryAfterHeader?: string | null) => {
   return BASE_RETRY_DELAY_MS * Math.pow(2, attempt) + jitter;
 };
 
+class StreamAbortError extends Error {
+  constructor(message = 'Stream aborted') {
+    super(message);
+    this.name = 'StreamAbortError';
+  }
+}
+
 const fetchWithRetry = async (
   endpoint: string,
   options: RequestInit,
   timeoutMs: number,
   maxRetries: number,
-  onRetry?: (info: { attempt: number; delayMs: number; status?: number; error?: string }) => void
+  onRetry?: (info: { attempt: number; delayMs: number; status?: number; error?: string }) => void,
+  abortSignal?: AbortSignal
 ) => {
   let lastError: unknown;
   let totalElapsedMs = 0;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    if (abortSignal?.aborted) {
+      throw new StreamAbortError();
+    }
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    let externalAborted = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+    const handleAbort = () => {
+      externalAborted = true;
+      controller.abort();
+    };
+    abortSignal?.addEventListener('abort', handleAbort);
     const start = Date.now();
     try {
       const response = await fetch(endpoint, { ...options, signal: controller.signal });
       const elapsed = Date.now() - start;
       totalElapsedMs += elapsed;
       clearTimeout(timeoutId);
+      abortSignal?.removeEventListener('abort', handleAbort);
 
       if (response.ok || !shouldRetryStatus(response.status) || attempt === maxRetries) {
         return { response, attempts: attempt + 1, elapsedMs: totalElapsedMs };
@@ -83,9 +105,17 @@ const fetchWithRetry = async (
       continue;
     } catch (error) {
       clearTimeout(timeoutId);
+      abortSignal?.removeEventListener('abort', handleAbort);
       const elapsed = Date.now() - start;
       totalElapsedMs += elapsed;
       lastError = error;
+
+      if (externalAborted) {
+        throw new StreamAbortError();
+      }
+      if (!timedOut && abortSignal?.aborted) {
+        throw new StreamAbortError();
+      }
 
       if (attempt === maxRetries) {
         throw { error: lastError, attempts: attempt + 1, elapsedMs: totalElapsedMs };
@@ -491,10 +521,17 @@ const runAIRequest = async (
   c: Context<{ Bindings: Bindings; Variables: Variables }>,
   input: RequestInput,
   requestId: string,
-  emit?: ProgressEmitter
+  emit?: ProgressEmitter,
+  abortSignal?: AbortSignal
 ) => {
+  const assertNotAborted = () => {
+    if (abortSignal?.aborted) {
+      throw new StreamAbortError();
+    }
+  };
   const { history, message, systemContext } = input;
 
+  assertNotAborted();
   console.log('[AI Route] Request received:', {
     requestId,
     hasHistory: history?.length,
@@ -502,6 +539,7 @@ const runAIRequest = async (
     systemContextLength: systemContext?.length,
   });
 
+  assertNotAborted();
   emit?.('stage', { name: 'received' });
 
   if (!c.env.OPENAI_API_KEY) {
@@ -509,6 +547,7 @@ const runAIRequest = async (
     throw new ApiError('MISSING_API_KEY', 'Missing OPENAI_API_KEY binding.', 500);
   }
 
+  assertNotAborted();
   const baseUrl = (c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
   const model = c.env.OPENAI_MODEL || 'gpt-4';
@@ -524,6 +563,7 @@ const runAIRequest = async (
 
   const systemInstruction = buildSystemInstruction(systemContext);
 
+  assertNotAborted();
   await recordLog(c.get('db'), 'ai_request', {
     requestId,
     message,
@@ -549,6 +589,7 @@ const runAIRequest = async (
   let totalToolCalls = 0;
 
   while (currentTurn < MAX_TURNS) {
+    assertNotAborted();
     currentTurn++;
     console.log('[AI Route] Turn', currentTurn, 'of', MAX_TURNS, { requestId });
 
@@ -585,12 +626,16 @@ const runAIRequest = async (
             status: info.status,
             error: info.error,
           });
-        }
+        },
+        abortSignal
       );
       response = result.response;
       attempts = result.attempts;
       elapsedMs = result.elapsedMs;
     } catch (errorInfo) {
+      if (errorInfo instanceof StreamAbortError) {
+        throw errorInfo;
+      }
       const detail = errorInfo && typeof errorInfo === 'object' && 'error' in errorInfo
         ? String((errorInfo as { error: unknown }).error)
         : 'Upstream request failed';
@@ -602,6 +647,7 @@ const runAIRequest = async (
       throw new ApiError('OPENAI_ERROR', 'OpenAI request failed.', 502);
     }
 
+    assertNotAborted();
     emit?.('stage', { name: 'upstream_response', turn: currentTurn, attempts, elapsedMs });
 
     if (!response.ok) {
@@ -704,6 +750,7 @@ const runAIRequest = async (
     lastToolCallSignature = toolCallSignature;
 
     for (const toolCall of toolCallsFromAPI) {
+      assertNotAborted();
       const toolName = toolCall.function?.name;
       const toolArgs = toolCall.function?.arguments || '{}';
 
@@ -724,6 +771,7 @@ const runAIRequest = async (
       let toolResult: string;
       let parsedArgs: Record<string, unknown> | null = null;
       try {
+        assertNotAborted();
         if (toolArgs.length > MAX_TOOL_ARGS_CHARS) {
           throw new Error('Tool arguments too large.');
         }
@@ -737,6 +785,7 @@ const runAIRequest = async (
           tool: toolName || '',
           args: parsedArgs,
         });
+        assertNotAborted();
         toolResult = await executeTool(c, toolName || '', parsedArgs);
       } catch (error) {
         toolResult = `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -755,6 +804,7 @@ const runAIRequest = async (
 
   console.log('[AI Route] Loop completed. Total tool calls:', allFunctionCalls.length, { requestId });
 
+  assertNotAborted();
   await recordLog(c.get('db'), 'ai_response', {
     requestId,
     text: finalText,
@@ -763,6 +813,7 @@ const runAIRequest = async (
     toolCallsTotal: allFunctionCalls.length,
   });
 
+  assertNotAborted();
   emit?.('stage', { name: 'done', turns: currentTurn, toolCalls: allFunctionCalls.length });
 
   return {
@@ -807,12 +858,12 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
   const input = c.req.valid('json') as unknown as RequestInput;
   const encoder = new TextEncoder();
   const startTime = Date.now();
+  const runAbortController = new AbortController();
+  let closed = false;
+  let lock = false; // Prevent concurrent send attempts
 
   const stream = new ReadableStream({
     start(controller) {
-      let closed = false;
-      let lock = false; // Prevent concurrent send attempts
-
       const send = (event: string, data: Record<string, unknown>) => {
         if (closed || lock) return;
         lock = true;
@@ -825,6 +876,7 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
         } catch (error) {
           console.error('[AI Route] Error sending stream event:', error);
           closed = true;
+          runAbortController.abort();
           // Close controller immediately on error to prevent further attempts
           try {
             controller.close();
@@ -846,10 +898,11 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
         }
       };
 
-      runAIRequest(c, input, requestId, safeEmit)
+      runAIRequest(c, input, requestId, safeEmit, runAbortController.signal)
         .then((result) => {
           if (!closed) {
             closed = true;
+            runAbortController.abort();
             try {
               send('result', result as unknown as Record<string, unknown>);
               send('done', { requestId });
@@ -868,7 +921,12 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
         .catch((error) => {
           if (!closed) {
             closed = true;
+            runAbortController.abort();
             try {
+              if (error instanceof StreamAbortError) {
+                controller.close();
+                return;
+              }
               if (error instanceof ApiError) {
                 send('error', { code: error.code, message: error.message, status: error.status });
               } else {
@@ -886,6 +944,12 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
             }
           }
         });
+    },
+    cancel() {
+      if (!closed) {
+        closed = true;
+      }
+      runAbortController.abort();
     },
   });
 
