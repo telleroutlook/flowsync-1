@@ -2,16 +2,17 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "outDir": "./dist-server",
-    "rootDir": "./src",
+    "rootDir": ".",
     "noEmit": false,
     "declaration": true,
     "sourceMap": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": false
   },
-  "include": ["src/**/*", "worker/**/*"],
-  "exclude": ["node_modules", "dist", "dist-server"]
+  "include": ["src/server.ts", "src/types/**/*.d.ts", "worker/**/*"],
+  "exclude": ["node_modules", "dist", "dist-server", "**/*.test.ts", "**/*.test.tsx", "src/test/**"]
 }

@@ -1,7 +1,6 @@
 // Re-export everything for convenience
 export * from './schema';
 export { getPgDb as getDb, closePgDb } from './pg';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import * as schema from './schema';
+import { getPgDb } from './pg';
 
-export type DrizzleDB = NodePgDatabase<typeof schema>;
+export type DrizzleDB = ReturnType<typeof getPgDb>;

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useId } from 'react';
 import { Task, Priority } from '../types';
 
 interface GanttChartProps {
@@ -20,61 +20,26 @@ type DragState = {
   originEnd: number;
 };
 
+type TaskEntry = Task & { startMs: number; endMs: number };
+
+type TaskCoord = {
+  id: string;
+  x: number;
+  top: number;
+  w: number;
+  start: number;
+  end: number;
+  centerY: number;
+  original: TaskEntry;
+};
+
 const DAY_MS = 86400000;
 
-const viewSteps: Record<ViewMode, number> = {
-  Day: 1,
-  Week: 1,
-  Month: 7,
-  Year: 30,
-};
-
-const minColumnWidths: Record<ViewMode, number> = {
-  Day: 70,
-  Week: 70,
-  Month: 110,
-  Year: 140,
-};
-
-const formatTick = (date: Date, viewMode: ViewMode) => {
-  switch (viewMode) {
-    case 'Day':
-      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    case 'Week':
-      return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
-    case 'Month':
-      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    case 'Year':
-      return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-    default:
-      return date.toLocaleDateString();
-  }
-};
-
-const shouldLabelTick = (date: Date, viewMode: ViewMode, index: number) => {
-  if (viewMode === 'Day') return true;
-  if (viewMode === 'Week') return true;
-  if (viewMode === 'Month') return date.getDate() <= 7 || index === 0;
-  if (viewMode === 'Year') return date.getMonth() % 2 === 0 || index === 0;
-  return true;
-};
-
-const SNAP_THRESHOLD_MS = DAY_MS * 2;
-
-const snapToMonday = (dateMs: number) => {
-  const date = new Date(dateMs);
-  const day = date.getDay();
-  const diff = (day + 6) % 7;
-  date.setDate(date.getDate() - diff);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
-};
-
-const snapToMonthEnd = (dateMs: number) => {
-  const date = new Date(dateMs);
-  const nextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-  nextMonth.setHours(0, 0, 0, 0);
-  return nextMonth.getTime();
+const VIEW_SETTINGS: Record<ViewMode, { pxPerDay: number; tickLabelFormat: Intl.DateTimeFormatOptions }> = {
+  Day: { pxPerDay: 60, tickLabelFormat: { day: 'numeric', month: 'short' } },
+  Week: { pxPerDay: 30, tickLabelFormat: { day: 'numeric', month: 'short' } }, // ~210px per week
+  Month: { pxPerDay: 10, tickLabelFormat: { month: 'long', year: 'numeric' } }, // ~300px per month
+  Year: { pxPerDay: 1.5, tickLabelFormat: { year: 'numeric' } }, // ~550px per year
 };
 
 const getTaskColor = (priority: Priority, isMilestone?: boolean) => {
@@ -91,8 +56,9 @@ const getTaskColor = (priority: Priority, isMilestone?: boolean) => {
   }
 };
 
-const getDurationDays = (start: number, end: number) =>
-  Math.max(1, Math.ceil((end - start) / DAY_MS));
+const ROW_HEIGHT = 44;
+const BAR_HEIGHT = 32;
+const BAR_OFFSET_Y = (ROW_HEIGHT - BAR_HEIGHT) / 2;
 
 export const GanttChart: React.FC<GanttChartProps> = ({
   tasks,
@@ -104,85 +70,180 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const [showList, setShowList] = useState(true);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dragDeltaMs, setDragDeltaMs] = useState(0);
-  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const [hoveredDependency, setHoveredDependency] = useState<string | null>(null);
+  const dragDeltaRef = useRef(0);
+  const [dependencyTooltip, setDependencyTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const arrowId = useId();
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const isScrollingLeftRef = useRef(false);
   const isScrollingRightRef = useRef(false);
 
-  const taskEntries = useMemo(() => {
+  // 1. Prepare Task Data
+  const taskEntries = useMemo<TaskEntry[]>(() => {
     if (tasks.length === 0) return [];
-
     return tasks
       .map(task => {
         const start = task.startDate ?? task.createdAt;
         const end = task.dueDate ?? start + DAY_MS;
         const safeEnd = end <= start ? start + DAY_MS : end;
-        return {
-          ...task,
-          startMs: start,
-          endMs: safeEnd,
-        };
+        return { ...task, startMs: start, endMs: safeEnd };
       })
       .sort((a, b) => a.startMs - b.startMs);
   }, [tasks]);
 
-  const timeline = useMemo(() => {
-    if (taskEntries.length === 0) return null;
-    const startMs = Math.min(...taskEntries.map(task => task.startMs));
-    const endMs = Math.max(...taskEntries.map(task => task.endMs));
-    const totalDays = Math.max(1, Math.ceil((endMs - startMs) / DAY_MS) + 1);
-    const step = viewSteps[viewMode];
-    const ticks: number[] = [];
-    for (let day = 0; day <= totalDays; day += step) {
-      ticks.push(startMs + day * DAY_MS);
+  // 2. Compute Timeline Bounds & Scale
+  const { startMs, endMs, totalWidth, pxPerMs, gridLines } = useMemo(() => {
+    if (taskEntries.length === 0) {
+      return { startMs: 0, endMs: 0, totalWidth: 0, pxPerMs: 0, gridLines: [] };
     }
-    if (ticks[ticks.length - 1] < endMs) ticks.push(endMs);
-    const monthSegments: Array<{ label: string; start: number; end: number }> = [];
-    const cursor = new Date(startMs);
-    cursor.setDate(1);
-    cursor.setHours(0, 0, 0, 0);
-    while (cursor.getTime() <= endMs) {
-      const monthStart = new Date(cursor.getTime());
-      const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
-      monthEnd.setHours(0, 0, 0, 0);
-      monthSegments.push({
-        label: monthStart.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
-        start: monthStart.getTime(),
-        end: monthEnd.getTime(),
-      });
-      cursor.setMonth(cursor.getMonth() + 1);
+
+    // Add padding to timeline
+    const rawStart = Math.min(...taskEntries.map(t => t.startMs));
+    const rawEnd = Math.max(...taskEntries.map(t => t.endMs));
+    
+    // Adjust start/end to nice boundaries based on ViewMode
+    const startDate = new Date(rawStart);
+    startDate.setDate(startDate.getDate() - 7); // Buffer before
+    const endDate = new Date(rawEnd);
+    endDate.setDate(endDate.getDate() + 14); // Buffer after
+
+    // Align to start of year/month/week for clean grid
+    if (viewMode === 'Year') {
+      startDate.setMonth(0, 1);
+      endDate.setMonth(11, 31);
+    } else if (viewMode === 'Month') {
+      startDate.setDate(1);
+      endDate.setMonth(endDate.getMonth() + 1, 0);
+    } else if (viewMode === 'Week') {
+      const day = startDate.getDay();
+      startDate.setDate(startDate.getDate() - ((day + 6) % 7));
     }
+
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+
+    const sMs = startDate.getTime();
+    const eMs = endDate.getTime();
+    
+    const settings = VIEW_SETTINGS[viewMode];
+    const pxPerMsValue = settings.pxPerDay / DAY_MS;
+    const totalW = (eMs - sMs) * pxPerMsValue;
+
+    // Generate Grid Lines (Ticks)
+    const lines: Array<{ time: number; label: string; x: number; isMajor: boolean }> = [];
+    const cursor = new Date(sMs);
+    
+    while (cursor.getTime() <= eMs) {
+      const time = cursor.getTime();
+      const x = (time - sMs) * pxPerMsValue;
+      let label = '';
+      let isMajor = false;
+      let nextStep: () => void;
+
+      switch (viewMode) {
+        case 'Day':
+          label = cursor.toLocaleDateString(undefined, settings.tickLabelFormat);
+          isMajor = cursor.getDay() === 1; // Highlight Mondays
+          nextStep = () => cursor.setDate(cursor.getDate() + 1);
+          break;
+        case 'Week':
+           // Label Mondays
+          if (cursor.getDay() === 1) {
+             label = cursor.toLocaleDateString(undefined, settings.tickLabelFormat);
+             isMajor = true;
+          } else {
+             label = ''; // Only label weeks
+             isMajor = false;
+          }
+           // Use daily ticks for grid but only label weeks? Or just weekly ticks?
+           // Let's do weekly ticks for the main grid lines
+           if (cursor.getDay() !== 1 && lines.length === 0) {
+              // Align first tick to next Monday if we started mid-week (though we aligned startMs already)
+              // Actually, let's just step by day to draw day-grid if needed, OR step by week.
+              // For 'Week' view, usually we want vertical lines every week.
+           }
+           // Simplification: Loop by day, but only add line if Monday
+           // OR Loop by Week. Let's Loop by Week for cleaner grid in Week View.
+           if (cursor.getDay() === 1) {
+             lines.push({ time, label, x, isMajor: true });
+           }
+           nextStep = () => cursor.setDate(cursor.getDate() + 1);
+           break;
+        case 'Month':
+          // Major lines at month start
+          if (cursor.getDate() === 1) {
+             label = cursor.toLocaleDateString(undefined, { month: 'short' }); // Jun
+             isMajor = true;
+             lines.push({ time, label, x, isMajor: true });
+          }
+          nextStep = () => cursor.setDate(cursor.getDate() + 1);
+          break;
+        case 'Year':
+          // Major lines at Year start, minor at Month start
+          if (cursor.getMonth() === 0 && cursor.getDate() === 1) {
+             label = cursor.getFullYear().toString();
+             isMajor = true;
+             lines.push({ time, label, x, isMajor });
+          } else if (cursor.getDate() === 1) {
+             // Month markers
+             label = cursor.toLocaleDateString(undefined, { month: 'narrow' });
+             isMajor = false;
+             lines.push({ time, label, x, isMajor });
+          }
+          nextStep = () => cursor.setDate(cursor.getDate() + 1);
+          break;
+        default:
+          nextStep = () => cursor.setDate(cursor.getDate() + 1);
+      }
+
+      if (viewMode === 'Day') {
+        lines.push({ time, label, x, isMajor });
+        nextStep();
+      } else {
+        // Execute the step logic defined in switch
+        // For Week/Month/Year we are iterating days to find boundaries
+        // Optimization: For Month view, we can jump? No, months length vary.
+        // But iterating days for 5 years is ~1800 iterations, totally fine.
+        if (viewMode !== 'Day' && lines[lines.length - 1]?.time !== time) {
+           // If we didn't push inside switch (e.g. Week view non-Monday), don't push
+        }
+        nextStep();
+      }
+    }
+
     return {
-      startMs,
-      endMs,
-      totalMs: Math.max(DAY_MS, endMs - startMs),
-      ticks,
-      totalDays,
-      monthSegments,
+      startMs: sMs,
+      endMs: eMs,
+      totalWidth: totalW,
+      pxPerMs: pxPerMsValue,
+      gridLines: lines
     };
   }, [taskEntries, viewMode]);
 
+  // Helper: Time -> X
+  const getX = (time: number) => (time - startMs) * pxPerMs;
+  // 3. Drag Logic
   useEffect(() => {
     if (!dragState) return;
 
     const handleMove = (event: MouseEvent) => {
+      if (!pxPerMs) return;
       const deltaPx = event.clientX - dragState.originX;
-      const width = timelineRef.current?.clientWidth ?? 0;
-      if (width === 0 || !timeline) return;
-      const pxPerMs = width / timeline.totalMs;
-      const deltaMs = deltaPx / pxPerMs;
-      const snapped = Math.round(deltaMs / DAY_MS) * DAY_MS;
-      setDragDeltaMs(snapped);
+      // Convert pixel delta to time delta
+      const deltaMsRaw = deltaPx / pxPerMs;
+      // Snap to Days (always snap to at least 1 day for UX sanity)
+      const snappedDeltaMs = Math.round(deltaMsRaw / DAY_MS) * DAY_MS;
+      if (snappedDeltaMs !== dragDeltaRef.current) {
+        dragDeltaRef.current = snappedDeltaMs;
+        setDragDeltaMs(snappedDeltaMs);
+      }
     };
 
     const handleUp = () => {
-      if (!timeline || dragDeltaMs === 0) {
+      const appliedDelta = dragDeltaRef.current;
+      if (appliedDelta === 0) {
         setDragState(null);
-        setDragDeltaMs(0);
         return;
       }
 
@@ -190,424 +251,304 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       let nextEnd = dragState.originEnd;
 
       if (dragState.mode === 'move') {
-        nextStart += dragDeltaMs;
-        nextEnd += dragDeltaMs;
+        nextStart += appliedDelta;
+        nextEnd += appliedDelta;
       } else if (dragState.mode === 'start') {
-        nextStart = Math.min(dragState.originEnd - DAY_MS, dragState.originStart + dragDeltaMs);
+        nextStart = Math.min(dragState.originEnd - DAY_MS, dragState.originStart + appliedDelta);
       } else if (dragState.mode === 'end') {
-        nextEnd = Math.max(dragState.originStart + DAY_MS, dragState.originEnd + dragDeltaMs);
+        nextEnd = Math.max(dragState.originStart + DAY_MS, dragState.originEnd + appliedDelta);
       }
 
-      if (viewMode !== 'Day') {
-        const snappedStart = snapToMonday(nextStart);
-        if (Math.abs(snappedStart - nextStart) <= SNAP_THRESHOLD_MS) nextStart = snappedStart;
-
-        const snappedEnd = snapToMonthEnd(nextEnd);
-        if (Math.abs(snappedEnd - nextEnd) <= SNAP_THRESHOLD_MS) nextEnd = snappedEnd;
-      }
-
-      if (onUpdateTaskDates) {
-        onUpdateTaskDates(dragState.id, nextStart, nextEnd);
-      }
-
+      onUpdateTaskDates?.(dragState.id, nextStart, nextEnd);
       setDragState(null);
       setDragDeltaMs(0);
+      dragDeltaRef.current = 0;
     };
 
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
-
     return () => {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [dragState, dragDeltaMs, onUpdateTaskDates, timeline, viewMode]);
+  }, [dragState, pxPerMs, onUpdateTaskDates]);
 
-  // Sync vertical scrolling between task list and timeline
+  // Sync scrolling
   useEffect(() => {
-    const listEl = listRef.current;
-    const timelineEl = timelineRef.current;
-    if (!listEl || !timelineEl) return;
-
-    const handleListScroll = () => {
+    const list = listRef.current;
+    const timeline = timelineRef.current;
+    if (!list || !timeline) return;
+    const syncL = () => {
       if (isScrollingRightRef.current) return;
       isScrollingLeftRef.current = true;
-      timelineEl.scrollTop = listEl.scrollTop;
-      setTimeout(() => { isScrollingLeftRef.current = false; }, 0);
+      timeline.scrollTop = list.scrollTop;
+      setTimeout(() => isScrollingLeftRef.current = false, 0);
     };
-
-    const handleTimelineScroll = () => {
+    const syncR = () => {
       if (isScrollingLeftRef.current) return;
       isScrollingRightRef.current = true;
-      listEl.scrollTop = timelineEl.scrollTop;
-      setTimeout(() => { isScrollingRightRef.current = false; }, 0);
+      list.scrollTop = timeline.scrollTop;
+      setTimeout(() => isScrollingRightRef.current = false, 0);
     };
-
-    listEl.addEventListener('scroll', handleListScroll);
-    timelineEl.addEventListener('scroll', handleTimelineScroll);
-
+    list.addEventListener('scroll', syncL);
+    timeline.addEventListener('scroll', syncR);
     return () => {
-      listEl.removeEventListener('scroll', handleListScroll);
-      timelineEl.removeEventListener('scroll', handleTimelineScroll);
+      list.removeEventListener('scroll', syncL);
+      timeline.removeEventListener('scroll', syncR);
     };
   }, []);
 
-  if (tasks.length === 0 || !timeline) {
-    return <div className="flex items-center justify-center h-full text-slate-500 italic">No tasks to display.</div>;
-  }
+  if (tasks.length === 0) return <div className="p-8 text-center text-slate-500">No tasks found.</div>;
 
-  const gridStyle = {
-    gridTemplateColumns: `repeat(${timeline.ticks.length}, minmax(${minColumnWidths[viewMode]}px, 1fr))`,
-  } as React.CSSProperties;
+  // Render Helpers
+  const getDisplayValues = (task: TaskEntry) => {
+    let s = task.startMs;
+    let e = task.endMs;
 
-  const today = Date.now();
-  const todayInRange = today >= timeline.startMs && today <= timeline.endMs;
-  const todayLeft = ((today - timeline.startMs) / timeline.totalMs) * 100;
-
-  const weekendBlocks = timeline.totalDays <= 400
-    ? Array.from({ length: timeline.totalDays }).map((_, index) => {
-        const dayMs = timeline.startMs + index * DAY_MS;
-        const day = new Date(dayMs).getDay();
-        if (day !== 0 && day !== 6) return null;
-        const left = ((dayMs - timeline.startMs) / timeline.totalMs) * 100;
-        const width = (DAY_MS / timeline.totalMs) * 100;
-        return (
-          <div
-            key={dayMs}
-            className="absolute top-0 bottom-0 bg-indigo-50/40"
-            style={{ left: `${left}%`, width: `${width}%` }}
-          />
-        );
-      })
-    : null;
-
-  const getDisplayDates = (task: typeof taskEntries[number]) => {
-    if (!dragState || dragState.id !== task.id) {
-      return { start: task.startMs, end: task.endMs };
+    if (dragState?.id === task.id) {
+      if (dragState.mode === 'move') {
+        s += dragDeltaMs;
+        e += dragDeltaMs;
+      } else if (dragState.mode === 'start') {
+        s = Math.min(task.endMs - DAY_MS, s + dragDeltaMs);
+      } else if (dragState.mode === 'end') {
+        e = Math.max(task.startMs + DAY_MS, e + dragDeltaMs);
+      }
     }
-
-    if (dragState.mode === 'move') {
-      return { start: task.startMs + dragDeltaMs, end: task.endMs + dragDeltaMs };
-    }
-
-    if (dragState.mode === 'start') {
-      const start = Math.min(task.endMs - DAY_MS, task.startMs + dragDeltaMs);
-      return { start, end: task.endMs };
-    }
-
-    const end = Math.max(task.startMs + DAY_MS, task.endMs + dragDeltaMs);
-    return { start: task.startMs, end };
+    return { start: s, end: e };
   };
 
-  const leftFromMs = (ms: number) => ((ms - timeline.startMs) / timeline.totalMs) * 100;
-
-  const taskCenters = taskEntries.reduce<Record<string, { x: number; y: number }>>((acc, task, index) => {
-    const display = getDisplayDates(task);
-    const left = leftFromMs(display.end);
-    const y = index * 44 + 22;
-    acc[task.id] = { x: left, y };
-    return acc;
-  }, {});
-
-  const dependencyLines = taskEntries.flatMap((task, index) => {
-    const predecessors = task.predecessors || [];
-    if (predecessors.length === 0) return [];
-
-    const target = taskCenters[task.id];
-    if (!target) return [];
-
-    return predecessors
-      .map(ref => {
-        const match = taskEntries.find(candidate => candidate.id === ref || candidate.wbs === ref);
-        if (!match) return null;
-        const source = taskCenters[match.id];
-        if (!source) return null;
-        const y1 = source.y;
-        const y2 = target.y;
-        const x1 = source.x;
-        const targetStart = getDisplayDates(task).start;
-        const x2 = leftFromMs(targetStart);
-        const sourceEnd = getDisplayDates(match).end;
-        const conflict = sourceEnd > targetStart;
-        return {
-          key: `${match.id}-${task.id}`,
-          fromId: match.id,
-          toId: task.id,
-          x1,
-          y1,
-          x2,
-          y2,
-          conflict,
-        };
-      })
-      .filter(Boolean) as Array<{
-        key: string;
-        fromId: string;
-        toId: string;
-        x1: number;
-        y1: number;
-        x2: number;
-        y2: number;
-        conflict: boolean;
-      }>;
+  const taskCoords: TaskCoord[] = taskEntries.map((task, i) => {
+    const { start, end } = getDisplayValues(task);
+    const x = getX(start);
+    const w = Math.max(2, getX(end) - x); // Min 2px width
+    const top = i * ROW_HEIGHT + BAR_OFFSET_Y;
+    const centerY = top + BAR_HEIGHT / 2;
+    return { id: task.id, x, top, w, start, end, centerY, original: task };
   });
+
+  const taskMap = new Map<string, TaskCoord>(taskCoords.map((t) => [t.id, t]));
+  const taskById = useMemo(() => new Map(taskEntries.map(task => [task.id, task])), [taskEntries]);
+
+  const updateDependencyTooltip = (event: React.MouseEvent<SVGPathElement>, text: string) => {
+    const timeline = timelineRef.current;
+    if (!timeline) return;
+    const rect = timeline.getBoundingClientRect();
+    const x = event.clientX - rect.left + timeline.scrollLeft;
+    const y = event.clientY - rect.top + timeline.scrollTop;
+    setDependencyTooltip({ text, x, y });
+  };
 
   return (
     <div className="flex flex-col h-full bg-white border border-slate-200 rounded-xl overflow-hidden relative shadow-sm">
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200 shrink-0 z-10">
+      {/* Controls */}
+      <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200 shrink-0 z-20">
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none font-medium">
-            <input
-              type="checkbox"
-              checked={showList}
-              onChange={() => setShowList(!showList)}
-              className="rounded border-slate-300 text-primary focus:ring-primary"
-            />
-            Show Task List
+          <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer font-medium select-none">
+            <input type="checkbox" checked={showList} onChange={() => setShowList(!showList)} className="rounded border-slate-300" />
+            Show List
           </label>
-          <span className="text-[10px] text-slate-400">Drag bars to move or resize</span>
         </div>
-
         <div className="flex gap-1">
-          <span className="text-xs text-slate-500 mr-2 self-center">Zoom:</span>
-          {(['Day', 'Week', 'Month', 'Year'] as ViewMode[]).map(mode => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              className={`px-2 py-1 text-[10px] rounded border ${
-                viewMode === mode
-                  ? 'bg-white border-primary text-primary font-bold shadow-sm'
-                  : 'bg-slate-100 border-transparent text-slate-500 hover:bg-white'
-              }`}
-            >
-              {mode}
-            </button>
+          {(['Day', 'Week', 'Month', 'Year'] as ViewMode[]).map(m => (
+             <button
+               key={m}
+               onClick={() => setViewMode(m)}
+               className={`px-3 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                 viewMode === m ? 'bg-white text-primary shadow border border-slate-200' : 'text-slate-500 hover:bg-white hover:text-slate-700'
+               }`}
+             >
+               {m}
+             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden relative select-none">
-        <div className="flex h-full">
-          {showList && (
-            <div className="w-56 border-r border-slate-200 bg-white overflow-y-auto" ref={listRef}>
-              <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500">
-                Tasks
-              </div>
-              {taskEntries.map(task => (
-                <div
-                  key={task.id}
-                  className="px-3 py-2 border-b border-slate-100 text-xs text-slate-700"
-                >
-                  <div className="font-semibold text-slate-900 truncate">{task.title}</div>
-                  <div className="text-[10px] text-slate-400">{task.assignee || 'Unassigned'}</div>
-                </div>
-              ))}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Left List */}
+        {showList && (
+          <div ref={listRef} className="w-64 shrink-0 border-r border-slate-200 bg-white overflow-y-auto overflow-x-hidden z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+             <div className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200 h-10 flex items-center px-4 text-xs font-semibold text-slate-500">
+               Task Name
+             </div>
+             {taskEntries.map(task => (
+               <div key={task.id} className="h-11 px-4 border-b border-slate-50 flex flex-col justify-center hover:bg-slate-50">
+                 <div className="text-xs font-medium text-slate-700 truncate">{task.title}</div>
+                 <div className="text-[10px] text-slate-400 truncate">{task.assignee || 'Unassigned'}</div>
+               </div>
+             ))}
+          </div>
+        )}
+
+        {/* Timeline Area */}
+        <div ref={timelineRef} className="flex-1 overflow-auto bg-slate-50/30 relative">
+          <div style={{ width: Math.max(totalWidth, 100) + 'px', height: '100%', position: 'relative' }}>
+            
+            {/* Grid Header */}
+            <div className="sticky top-0 z-10 bg-white border-b border-slate-200 h-10 select-none shadow-sm">
+               {gridLines.map(line => (
+                 <div
+                   key={line.time}
+                   className={`absolute top-0 bottom-0 border-l border-slate-100 pl-2 pt-2.5 text-[10px] font-medium text-slate-500 truncate ${line.isMajor ? 'border-slate-300' : ''}`}
+                   style={{ left: line.x, width: 200 }} // width just for overflow text
+                 >
+                   {line.label}
+                 </div>
+               ))}
             </div>
-          )}
 
-          <div className="flex-1 overflow-auto" ref={timelineRef}>
-            <div className="min-w-[700px]">
-              <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
-                <div className="border-b border-slate-100 bg-white">
-                  <div className="relative h-6 text-[10px] uppercase tracking-widest text-slate-400">
-                    {timeline.monthSegments.map(segment => {
-                      const left = leftFromMs(segment.start);
-                      const width = leftFromMs(segment.end) - left;
-                      if (width <= 0) return null;
-                      return (
-                        <div
-                          key={segment.start}
-                          className="absolute top-0 bottom-0 border-r border-slate-100 px-3 flex items-center"
-                          style={{ left: `${left}%`, width: `${width}%` }}
-                        >
-                          {segment.label}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="grid text-[10px] uppercase tracking-widest text-slate-400" style={gridStyle}>
-                  {timeline.ticks.map((tick, index) => {
-                    const date = new Date(tick);
-                    const showLabel = shouldLabelTick(date, viewMode, index);
-                    return (
-                      <div
-                        key={`${tick}-${index}`}
-                        className="px-3 py-2 border-r border-slate-100"
-                      >
-                        {showLabel ? formatTick(date, viewMode) : ''}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+            {/* Grid Vertical Lines */}
+            <div className="absolute inset-0 pointer-events-none">
+               {gridLines.map(line => (
+                 <div
+                   key={line.time}
+                   className={`absolute top-0 bottom-0 border-l ${line.isMajor ? 'border-slate-200' : 'border-slate-100'}`}
+                   style={{ left: line.x }}
+                 />
+               ))}
+               
+               {/* Today Marker */}
+               {Date.now() >= startMs && Date.now() <= endMs && (
+                 <div 
+                   className="absolute top-0 bottom-0 w-px bg-red-400 z-0"
+                   style={{ left: getX(Date.now()) }}
+                 >
+                   <div className="bg-red-400 text-white text-[9px] px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">Today</div>
+                 </div>
+               )}
+            </div>
 
-              <div className="relative">
-                <div className="absolute inset-0">
-                  {weekendBlocks}
-                  {todayInRange && (
-                    <div
-                      className="absolute top-0 bottom-0 w-px bg-indigo-400"
-                      style={{ left: `${todayLeft}%` }}
-                    />
-                  )}
-                </div>
-
-                <svg
-                  className="absolute inset-0"
-                  viewBox={`0 0 100 ${taskEntries.length * 44}`}
-                  preserveAspectRatio="none"
-                >
-                  <defs>
-                    <marker
-                      id="arrow"
-                      markerWidth="6"
-                      markerHeight="6"
-                      refX="5"
-                      refY="3"
-                      orient="auto"
-                    >
-                      <path d="M0,0 L6,3 L0,6 Z" fill="#a5b4fc" />
+            {/* Task Layer */}
+            <div className="relative pb-10" style={{ height: taskEntries.length * ROW_HEIGHT }}>
+               {/* Dependency Lines (SVG) */}
+               <svg className="absolute inset-0 w-full h-full overflow-visible">
+                 <defs>
+                    <marker id={`arrow-head-${arrowId}`} markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+                      <path d="M0,0 L6,3 L0,6 Z" fill="#94a3b8" />
                     </marker>
-                  </defs>
-                  {dependencyLines.map(line => {
-                    const midX = line.x1 + (line.x2 - line.x1) * 0.6;
-                    const isHovered = hoveredDependency === line.key;
-                    const isLinkedHover = hoveredTaskId === line.fromId || hoveredTaskId === line.toId;
-                    const isSelectedLink = selectedTaskId === line.fromId || selectedTaskId === line.toId;
-                    const stroke = line.conflict ? '#f87171' : '#a5b4fc';
-                    const strokeWidth = isHovered || isLinkedHover || isSelectedLink ? 1.2 : 0.6;
-                    return (
-                      <path
-                        key={line.key}
-                        d={`M ${line.x1} ${line.y1} L ${midX} ${line.y1} L ${midX} ${line.y2} L ${line.x2} ${line.y2}`}
-                        stroke={stroke}
-                        strokeWidth={strokeWidth}
-                        fill="none"
-                        markerEnd="url(#arrow)"
-                        onMouseEnter={() => setHoveredDependency(line.key)}
-                        onMouseLeave={() => setHoveredDependency(null)}
-                        onClick={() => onSelectTask?.(line.fromId)}
-                        className="cursor-pointer pointer-events-auto"
-                      />
-                    );
-                  })}
-                </svg>
+                 </defs>
+                 {taskEntries.flatMap(task => {
+                   if (!task.predecessors?.length) return [];
+                   const target = taskMap.get(task.id);
+                   if (!target) return [];
+                   return task.predecessors.map(predId => {
+                     const source = taskMap.get(predId);
+                     if (!source) return null;
+                     const sourceTask = taskById.get(predId);
+                     const targetTask = taskById.get(task.id);
+                     const label = sourceTask && targetTask ? `${sourceTask.title} → ${targetTask.title}` : 'Dependency';
+                     
+                     // Coordinates
+                     const x1 = source.x + source.w;
+                     const y1 = source.centerY;
+                     const x2 = target.x;
+                     const y2 = target.centerY;
+                     
+                     // Path logic: Orthogonal routing
+                     const midX = x1 + 20;
+                     // Simple S-curve or L-curve
+                     const d = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
 
-                {taskEntries.map(task => {
-                  const display = getDisplayDates(task);
-                  const left = leftFromMs(display.start);
-                  const width = leftFromMs(display.end) - left;
-                  const safeWidth = Math.max(width, 1.5);
-                  const color = getTaskColor(task.priority, task.isMilestone);
-                  const progress = Math.min(100, Math.max(0, task.completion ?? 0));
-                  const milestoneLeft = Math.min(100, left + safeWidth);
-                  const isSelected = task.id === selectedTaskId;
+                     return (
+                       <path 
+                         key={`${source.id}-${target.id}`}
+                         d={d}
+                         stroke="#cbd5e1"
+                         strokeWidth="1.5"
+                         fill="none"
+                         markerEnd={`url(#arrow-head-${arrowId})`}
+                         className="transition-colors hover:stroke-indigo-400"
+                         style={{ pointerEvents: 'stroke' }}
+                         onMouseEnter={(event) => updateDependencyTooltip(event, label)}
+                         onMouseMove={(event) => updateDependencyTooltip(event, label)}
+                         onMouseLeave={() => setDependencyTooltip(null)}
+                       />
+                     );
+                   });
+                 })}
+               </svg>
 
-                  return (
-                    <div key={task.id} className="relative border-b border-slate-100 h-11">
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-4">
-                        <div
-                          className={`absolute h-4 rounded-full bg-slate-200 group ${isSelected ? 'ring-2 ring-indigo-400' : ''}`}
-                          style={{ left: `${left}%`, width: `${safeWidth}%` }}
-                          onMouseDown={(event) => {
-                            event.preventDefault();
-                            setDragState({
-                              id: task.id,
-                              mode: 'move',
-                              originX: event.clientX,
-                              originStart: task.startMs,
-                              originEnd: task.endMs,
-                            });
-                          }}
-                          onClick={() => onSelectTask?.(task.id)}
-                          onMouseEnter={() => setHoveredTaskId(task.id)}
-                          onMouseLeave={() => setHoveredTaskId(prev => (prev === task.id ? null : prev))}
-                          onMouseMove={(event) => {
-                            const rect = timelineRef.current?.getBoundingClientRect();
-                            if (!rect) return;
-                            setTooltipPos({ x: event.clientX - rect.left, y: event.clientY - rect.top });
-                          }}
-                          title={`${task.title} (${progress}%)`}
-                        >
-                          <div
-                            className="h-full rounded-full"
-                            style={{ width: `${progress}%`, backgroundColor: color }}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center px-2 text-[10px] font-semibold text-white drop-shadow-sm">
-                            <span className="truncate">{task.title}</span>
-                          </div>
-                          <div
-                            className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-2 cursor-ew-resize rounded-l-full bg-white/60"
-                            onMouseDown={(event) => {
-                              event.stopPropagation();
-                              setDragState({
-                                id: task.id,
-                                mode: 'start',
-                                originX: event.clientX,
-                                originStart: task.startMs,
-                                originEnd: task.endMs,
-                              });
-                            }}
-                          />
-                          <div
-                            className="absolute right-0 top-1/2 -translate-y-1/2 h-4 w-2 cursor-ew-resize rounded-r-full bg-white/60"
-                            onMouseDown={(event) => {
-                              event.stopPropagation();
-                              setDragState({
-                                id: task.id,
-                                mode: 'end',
-                                originX: event.clientX,
-                                originStart: task.startMs,
-                                originEnd: task.endMs,
-                              });
-                            }}
-                          />
-                        </div>
-                        {task.isMilestone && (
-                          <div
-                            className="absolute top-1/2 -translate-y-1/2"
-                            style={{ left: `${milestoneLeft}%` }}
-                          >
-                            <div className="h-3 w-3 rotate-45" style={{ backgroundColor: color }} />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+               {dependencyTooltip && (
+                 <div
+                   className="absolute z-20 rounded-md bg-slate-900 text-white text-[10px] px-2 py-1 shadow-md pointer-events-none"
+                   style={{ left: dependencyTooltip.x + 8, top: dependencyTooltip.y + 8 }}
+                 >
+                   {dependencyTooltip.text}
+                 </div>
+               )}
 
-                {hoveredTaskId && (
-                  <div
-                    className="absolute z-20 rounded-lg border border-slate-100 bg-white p-3 text-xs text-slate-700 shadow-xl"
-                    style={{ left: tooltipPos.x + 12, top: tooltipPos.y + 12 }}
-                  >
-                    {(() => {
-                      const task = taskEntries.find(item => item.id === hoveredTaskId);
-                      if (!task) return null;
-                      const display = getDisplayDates(task);
-                      const start = new Date(display.start).toLocaleDateString();
-                      const end = new Date(display.end).toLocaleDateString();
-                      const duration = getDurationDays(display.start, display.end);
-                      const baselineDuration = getDurationDays(task.startMs, task.endMs);
-                      const deltaDays = duration - baselineDuration;
-                      return (
-                        <>
-                          <div className="font-semibold text-slate-900 mb-1">{task.title}</div>
-                          <div className="text-slate-500 mb-1">{start} - {end}</div>
-                          <div className="text-slate-400">Duration: {duration}d</div>
-                          <div className="font-semibold text-primary">Progress: {task.completion ?? 0}%</div>
-                          {dragState?.id === task.id && (
-                            <div className="text-[10px] text-indigo-500 mt-1">
-                              {deltaDays === 0 ? 'Duration unchanged' : `Duration ${deltaDays > 0 ? '+' : ''}${deltaDays}d`}
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
+               {/* Task Bars */}
+               {taskCoords.map((t) => {
+                 const color = getTaskColor(t.original.priority, t.original.isMilestone);
+                 const isSelected = selectedTaskId === t.id;
+                 const isDragging = dragState?.id === t.id;
+
+                 return (
+                   <div
+                     key={t.id}
+                     className="absolute h-8 rounded-md select-none group"
+                     style={{
+                       left: t.x,
+                       top: t.top,
+                       width: t.w,
+                       backgroundColor: t.original.isMilestone ? 'transparent' : color,
+                       opacity: isDragging ? 0.9 : 1
+                     }}
+                   > 
+                     {/* Milestone Diamond */}
+                     {t.original.isMilestone ? (
+                       <div
+                         className="relative w-8 h-8 flex items-center justify-center cursor-pointer"
+                         onMouseDown={(e) => {
+                           e.preventDefault();
+                           dragDeltaRef.current = 0;
+                           setDragDeltaMs(0);
+                           setDragState({ id: t.id, mode: 'move', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
+                         }}
+                         onClick={() => onSelectTask?.(t.id)}
+                       >
+                         <div className="w-6 h-6 rotate-45 border-2 bg-white" style={{ borderColor: color }} />
+                       </div>
+                     ) : (
+                       /* Standard Bar */
+                       <>
+                         <div 
+                           className={`w-full h-full rounded shadow-sm opacity-90 hover:opacity-100 flex items-center px-2 cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}`}
+                           onMouseDown={(e) => {
+                             e.preventDefault();
+                             dragDeltaRef.current = 0;
+                             setDragDeltaMs(0);
+                             setDragState({ id: t.id, mode: 'move', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
+                           }}
+                           onClick={() => onSelectTask?.(t.id)}
+                         >
+                            <span className="text-[10px] font-bold text-white truncate drop-shadow-md">{t.original.title}</span>
+                         </div>
+                         
+                         {/* Resize Handles */}
+                         <div 
+                           className="absolute left-0 top-0 bottom-0 w-3 cursor-w-resize hover:bg-white/20 rounded-l"
+                           onMouseDown={(e) => {
+                             e.stopPropagation();
+                             dragDeltaRef.current = 0;
+                             setDragDeltaMs(0);
+                             setDragState({ id: t.id, mode: 'start', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
+                           }}
+                         />
+                         <div 
+                           className="absolute right-0 top-0 bottom-0 w-3 cursor-e-resize hover:bg-white/20 rounded-r"
+                           onMouseDown={(e) => {
+                             e.stopPropagation();
+                             dragDeltaRef.current = 0;
+                             setDragDeltaMs(0);
+                             setDragState({ id: t.id, mode: 'end', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
+                           }}
+                         />
+                       </>
+                     )}
+                   </div>
+                 );
+               })}
             </div>
           </div>
         </div>

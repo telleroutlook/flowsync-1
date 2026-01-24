@@ -17,8 +17,10 @@ async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables
 
   switch (toolName) {
     case 'listProjects': {
-      const projects = await db.select({ id: projects.id, name: projects.name, description: projects.description }).from(projects);
-      return JSON.stringify({ success: true, data: projects });
+      const projectRows = await db
+        .select({ id: projects.id, name: projects.name, description: projects.description })
+        .from(projects);
+      return JSON.stringify({ success: true, data: projectRows });
     }
 
     case 'getProject': {
@@ -30,7 +32,7 @@ async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables
 
     case 'listTasks':
     case 'searchTasks': {
-      const { and, eq, like, or } = await import('drizzle-orm');
+      const { and, eq, like, or, sql } = await import('drizzle-orm');
       const conditions = [];
 
       if (args.projectId) {
@@ -43,10 +45,13 @@ async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables
         conditions.push(eq(tasks.assignee, String(args.assignee)));
       }
       if (args.q) {
-        conditions.push(or(
-          like(tasks.title, `%${String(args.q)}%`),
-          like(tasks.description || '', `%${String(args.q)}%`)
-        ));
+        const query = `%${String(args.q)}%`;
+        conditions.push(
+          or(
+            like(tasks.title, query),
+            like(sql`coalesce(${tasks.description}, '')`, query)
+          )
+        );
       }
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -371,7 +376,7 @@ aiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
 
   try {
     const baseUrl = (c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
-    const endpoint = `${baseUrl}/chat/completions`;
+    const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
     const model = c.env.OPENAI_MODEL || 'gpt-4';
 
     console.log('[AI Route] Request config:', {
@@ -424,6 +429,7 @@ Current Date: ${new Date().toISOString().split('T')[0]}`;
     let currentTurn = 0;
     let finalText = '';
     let allFunctionCalls: Array<{ name: string; args: unknown }> = [];
+    let lastToolCallSignature: string | null = null;
 
     while (currentTurn < maxTurns) {
       currentTurn++;
@@ -475,11 +481,18 @@ Current Date: ${new Date().toISOString().split('T')[0]}`;
 
       const modelText = messagePayload.content || '';
       const toolCallsFromAPI = messagePayload.tool_calls || [];
+      const toolCallSignature = toolCallsFromAPI
+        .map((toolCall) => `${toolCall.function?.name || ''}|${toolCall.function?.arguments || ''}`)
+        .join(';');
 
       console.log('[AI Route] Turn', currentTurn, 'response:', {
         hasText: !!modelText,
         toolCallsCount: toolCallsFromAPI.length,
       });
+
+      if (modelText) {
+        finalText = modelText;
+      }
 
       // Add assistant response to messages
       messages.push({
@@ -501,6 +514,12 @@ Current Date: ${new Date().toISOString().split('T')[0]}`;
         console.log('[AI Route] No more tool calls, ending loop');
         break;
       }
+
+      if (lastToolCallSignature && toolCallSignature === lastToolCallSignature) {
+        console.warn('[AI Route] Repeated tool calls detected, stopping loop to avoid infinite repetition');
+        break;
+      }
+      lastToolCallSignature = toolCallSignature;
 
       // Execute tool calls and add results to messages
       for (const toolCall of toolCallsFromAPI) {
