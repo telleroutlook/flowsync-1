@@ -109,6 +109,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const [hoveredDependency, setHoveredDependency] = useState<string | null>(null);
 
   const timelineRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const isScrollingLeftRef = useRef(false);
+  const isScrollingRightRef = useRef(false);
 
   const taskEntries = useMemo(() => {
     if (tasks.length === 0) return [];
@@ -219,6 +222,35 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       window.removeEventListener('mouseup', handleUp);
     };
   }, [dragState, dragDeltaMs, onUpdateTaskDates, timeline, viewMode]);
+
+  // Sync vertical scrolling between task list and timeline
+  useEffect(() => {
+    const listEl = listRef.current;
+    const timelineEl = timelineRef.current;
+    if (!listEl || !timelineEl) return;
+
+    const handleListScroll = () => {
+      if (isScrollingRightRef.current) return;
+      isScrollingLeftRef.current = true;
+      timelineEl.scrollTop = listEl.scrollTop;
+      setTimeout(() => { isScrollingLeftRef.current = false; }, 0);
+    };
+
+    const handleTimelineScroll = () => {
+      if (isScrollingLeftRef.current) return;
+      isScrollingRightRef.current = true;
+      listEl.scrollTop = timelineEl.scrollTop;
+      setTimeout(() => { isScrollingRightRef.current = false; }, 0);
+    };
+
+    listEl.addEventListener('scroll', handleListScroll);
+    timelineEl.addEventListener('scroll', handleTimelineScroll);
+
+    return () => {
+      listEl.removeEventListener('scroll', handleListScroll);
+      timelineEl.removeEventListener('scroll', handleTimelineScroll);
+    };
+  }, []);
 
   if (tasks.length === 0 || !timeline) {
     return <div className="flex items-center justify-center h-full text-slate-500 italic">No tasks to display.</div>;
@@ -357,7 +389,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       <div className="flex-1 overflow-hidden relative select-none">
         <div className="flex h-full">
           {showList && (
-            <div className="w-56 border-r border-slate-200 bg-white overflow-y-auto">
+            <div className="w-56 border-r border-slate-200 bg-white overflow-y-auto" ref={listRef}>
               <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500">
                 Tasks
               </div>
