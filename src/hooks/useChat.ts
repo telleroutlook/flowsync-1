@@ -141,24 +141,57 @@ export const useChat = ({
                                  : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
                              }`;
 
-      // Call AI Service (直接使用普通请求)
+      // Call AI Service (streaming for faster feedback)
       pushProcessingStep('调用 AI 模型');
 
       // 设置初始的 thinking preview
       setThinkingPreview('正在处理请求...');
 
-      const response = await aiService.sendMessage(history, userMsg.text, systemContext);
-
-      pushProcessingStep('解析 AI 响应');
-
-      // 从 AI response 中截取一部分文字作为 thinkingPreview
-      if (response.text && response.text.trim()) {
-        const trimmed = response.text.trim();
+      const updateThinkingPreview = (text: string) => {
+        const trimmed = text.trim();
+        if (!trimmed) return;
         const maxLen = 160;
         const start = Math.max(0, trimmed.length - maxLen);
         const tail = trimmed.slice(start);
         setThinkingPreview(start > 0 ? `...${tail}` : tail);
-      }
+      };
+
+      const response = await aiService.sendMessageStream(
+        history,
+        userMsg.text,
+        systemContext,
+        (event, data) => {
+          const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
+          if (event === 'assistant_text' && typeof data.text === 'string') {
+            updateThinkingPreview(data.text);
+            pushProcessingStep('生成回复', elapsedMs);
+            return;
+          }
+          if (event === 'result' && typeof data.text === 'string') {
+            updateThinkingPreview(data.text);
+            return;
+          }
+          if (event === 'tool_start' && typeof data.name === 'string') {
+            pushProcessingStep(`执行工具: ${data.name}`, elapsedMs);
+            return;
+          }
+          if (event === 'stage' && typeof data.name === 'string') {
+            const stageMap: Record<string, string> = {
+              received: '请求已接收',
+              prepare_request: '整理上下文',
+              upstream_request: '调用 AI 模型',
+              upstream_response: '解析 AI 响应',
+              done: '完成',
+            };
+            const label = stageMap[data.name];
+            if (label) pushProcessingStep(label, elapsedMs);
+            return;
+          }
+          if (event === 'retry') {
+            pushProcessingStep('请求重试', elapsedMs);
+          }
+        }
+      );
 
       console.log('[useChat] AI Response:', {
         hasText: !!response.text,
