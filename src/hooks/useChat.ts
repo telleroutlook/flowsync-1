@@ -77,88 +77,36 @@ export const useChat = ({
     });
   }, []);
 
-  const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (isProcessing) return;
-    const cleanedInput = inputText.trim();
-    const hasAttachments = pendingAttachments.length > 0;
-    if (!cleanedInput && !hasAttachments) return;
-    const outgoingText = cleanedInput || 'Sent attachment(s).';
+  const processConversationTurn = useCallback(async (
+    initialHistory: any[],
+    userMessage: string,
+    systemContext: string,
+    attempt: number = 0
+  ) => {
+    const MAX_RETRIES = 3;
+    
+    // Call AI Service (streaming for faster feedback)
+    if (attempt === 0) {
+      pushProcessingStep('调用 AI 模型');
+      setThinkingPreview('正在处理请求...');
+    } else {
+      pushProcessingStep(`自动重试 (${attempt}/${MAX_RETRIES})`);
+      setThinkingPreview(`正在尝试修正结果 (${attempt}/${MAX_RETRIES})...`);
+    }
 
-    const userMsg: ChatMessage = {
-      id: generateId(),
-      role: 'user',
-      text: outgoingText,
-      timestamp: Date.now(),
-      attachments: hasAttachments ? pendingAttachments : undefined,
+    const updateThinkingPreview = (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      const maxLen = 160;
+      const start = Math.max(0, trimmed.length - maxLen);
+      const tail = trimmed.slice(start);
+      setThinkingPreview(start > 0 ? `...${tail}` : tail);
     };
 
-    setMessages(prev => [...prev, userMsg]);
-    setInputText('');
-    setPendingAttachments([]);
-    setIsProcessing(true);
-    setProcessingSteps([]);
-    setThinkingPreview('');
-
     try {
-      pushProcessingStep('整理上下文');
-      const history = messages.slice(-10).map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.text }]
-      }));
-
-      const maxContextTasks = 30;
-      const limitedTasks = activeTasks.slice(0, maxContextTasks);
-      const taskIdMap = limitedTasks.map(task => ({
-        id: task.id,
-        title: task.title,
-      }));
-      const wbsIdMap = limitedTasks
-        .filter(task => task.wbs)
-        .map(task => ({
-          id: task.id,
-          wbs: task.wbs || '',
-        }));
-      const shouldIncludeFullMappings = activeTasks.length > maxContextTasks;
-      const mappingJson = shouldIncludeFullMappings
-        ? JSON.stringify({
-            limit: maxContextTasks,
-            total: activeTasks.length,
-            taskIdMap,
-            wbsIdMap,
-          })
-        : JSON.stringify({
-            total: activeTasks.length,
-            taskIdMap,
-          });
-      const systemContext = `Active Project: ${activeProject.name || 'None'}. 
-                             Active Project ID: ${activeProject.id || 'N/A'}.
-                             ${selectedTask ? `User is currently inspecting task: ${selectedTask.title} (ID: ${selectedTask.id}, Status: ${selectedTask.status}).` : ''}
-                             Available Projects: ${projects.map(p => `${p.name} (${p.id})`).join(', ')}.
-                             ${ 
-                               shouldIncludeFullMappings
-                                 ? `Task IDs in Active Project (JSON): ${mappingJson}.` 
-                                 : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
-                             }`;
-
-      // Call AI Service (streaming for faster feedback)
-      pushProcessingStep('调用 AI 模型');
-
-      // 设置初始的 thinking preview
-      setThinkingPreview('正在处理请求...');
-
-      const updateThinkingPreview = (text: string) => {
-        const trimmed = text.trim();
-        if (!trimmed) return;
-        const maxLen = 160;
-        const start = Math.max(0, trimmed.length - maxLen);
-        const tail = trimmed.slice(start);
-        setThinkingPreview(start > 0 ? `...${tail}` : tail);
-      };
-
       const response = await aiService.sendMessageStream(
-        history,
-        userMsg.text,
+        initialHistory,
+        userMessage,
         systemContext,
         (event, data) => {
           const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
@@ -204,6 +152,8 @@ export const useChat = ({
       const toolResults: string[] = [];
       const draftActions: DraftAction[] = [];
       let draftReason: string | undefined;
+      let shouldRetry = false;
+      let retryReason = '';
 
       if (response.toolCalls && response.toolCalls.length > 0) {
         console.log('[useChat] Processing tool calls:', response.toolCalls);
@@ -275,7 +225,8 @@ export const useChat = ({
               
               if (actions.length === 0) {
                 console.warn('[useChat] planChanges called with no actions');
-                toolResults.push('No changes to apply.');
+                shouldRetry = true;
+                retryReason = "The previous `planChanges` call contained no actions. Please verify task IDs and criteria, then ensure you populate the `actions` array correctly.";
               } else {
                 await submitDraft(actions, { createdBy: 'agent', autoApply: false, reason: draftReason });
               }
@@ -403,8 +354,6 @@ export const useChat = ({
             console.error('[useChat] Failed to create draft:', draftError);
             toolResults.push(`Failed to create draft: ${draftError instanceof Error ? draftError.message : String(draftError)}`);
           }
-        } else {
-          console.log('[useChat] No draft actions to submit');
         }
 
         if (toolResults.length > 0) {
@@ -414,14 +363,25 @@ export const useChat = ({
         }
       } else {
         console.log('[useChat] No tool calls received from AI');
-        console.log('[useChat] AI response text:', finalText);
         pushProcessingStep('生成回复');
+      }
+
+      // Retry Logic
+      if (shouldRetry && attempt < MAX_RETRIES) {
+         console.warn(`[useChat] Retrying... Attempt ${attempt + 1}/${MAX_RETRIES}`);
+         const nextHistory = [
+             ...initialHistory,
+             { role: 'model', parts: [{ text: response.text || "I will plan the changes." }] },
+             { role: 'user', parts: [{ text: `System Alert: ${retryReason}` }] }
+         ];
+         await processConversationTurn(nextHistory, `System Alert: ${retryReason}`, systemContext, attempt + 1);
+         return;
       }
 
       setMessages(prev => [...prev, {
         id: generateId(),
         role: 'model',
-        text: finalText || "Processed.",
+        text: finalText || (shouldRetry ? "Failed to generate a valid plan after retries." : "Processed."),
         timestamp: Date.now()
       }]);
 
@@ -432,6 +392,83 @@ export const useChat = ({
         id: generateId(),
         role: 'model',
         text: `Error: ${errorMessage}`,
+        timestamp: Date.now()
+      }]);
+    }
+  }, [activeProjectId, aiService, apiService, submitDraft, handleApplyDraft, appendSystemMessage, pushProcessingStep, setMessages, setThinkingPreview]);
+
+  const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (isProcessing) return;
+    const cleanedInput = inputText.trim();
+    const hasAttachments = pendingAttachments.length > 0;
+    if (!cleanedInput && !hasAttachments) return;
+    const outgoingText = cleanedInput || 'Sent attachment(s).';
+
+    const userMsg: ChatMessage = {
+      id: generateId(),
+      role: 'user',
+      text: outgoingText,
+      timestamp: Date.now(),
+      attachments: hasAttachments ? pendingAttachments : undefined,
+    };
+
+    setMessages(prev => [...prev, userMsg]);
+    setInputText('');
+    setPendingAttachments([]);
+    setIsProcessing(true);
+    setProcessingSteps([]);
+    setThinkingPreview('');
+
+    try {
+      pushProcessingStep('整理上下文');
+      const history = messages.slice(-10).map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.text }]
+      }));
+
+      const maxContextTasks = 30;
+      const limitedTasks = activeTasks.slice(0, maxContextTasks);
+      const taskIdMap = limitedTasks.map(task => ({
+        id: task.id,
+        title: task.title,
+      }));
+      const wbsIdMap = limitedTasks
+        .filter(task => task.wbs)
+        .map(task => ({
+          id: task.id,
+          wbs: task.wbs || '',
+        }));
+      const shouldIncludeFullMappings = activeTasks.length > maxContextTasks;
+      const mappingJson = shouldIncludeFullMappings
+        ? JSON.stringify({
+            limit: maxContextTasks,
+            total: activeTasks.length,
+            taskIdMap,
+            wbsIdMap,
+          })
+        : JSON.stringify({
+            total: activeTasks.length,
+            taskIdMap,
+          });
+      const systemContext = `Active Project: ${activeProject.name || 'None'}. 
+                             Active Project ID: ${activeProject.id || 'N/A'}.
+                             ${selectedTask ? `User is currently inspecting task: ${selectedTask.title} (ID: ${selectedTask.id}, Status: ${selectedTask.status}).` : ''}
+                             Available Projects: ${projects.map(p => `${p.name} (${p.id})`).join(', ')}.
+                             ${ 
+                               shouldIncludeFullMappings
+                                 ? `Task IDs in Active Project (JSON): ${mappingJson}.` 
+                                 : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
+                             }`;
+
+      await processConversationTurn(history, userMsg.text, systemContext, 0);
+
+    } catch (error) {
+      console.error('[useChat] Top level error:', error);
+      setMessages(prev => [...prev, {
+        id: generateId(),
+        role: 'model',
+        text: "Sorry, something went wrong.",
         timestamp: Date.now()
       }]);
     } finally {
@@ -447,10 +484,8 @@ export const useChat = ({
     activeTasks,
     activeProject,
     projects,
-    submitDraft,
-    handleApplyDraft,
-    appendSystemMessage,
-    pushProcessingStep
+    pushProcessingStep,
+    processConversationTurn 
   ]);
 
   return {
