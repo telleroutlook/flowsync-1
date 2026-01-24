@@ -6,14 +6,16 @@
   "scripts": {
     "dev": "vite",
     "lint": "tsc --noEmit",
-    "build": "vite build",
+    "build": "npm run build:prod",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
     "dev:server": "tsx watch src/server.ts",
+    "dev:local": "bash scripts/local-dev.sh",
     "build:server": "tsc -p tsconfig.server.json",
     "build:prod": "npm run build:server && vite build",
     "start:prod": "node dist-server/server.js",
+    "prestart:prod": "bash scripts/prestart-checks.sh",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"

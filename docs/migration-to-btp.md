@@ -1,4 +1,6 @@
-# Cloudflare Workers to SAP BTP Migration Plan (针对当前代码优化)
+# [ARCHIVED] Cloudflare Workers to SAP BTP Migration Plan
+
+> **Status**: Completed on 2026-01-23. The codebase has been fully migrated to Node.js/PostgreSQL. This document is preserved for historical context.
 
 ## 1. 现状快照 (Current Code Snapshot)
 

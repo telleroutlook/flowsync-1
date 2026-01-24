@@ -1,4 +1,6 @@
-# FlowSync 重构计划（面向 AI Agent 的项目管理系统）
+# [ARCHIVED] FlowSync 重构计划（面向 AI Agent 的项目管理系统）
+
+> **Status**: Completed. The system has been refactored to a data-driven backend architecture. Initially implemented on Cloudflare Workers/D1, it has subsequently been migrated to Node.js/PostgreSQL on SAP BTP.
 
 > 目标：把当前“前端状态 + 对话式工具调用”的原型，重构为“数据驱动 + 读写分离 + 可审计”的 AI 原生项目管理系统。
 
