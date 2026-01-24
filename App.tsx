@@ -3,6 +3,7 @@ import { ProjectSidebar } from './components/ProjectSidebar';
 import { ChatInterface } from './components/ChatInterface';
 import { AuditPanel } from './components/AuditPanel';
 import { TaskDetailPanel } from './components/TaskDetailPanel';
+import { CreateProjectModal } from './components/CreateProjectModal';
 import { Task, DraftAction, ChatMessage, TaskStatus, Priority } from './types';
 import { useProjectData } from './src/hooks/useProjectData';
 import { useDrafts } from './src/hooks/useDrafts';
@@ -29,6 +30,7 @@ export default function App() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   
   // Refs
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -149,16 +151,18 @@ export default function App() {
   }, [isExportOpen]);
 
   // Manual Project Actions
-  const manualCreateProject = useCallback(async () => {
-    const name = prompt("Enter project name:");
-    if (!name) return;
+  const manualCreateProject = useCallback(() => {
+    setIsCreateProjectOpen(true);
+  }, []);
+
+  const handleCreateProject = useCallback(async (name: string, description: string) => {
     await submitDraft(
       [
         {
           id: generateId(),
           entityType: 'project',
           action: 'create',
-          after: { name },
+          after: { name, description },
         },
       ],
       { createdBy: 'user', autoApply: true, reason: 'Manual project create' }
@@ -421,9 +425,9 @@ export default function App() {
           </div>
         </div>
 
-        {(isLoadingData || dataError) && (
-          <div className={`px-6 py-3 text-xs font-medium ${dataError ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-500'} border-b border-slate-200`}>
-            {dataError ? `Failed to load data: ${dataError}` : 'Loading data from server...'}
+        {dataError && (
+          <div className="px-6 py-3 text-xs font-medium bg-rose-50 text-rose-700 border-b border-slate-200">
+            Failed to load data: {dataError}
           </div>
         )}
 
@@ -444,8 +448,22 @@ export default function App() {
           error={auditError}
         />
 
+        <CreateProjectModal
+          isOpen={isCreateProjectOpen}
+          onClose={() => setIsCreateProjectOpen(false)}
+          onCreate={handleCreateProject}
+        />
+
         {/* View Area */}
         <div className="p-6 flex-1 overflow-hidden relative z-10">
+          {isLoadingData ? (
+             <div className="flex items-center justify-center h-full">
+               <div className="flex flex-col items-center gap-3">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                 <p className="text-xs text-slate-500 font-medium">Loading Project Data...</p>
+               </div>
+            </div>
+          ) : (
           <Suspense fallback={
             <div className="flex items-center justify-center h-full">
                <div className="flex flex-col items-center gap-3">
@@ -481,6 +499,7 @@ export default function App() {
               </div>
             )}
           </Suspense>
+          )}
         </div>
         
       </div>

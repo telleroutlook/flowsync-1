@@ -18,13 +18,15 @@ export const useProjectData = () => {
     return tasks.filter(t => t.projectId === activeProjectId);
   }, [tasks, activeProjectId]);
 
-  const fetchAllTasks = useCallback(async () => {
+  const fetchAllTasks = useCallback(async (projectId?: string) => {
     const collected: Task[] = [];
     let page = 1;
     let total = 0;
     try {
       do {
-        const result = await apiService.listTasks({ page, pageSize: 100 });
+        const params: any = { page, pageSize: 100 };
+        if (projectId) params.projectId = projectId;
+        const result = await apiService.listTasks(params);
         collected.push(...result.data);
         total = result.total;
         page += 1;
@@ -40,31 +42,40 @@ export const useProjectData = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const [projectList, taskList] = await Promise.all([
-        apiService.listProjects(),
-        fetchAllTasks(),
-      ]);
+      const projectList = await apiService.listProjects();
       setProjects(projectList);
-      setTasks(taskList);
       
-      setActiveProjectId((prev) => {
-        const stored = window.localStorage.getItem('flowsync:activeProjectId');
-        const candidate = stored && projectList.find(project => project.id === stored) ? stored : prev;
-        return candidate && projectList.find(project => project.id === candidate)
+      const stored = window.localStorage.getItem('flowsync:activeProjectId');
+      const candidate = stored && projectList.find(project => project.id === stored) ? stored : activeProjectId;
+      const finalId = candidate && projectList.find(project => project.id === candidate)
           ? candidate
           : projectList[0]?.id || '';
-      });
+          
+      setActiveProjectId(finalId);
+      
+      // Only fetch tasks for the active project
+      const taskList = await fetchAllTasks(finalId);
+      setTasks(taskList);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data.');
     } finally {
       setIsLoading(false);
     }
-  }, [fetchAllTasks]);
+  }, [fetchAllTasks]); // Removed activeProjectId dependency to avoid stale closures
 
-  const handleSelectProject = useCallback((id: string) => {
+  const handleSelectProject = useCallback(async (id: string) => {
     setActiveProjectId(id);
     window.localStorage.setItem('flowsync:activeProjectId', id);
-  }, []);
+    try {
+      setIsLoading(true);
+      const newTasks = await fetchAllTasks(id);
+      setTasks(newTasks);
+    } catch (err) {
+      setError("Failed to load project tasks");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchAllTasks]);
 
   // Initial load
   useEffect(() => {
