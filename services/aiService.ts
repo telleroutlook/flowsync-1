@@ -95,7 +95,7 @@ export class AIService {
   ): Promise<{ text: string; toolCalls?: { name: string; args: unknown }[] }> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

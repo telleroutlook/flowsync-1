@@ -17,7 +17,7 @@ const MAX_SYSTEM_CONTEXT_CHARS = 8000;
 const MAX_TOOL_ARGS_CHARS = 8000;
 const MAX_TOOL_CALLS = 12;
 const MAX_TURNS = 5;
-const REQUEST_TIMEOUT_MS = 15000;
+const REQUEST_TIMEOUT_MS = 60000;
 const MAX_RETRIES = 2;
 const BASE_RETRY_DELAY_MS = 500;
 
@@ -176,7 +176,8 @@ async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables
     case 'planChanges':
     case 'applyChanges': {
       // These tools don't need execution here - they'll be handled by frontend
-      return JSON.stringify({ status: 'pending', message: 'Tool to be executed by frontend' });
+      // Return success to prevent AI from retrying
+      return JSON.stringify({ success: true, message: 'Draft created successfully. No further action needed.' });
     }
 
     default:
@@ -809,27 +810,81 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
 
   const stream = new ReadableStream({
     start(controller) {
+      let closed = false;
+      let lock = false; // Prevent concurrent send attempts
+
       const send = (event: string, data: Record<string, unknown>) => {
-        const payload = {
-          ...data,
-          elapsedMs: Date.now() - startTime,
-        };
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+        if (closed || lock) return;
+        lock = true;
+        try {
+          const payload = {
+            ...data,
+            elapsedMs: Date.now() - startTime,
+          };
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+        } catch (error) {
+          console.error('[AI Route] Error sending stream event:', error);
+          closed = true;
+          // Close controller immediately on error to prevent further attempts
+          try {
+            controller.close();
+          } catch (closeError) {
+            // Controller already closed, ignore
+          }
+        } finally {
+          lock = false;
+        }
       };
 
-      runAIRequest(c, input, requestId, send)
+      // Wrap the emit callback to prevent errors from propagating
+      const safeEmit: ProgressEmitter = (event, data) => {
+        if (closed) return; // Early exit if stream is closed
+        try {
+          send(event, data);
+        } catch (error) {
+          console.error('[AI Route] Error in emit callback:', error);
+        }
+      };
+
+      runAIRequest(c, input, requestId, safeEmit)
         .then((result) => {
-          send('result', result as unknown as Record<string, unknown>);
-          send('done', { requestId });
-          controller.close();
+          if (!closed) {
+            closed = true;
+            try {
+              send('result', result as unknown as Record<string, unknown>);
+              send('done', { requestId });
+              controller.close();
+            } catch (error) {
+              console.error('[AI Route] Error sending final stream events:', error);
+              // Try to close controller even if sending failed
+              try {
+                controller.close();
+              } catch (closeError) {
+                // Controller already closed, ignore
+              }
+            }
+          }
         })
         .catch((error) => {
-          if (error instanceof ApiError) {
-            send('error', { code: error.code, message: error.message, status: error.status });
-          } else {
-            send('error', { code: 'OPENAI_ERROR', message: 'OpenAI request failed.', status: 502 });
+          if (!closed) {
+            closed = true;
+            try {
+              if (error instanceof ApiError) {
+                send('error', { code: error.code, message: error.message, status: error.status });
+              } else {
+                send('error', { code: 'OPENAI_ERROR', message: 'OpenAI request failed.', status: 502 });
+              }
+              controller.close();
+            } catch (sendError) {
+              console.error('[AI Route] Error sending error event:', sendError);
+              // Try to close controller even if sending failed
+              try {
+                controller.close();
+              } catch (closeError) {
+                // Controller already closed, ignore
+              }
+            }
           }
-          controller.close();
         });
     },
   });
