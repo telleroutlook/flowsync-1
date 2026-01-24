@@ -28,6 +28,15 @@ type ProcessingStep = {
   elapsedMs?: number;
 };
 
+type AiMessagePart = {
+  text: string;
+};
+
+type AiHistoryItem = {
+  role: 'user' | 'model';
+  parts: AiMessagePart[];
+};
+
 export const useChat = ({
   activeProjectId,
   activeProject,
@@ -78,7 +87,7 @@ export const useChat = ({
   }, []);
 
   const processConversationTurn = useCallback(async (
-    initialHistory: any[],
+    initialHistory: AiHistoryItem[],
     userMessage: string,
     systemContext: string,
     attempt: number = 0
@@ -227,6 +236,7 @@ export const useChat = ({
                 console.warn('[useChat] planChanges called with no actions');
                 shouldRetry = true;
                 retryReason = "The previous `planChanges` call contained no actions. Please verify task IDs and criteria, then ensure you populate the `actions` array correctly.";
+                break;
               } else {
                 await submitDraft(actions, { createdBy: 'agent', autoApply: false, reason: draftReason });
               }
@@ -338,28 +348,30 @@ export const useChat = ({
           }
         }
 
-        console.log('[useChat] Draft actions collected:', {
-          count: draftActions.length,
-          actions: draftActions,
-        });
+        if (!shouldRetry) {
+          console.log('[useChat] Draft actions collected:', {
+            count: draftActions.length,
+            actions: draftActions,
+          });
 
-        if (draftActions.length > 0) {
-          console.log('[useChat] Submitting draft...');
-          pushProcessingStep('提交草稿');
-          try {
-            const draft = await submitDraft(draftActions, { createdBy: 'agent', autoApply: false, reason: draftReason });
-            console.log('[useChat] Draft created successfully:', draft.id);
-            toolResults.push(`Draft ${draft.id} created with ${draftActions.length} action(s).`);
-          } catch (draftError) {
-            console.error('[useChat] Failed to create draft:', draftError);
-            toolResults.push(`Failed to create draft: ${draftError instanceof Error ? draftError.message : String(draftError)}`);
+          if (draftActions.length > 0) {
+            console.log('[useChat] Submitting draft...');
+            pushProcessingStep('提交草稿');
+            try {
+              const draft = await submitDraft(draftActions, { createdBy: 'agent', autoApply: false, reason: draftReason });
+              console.log('[useChat] Draft created successfully:', draft.id);
+              toolResults.push(`Draft ${draft.id} created with ${draftActions.length} action(s).`);
+            } catch (draftError) {
+              console.error('[useChat] Failed to create draft:', draftError);
+              toolResults.push(`Failed to create draft: ${draftError instanceof Error ? draftError.message : String(draftError)}`);
+            }
           }
-        }
 
-        if (toolResults.length > 0) {
-          pushProcessingStep('汇总工具结果');
-          appendSystemMessage(toolResults.join(' | '));
-          if (!finalText) finalText = 'Draft created. Review pending changes before applying.';
+          if (toolResults.length > 0) {
+            pushProcessingStep('汇总工具结果');
+            appendSystemMessage(toolResults.join(' | '));
+            if (!finalText) finalText = 'Draft created. Review pending changes before applying.';
+          }
         }
       } else {
         console.log('[useChat] No tool calls received from AI');
@@ -371,8 +383,7 @@ export const useChat = ({
          console.warn(`[useChat] Retrying... Attempt ${attempt + 1}/${MAX_RETRIES}`);
          const nextHistory = [
              ...initialHistory,
-             { role: 'model', parts: [{ text: response.text || "I will plan the changes." }] },
-             { role: 'user', parts: [{ text: `System Alert: ${retryReason}` }] }
+             { role: 'model', parts: [{ text: response.text || "I will plan the changes." }] }
          ];
          await processConversationTurn(nextHistory, `System Alert: ${retryReason}`, systemContext, attempt + 1);
          return;
