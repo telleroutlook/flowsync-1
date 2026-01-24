@@ -334,11 +334,11 @@ const deleteProjectTool: FunctionDeclaration = {
 
 const createTaskTool: FunctionDeclaration = {
   name: 'createTask',
-  description: 'Create a NEW task. IMPORTANT: Only use this for tasks that DO NOT exist yet. If the user refers to "this task" or wants to modify an existing task, use updateTask instead. You MUST call searchTasks first to verify the task does not exist. Only projectId and title are required; other fields can be inferred from context.',
+  description: 'Create a NEW task. IMPORTANT: Only use this for tasks that DO NOT exist yet. If the user refers to "this task" or wants to modify an existing task, use updateTask instead. You MUST call searchTasks first to verify the task does not exist. Always provide the projectId - use the "Active Project ID" from the system context for new tasks. Only projectId and title are required; other fields can be inferred from context.',
   parameters: {
     type: 'object',
     properties: {
-      projectId: { type: 'string' },
+      projectId: { type: 'string', description: 'The project ID for this task. Use the Active Project ID from the system context.' },
       title: { type: 'string' },
       description: { type: 'string' },
       status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
@@ -395,11 +395,11 @@ const deleteTaskTool: FunctionDeclaration = {
 
 const planChangesTool: FunctionDeclaration = {
   name: 'planChanges',
-  description: 'Create a draft with multiple related actions at once. Use this for making multiple changes together that should be approved as a group. Each action must specify entityType (task/project), action (create/update/delete), and for update/delete include entityId.',
+  description: 'Create a draft with multiple related actions at once. Use this for making multiple changes together that should be approved as a group. Each action must specify entityType (task/project), action (create/update/delete), and for update/delete include entityId. IMPORTANT: For task creation actions, the "after" object MUST include "projectId" - use the Active Project ID from the system context.',
   parameters: {
     type: 'object',
     properties: {
-      projectId: { type: 'string' },
+      projectId: { type: 'string', description: 'Optional: Default projectId for all task actions. Will be used if individual task actions do not specify projectId in their "after" object.' },
       reason: { type: 'string', description: 'Reason for making these changes' },
       actions: {
         type: 'array',
@@ -409,7 +409,7 @@ const planChangesTool: FunctionDeclaration = {
             entityType: { type: 'string', enum: ['task', 'project'] },
             action: { type: 'string', enum: ['create', 'update', 'delete'] },
             entityId: { type: 'string', description: 'Required for update and delete actions' },
-            after: { type: 'object', description: 'The new state. Required for create and update actions' },
+            after: { type: 'object', description: 'The new state. Required for create and update actions. For task creation, MUST include projectId.' },
           },
           required: ['entityType', 'action'],
         },
@@ -501,6 +501,7 @@ IMPORTANT - How to make changes:
 - You can call multiple tools in a single response
 - Use createTask/updateTask/deleteTask for single changes, use planChanges for multiple related changes
 - All changes create drafts that require user approval
+- When creating tasks, ALWAYS include the projectId. Use the "Active Project ID" from the system context for new tasks.
 
 Workflow:
 - Understand the user's intent

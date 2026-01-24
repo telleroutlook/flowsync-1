@@ -141,64 +141,24 @@ export const useChat = ({
                                  : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
                              }`;
 
-      // Call AI Service
+      // Call AI Service (直接使用普通请求)
       pushProcessingStep('调用 AI 模型');
 
-      const stageLabels: Record<string, string> = {
-        received: '收到请求',
-        prepare_request: '准备请求',
-        upstream_request: '请求上游模型',
-        upstream_response: '收到上游响应',
-        done: '完成',
-      };
+      // 设置初始的 thinking preview
+      setThinkingPreview('正在处理请求...');
 
-      let response: { text: string; toolCalls?: { name: string; args: unknown }[] };
-      try {
-        response = await aiService.sendMessageStream(
-          history,
-          userMsg.text,
-          systemContext,
-          (event, data) => {
-            if (event === 'stage' && typeof data.name === 'string') {
-              const label = stageLabels[data.name] || data.name;
-              const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
-              pushProcessingStep(label, elapsedMs);
-              return;
-            }
-            if (event === 'retry') {
-              const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
-              const attempt = typeof data.attempt === 'number' ? data.attempt : undefined;
-              const status = typeof data.status === 'number' ? data.status : undefined;
-              const label = `上游重试${attempt ? ` #${attempt}` : ''}${status ? ` (${status})` : ''}`;
-              pushProcessingStep(label, elapsedMs);
-              return;
-            }
-            if (event === 'tool_start' && typeof data.name === 'string') {
-              const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
-              pushProcessingStep(`执行工具: ${data.name}`, elapsedMs);
-              return;
-            }
-            if (event === 'tool_end' && typeof data.name === 'string') {
-              const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
-              pushProcessingStep(`完成工具: ${data.name}`, elapsedMs);
-              return;
-            }
-            if (event === 'assistant_text' && typeof data.text === 'string') {
-              const trimmed = data.text.trim();
-              if (!trimmed) return;
-              const maxLen = 160;
-              const start = Math.max(0, trimmed.length - maxLen);
-              const tail = trimmed.slice(start);
-              setThinkingPreview(start > 0 ? `...${tail}` : tail);
-            }
-          }
-        );
-      } catch (streamError) {
-        pushProcessingStep('流式失败，回退普通请求');
-        response = await aiService.sendMessage(history, userMsg.text, systemContext);
-      }
+      const response = await aiService.sendMessage(history, userMsg.text, systemContext);
 
       pushProcessingStep('解析 AI 响应');
+
+      // 从 AI response 中截取一部分文字作为 thinkingPreview
+      if (response.text && response.text.trim()) {
+        const trimmed = response.text.trim();
+        const maxLen = 160;
+        const start = Math.max(0, trimmed.length - maxLen);
+        const tail = trimmed.slice(start);
+        setThinkingPreview(start > 0 ? `...${tail}` : tail);
+      }
 
       console.log('[useChat] AI Response:', {
         hasText: !!response.text,
@@ -260,13 +220,20 @@ export const useChat = ({
             if (Array.isArray(args.actions)) {
               pushProcessingStep('生成草稿计划');
               // Directly submit draft from planChanges
-              const actions = (args.actions as DraftAction[]).map(action => ({
-                id: action.id || generateId(),
-                entityType: action.entityType,
-                action: action.action,
-                entityId: action.entityId,
-                after: action.after,
-              }));
+              const actions = (args.actions as DraftAction[]).map(action => {
+                const processedAfter = { ...action.after };
+                // Auto-fill projectId for task creation actions if not provided
+                if (action.entityType === 'task' && action.action === 'create' && !processedAfter.projectId) {
+                  processedAfter.projectId = activeProjectId;
+                }
+                return {
+                  id: action.id || generateId(),
+                  entityType: action.entityType,
+                  action: action.action,
+                  entityId: action.entityId,
+                  after: processedAfter,
+                };
+              });
               draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
               await submitDraft(actions, { createdBy: 'agent', autoApply: false, reason: draftReason });
             }
@@ -327,7 +294,7 @@ export const useChat = ({
               entityType: 'task',
               action: 'create',
               after: {
-                projectId: args.projectId,
+                projectId: args.projectId || activeProjectId,
                 title: args.title,
                 description: args.description,
                 status: args.status,
