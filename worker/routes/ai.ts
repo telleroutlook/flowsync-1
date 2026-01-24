@@ -210,7 +210,7 @@ const deleteProjectTool: FunctionDeclaration = {
 
 const createTaskTool: FunctionDeclaration = {
   name: 'createTask',
-  description: 'Create a new task. Creates a draft that requires user approval. Only projectId and title are required; other fields can be inferred from context.',
+  description: 'Create a NEW task. IMPORTANT: Only use this for tasks that DO NOT exist yet. If the user refers to "this task" or wants to modify an existing task, use updateTask instead. You MUST call searchTasks first to verify the task does not exist. Only projectId and title are required; other fields can be inferred from context.',
   parameters: {
     type: 'object',
     properties: {
@@ -234,7 +234,7 @@ const createTaskTool: FunctionDeclaration = {
 
 const updateTaskTool: FunctionDeclaration = {
   name: 'updateTask',
-  description: 'Update an existing task. Creates a draft that requires user approval.',
+  description: 'Update an EXISTING task. Use this when the user refers to "this task", "the task", or wants to modify/set attributes of an existing task. Creates a draft that requires user approval.',
   parameters: {
     type: 'object',
     properties: {
@@ -382,21 +382,24 @@ aiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
     const systemInstruction = `You are FlowSync AI, an expert project manager.
 ${systemContext || ''}
 
+CRITICAL - Task Creation vs Update:
+- BEFORE creating any task, ALWAYS call searchTasks with the task title to check if it already exists
+- If the user says "这个任务" (this task), "该任务" (the task), "为...设定" (set for...), or similar wording, they are referring to an EXISTING task
+- For existing tasks: use updateTask with the task id
+- For truly new tasks: use createTask
+- Example: "请为这个新的任务，设定合理的期间及其他数据" → this means UPDATE an existing task, NOT create a new one
+
 IMPORTANT - How to make changes:
-- For simple/obvious requests (e.g., "create a task named X"), you can call createTask directly without reading first
-- For complex requests or when you need context, call listProjects/listTasks/searchTasks first
+- NEVER call createTask without first checking if the task exists
+- For ambiguous requests (e.g., "set the duration for X"), call searchTasks first
+- You can call multiple tools in a single response
 - Use createTask/updateTask/deleteTask for single changes, use planChanges for multiple related changes
 - All changes create drafts that require user approval
 
-You can call multiple tools in a single response. For example:
-- First call listTasks to understand context
-- Then call createTask in the SAME response
-
 Workflow:
 - Understand the user's intent
-- If you need more context, call listTasks/listProjects
-- Then immediately call the appropriate create/update/delete tool
-- You can chain multiple tool calls in one response
+- If they mention existing tasks or use demonstrative pronouns (this, that, these), call searchTasks FIRST
+- Then immediately call the appropriate create/update/delete tool in the SAME response
 - Always explain what you're doing
 
 Resolve dependency conflicts and date issues automatically when planning changes.

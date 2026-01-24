@@ -174,5 +174,5 @@ See `manifest.yml` for deployment configuration.
 - All timestamps are Unix milliseconds in bigint format
 - Draft warnings (e.g., constraint violations) are returned but don't block draft creation
 - Audit logs support rollback via `POST /api/audit/:id/rollback`
-- The Vite dev server runs on port 3000, proxying API calls to port 8788
+- The Vite dev server runs on port 5173, proxying API calls to port 8788
 - PostgreSQL connection is initialized once in `src/server.ts` and injected into Hono context

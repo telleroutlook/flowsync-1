@@ -27,7 +27,7 @@ changes, audit logging, and rollback via audit snapshots.
    `npm run db:push`
 5. Start the servers:
    - Frontend: `npm run dev` (http://localhost:5173)
-   - Backend: `npm run dev:server` (http://localhost:3000)
+   - Backend: `npm run dev:server` (http://localhost:8788)
 
 Vite proxies `/api` to the backend server.
 
