@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AuditLog } from '../types';
+import { useI18n } from '../src/i18n';
 
 interface AuditPanelProps {
   isOpen: boolean;
@@ -32,8 +33,8 @@ interface AuditPanelProps {
   error: string | null;
 }
 
-const formatAuditTimestamp = (timestamp: number) =>
-  new Date(timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+const formatAuditTimestamp = (timestamp: number, locale: string) =>
+  new Date(timestamp).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
 
 const formatAuditValue = (value: unknown) => {
   if (value === undefined) return 'undefined';
@@ -103,6 +104,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
   rollbackingId,
   error,
 }) => {
+  const { t, locale } = useI18n();
   const [selectedAudit, setSelectedAudit] = useState<AuditLog | null>(null);
   const [isAuditDetailOpen, setIsAuditDetailOpen] = useState(false);
   const [showAuditRaw, setShowAuditRaw] = useState(false);
@@ -122,13 +124,52 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
 
   if (!isOpen) return null;
 
+  const getActionLabel = (action: string) => {
+    switch (action) {
+      case 'create':
+        return t('audit.actions.create');
+      case 'update':
+        return t('audit.actions.update');
+      case 'delete':
+        return t('audit.actions.delete');
+      case 'rollback':
+        return t('audit.actions.rollback');
+      default:
+        return action;
+    }
+  };
+
+  const getEntityLabel = (entityType: string) => {
+    switch (entityType) {
+      case 'project':
+        return t('audit.entities.project');
+      case 'task':
+        return t('audit.entities.task');
+      default:
+        return entityType;
+    }
+  };
+
+  const getActorLabel = (actor: string) => {
+    switch (actor) {
+      case 'user':
+        return t('audit.actors.user');
+      case 'agent':
+        return t('audit.actors.agent');
+      case 'system':
+        return t('audit.actors.system');
+      default:
+        return actor;
+    }
+  };
+
   return (
     <>
       <div className="px-6 py-4 border-b border-slate-200 bg-white/70 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-slate-700 uppercase tracking-widest">Audit Trail</p>
-            <p className="text-[11px] text-slate-500">Recent activity for this project</p>
+            <p className="text-xs font-bold text-slate-700 uppercase tracking-widest">{t('audit.title')}</p>
+            <p className="text-[11px] text-slate-500">{t('audit.subtitle')}</p>
           </div>
           <button
             type="button"
@@ -136,7 +177,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
             className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-colors"
             disabled={isLoading}
           >
-            {isLoading ? 'Refreshing...' : 'Refresh'}
+            {isLoading ? t('audit.refreshing') : t('audit.refresh')}
           </button>
         </div>
 
@@ -144,7 +185,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
           <input
             value={filters.q}
             onChange={(event) => setFilters(prev => ({ ...prev, q: event.target.value }))}
-            placeholder="Search id or reason..."
+            placeholder={t('audit.search_placeholder')}
             className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-indigo-400 outline-none"
           />
           <select
@@ -152,30 +193,30 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
             onChange={(event) => setFilters(prev => ({ ...prev, actor: event.target.value }))}
             className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
           >
-            <option value="all">All Actors</option>
-            <option value="user">User</option>
-            <option value="agent">Agent</option>
-            <option value="system">System</option>
+            <option value="all">{t('audit.actors.all')}</option>
+            <option value="user">{t('audit.actors.user')}</option>
+            <option value="agent">{t('audit.actors.agent')}</option>
+            <option value="system">{t('audit.actors.system')}</option>
           </select>
           <select
             value={filters.action}
             onChange={(event) => setFilters(prev => ({ ...prev, action: event.target.value }))}
             className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
           >
-            <option value="all">All Actions</option>
-            <option value="create">Create</option>
-            <option value="update">Update</option>
-            <option value="delete">Delete</option>
-            <option value="rollback">Rollback</option>
+            <option value="all">{t('audit.actions.all')}</option>
+            <option value="create">{t('audit.actions.create')}</option>
+            <option value="update">{t('audit.actions.update')}</option>
+            <option value="delete">{t('audit.actions.delete')}</option>
+            <option value="rollback">{t('audit.actions.rollback')}</option>
           </select>
           <select
             value={filters.entityType}
             onChange={(event) => setFilters(prev => ({ ...prev, entityType: event.target.value }))}
             className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
           >
-            <option value="all">All Entities</option>
-            <option value="project">Project</option>
-            <option value="task">Task</option>
+            <option value="all">{t('audit.entities.all')}</option>
+            <option value="project">{t('audit.entities.project')}</option>
+            <option value="task">{t('audit.entities.task')}</option>
           </select>
           <input
             type="date"
@@ -194,7 +235,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
             onClick={() => setFilters({ actor: 'all', action: 'all', entityType: 'all', q: '', from: '', to: '' })}
             className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
           >
-            Clear
+            {t('audit.clear')}
           </button>
         </div>
 
@@ -206,7 +247,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
 
         {!error && logs.length === 0 && !isLoading && (
           <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            No audit entries match the filters.
+            {t('audit.no_entries')}
           </div>
         )}
 
@@ -215,17 +256,17 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
             <div key={log.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
               <div className="flex items-start gap-3">
                 <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${auditBadgeClass(log.action)}`}>
-                  {log.action}
+                  {getActionLabel(log.action)}
                 </span>
                 <div>
                   <div className="text-xs font-semibold text-slate-700">
-                    {log.entityType} · {log.entityId}
+                    {getEntityLabel(log.entityType)} · {log.entityId}
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    {log.actor} · {formatAuditTimestamp(log.timestamp)}
+                    {getActorLabel(log.actor)} · {formatAuditTimestamp(log.timestamp, locale)}
                   </div>
                   {log.reason && (
-                    <div className="text-[11px] text-slate-500">Reason: {log.reason}</div>
+                    <div className="text-[11px] text-slate-500">{t('audit.reason', { reason: log.reason })}</div>
                   )}
                 </div>
               </div>
@@ -235,7 +276,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
                   onClick={() => openAuditDetail(log)}
                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-colors"
                 >
-                  Details
+                  {t('audit.details')}
                 </button>
                 <button
                   type="button"
@@ -247,7 +288,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
                       : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
                   }`}
                 >
-                  {rollbackingId === log.id ? 'Rolling back...' : 'Rollback'}
+                  {rollbackingId === log.id ? t('audit.rolling_back') : t('audit.rollback')}
                 </button>
               </div>
             </div>
@@ -257,7 +298,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
         {total > 0 && (
           <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
             <div>
-              Page {Math.min(page, auditTotalPages)} of {auditTotalPages} · {total} items
+              {t('audit.page_info', { page: Math.min(page, auditTotalPages), totalPages: auditTotalPages, total })}
             </div>
             <div className="flex items-center gap-2">
               <select
@@ -266,7 +307,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
                 className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 focus:border-indigo-400 outline-none"
               >
                 {[6, 8, 12, 20].map((size) => (
-                  <option key={size} value={size}>{size}/page</option>
+                  <option key={size} value={size}>{t('audit.page_size', { size })}</option>
                 ))}
               </select>
               <button
@@ -275,7 +316,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
                 disabled={page <= 1}
                 className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed hover:border-indigo-200 hover:text-indigo-600 transition-colors"
               >
-                Prev
+                {t('audit.prev')}
               </button>
               <button
                 type="button"
@@ -283,7 +324,7 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
                 disabled={page >= auditTotalPages}
                 className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed hover:border-indigo-200 hover:text-indigo-600 transition-colors"
               >
-                Next
+                {t('audit.next')}
               </button>
             </div>
           </div>
@@ -295,9 +336,9 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
           <div className="w-[760px] max-w-[90vw] rounded-2xl bg-white shadow-2xl border border-slate-100">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Audit Detail</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{t('audit.detail_title')}</p>
                 <p className="text-sm font-semibold text-slate-800">
-                  {selectedAudit.entityType} · {selectedAudit.entityId}
+                  {getEntityLabel(selectedAudit.entityType)} · {selectedAudit.entityId}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -306,30 +347,30 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
                   onClick={() => setShowAuditRaw(prev => !prev)}
                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-colors"
                 >
-                  {showAuditRaw ? 'Hide JSON' : 'Show JSON'}
+                  {showAuditRaw ? t('audit.hide_json') : t('audit.show_json')}
                 </button>
                 <button
                   type="button"
                   onClick={closeAuditDetail}
                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-colors"
                 >
-                  Close
+                  {t('audit.close')}
                 </button>
               </div>
             </div>
             <div className="px-5 py-4 space-y-3">
               <div className="flex flex-wrap gap-2 text-[11px] text-slate-500">
                 <span className={`inline-flex rounded-full border px-2 py-0.5 font-bold uppercase tracking-wider ${auditBadgeClass(selectedAudit.action)}`}>
-                  {selectedAudit.action}
+                  {getActionLabel(selectedAudit.action)}
                 </span>
-                <span>{selectedAudit.actor}</span>
-                <span>· {formatAuditTimestamp(selectedAudit.timestamp)}</span>
+                <span>{getActorLabel(selectedAudit.actor)}</span>
+                <span>· {formatAuditTimestamp(selectedAudit.timestamp, locale)}</span>
                 {selectedAudit.reason && <span>· {selectedAudit.reason}</span>}
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Field Diff</div>
+                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('audit.field_diff')}</div>
                 {diffAuditRecords(selectedAudit.before ?? null, selectedAudit.after ?? null).length === 0 ? (
-                  <div className="text-[11px] text-slate-500">No field changes detected.</div>
+                  <div className="text-[11px] text-slate-500">{t('audit.no_field_changes')}</div>
                 ) : (
                   <div className="max-h-[260px] overflow-auto space-y-2 text-[11px] text-slate-700">
                     {diffAuditRecords(selectedAudit.before ?? null, selectedAudit.after ?? null).map((row) => (
@@ -347,13 +388,13 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
               {showAuditRaw && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Before JSON</div>
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('audit.before_json')}</div>
                     <pre className="max-h-[220px] overflow-auto text-[11px] text-slate-700 whitespace-pre-wrap">
                       {JSON.stringify(selectedAudit.before ?? {}, null, 2)}
                     </pre>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">After JSON</div>
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('audit.after_json')}</div>
                     <pre className="max-h-[220px] overflow-auto text-[11px] text-slate-700 whitespace-pre-wrap">
                       {JSON.stringify(selectedAudit.after ?? {}, null, 2)}
                     </pre>

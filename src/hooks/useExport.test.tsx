@@ -1,8 +1,10 @@
+import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useExport } from './useExport';
 import { Priority, TaskStatus, Project, Task } from '../../types';
 import { apiService } from '../../services/apiService';
+import { I18nProvider } from '../i18n';
 
 vi.mock('../../services/apiService', () => ({
   apiService: {
@@ -47,6 +49,10 @@ class MockFileReader {
 }
 
 describe('useExport', () => {
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <I18nProvider>{children}</I18nProvider>
+  );
+
   const createObjectURL = vi.fn(() => 'blob:mock');
   const revokeObjectURL = vi.fn();
 
@@ -73,7 +79,7 @@ describe('useExport', () => {
         refreshData: vi.fn(async () => {}),
         submitDraft: vi.fn(async () => ({ id: 'd1' })),
         fetchAllTasks: vi.fn(async () => []),
-      })
+      }), { wrapper }
     );
 
     await act(async () => {
@@ -100,7 +106,7 @@ describe('useExport', () => {
         refreshData,
         submitDraft,
         fetchAllTasks,
-      })
+      }), { wrapper }
     );
 
     const csv = [

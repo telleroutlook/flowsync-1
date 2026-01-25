@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../../services/apiService';
 import { AuditLog } from '../../types';
+import { useI18n } from '../i18n';
 
 interface UseAuditLogsProps {
   activeProjectId: string;
@@ -9,6 +10,7 @@ interface UseAuditLogsProps {
 }
 
 export const useAuditLogs = ({ activeProjectId, refreshData, appendSystemMessage }: UseAuditLogsProps) => {
+  const { t } = useI18n();
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditTotal, setAuditTotal] = useState(0);
   const [isAuditLoading, setIsAuditLoading] = useState(false);
@@ -55,28 +57,28 @@ export const useAuditLogs = ({ activeProjectId, refreshData, appendSystemMessage
       setAuditLogs(result.data);
       setAuditTotal(result.total);
     } catch (error) {
-      setAuditError(error instanceof Error ? error.message : 'Failed to load audit logs.');
+      setAuditError(error instanceof Error ? error.message : t('error.load_audit'));
     } finally {
       setIsAuditLoading(false);
     }
-  }, [activeProjectId, auditPage, auditPageSize, auditFilters]);
+  }, [activeProjectId, auditPage, auditPageSize, auditFilters, t]);
 
   const handleRollbackAudit = useCallback(async (auditId: string) => {
     if (rollbackingAuditId) return;
-    const confirmed = window.confirm('Rollback this audit entry? This will reverse the recorded change.');
+    const confirmed = window.confirm(t('audit.rollback_confirm'));
     if (!confirmed) return;
     try {
       setRollbackingAuditId(auditId);
       await apiService.rollbackAuditLog(auditId, 'user');
-      appendSystemMessage(`Rollback applied: ${auditId}`);
+      appendSystemMessage(t('audit.rollback_applied', { id: auditId }));
       await refreshData();
       await refreshAuditLogs(activeProjectId);
     } catch (error) {
-      appendSystemMessage(error instanceof Error ? `Rollback failed: ${error.message}` : 'Rollback failed.');
+      appendSystemMessage(error instanceof Error ? t('audit.rollback_failed_detail', { error: error.message }) : t('audit.rollback_failed'));
     } finally {
       setRollbackingAuditId(null);
     }
-  }, [rollbackingAuditId, activeProjectId, refreshData, refreshAuditLogs, appendSystemMessage]);
+  }, [rollbackingAuditId, activeProjectId, refreshData, refreshAuditLogs, appendSystemMessage, t]);
 
   // Effects
   useEffect(() => {

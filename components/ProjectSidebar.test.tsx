@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProjectSidebar } from './ProjectSidebar';
 import { describe, it, expect, vi } from 'vitest';
+import { I18nProvider } from '../src/i18n';
 
 const projects = [
   { id: 'p1', name: 'Alpha', description: 'First' },
@@ -19,14 +20,16 @@ describe('ProjectSidebar', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(
-      <ProjectSidebar
-        projects={projects}
-        activeProjectId="p1"
-        onSelectProject={onSelectProject}
-        onCreateProject={onCreateProject}
-        onDeleteProject={onDeleteProject}
-        onClose={onClose}
-      />
+      <I18nProvider>
+        <ProjectSidebar
+          projects={projects}
+          activeProjectId="p1"
+          onSelectProject={onSelectProject}
+          onCreateProject={onCreateProject}
+          onDeleteProject={onDeleteProject}
+          onClose={onClose}
+        />
+      </I18nProvider>
     );
 
     await user.click(screen.getByText('Beta'));

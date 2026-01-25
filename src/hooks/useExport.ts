@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Project, Task, DraftAction, TaskStatus, Priority, Draft } from '../../types';
 import { apiService } from '../../services/apiService';
 import { generateId, getTaskStart, getTaskEnd, formatExportDate, parseDateFlexible } from '../utils';
+import { useI18n } from '../i18n';
 
 export type ExportFormat = 'csv' | 'tsv' | 'json' | 'markdown' | 'pdf';
 export type ExportScope = 'active' | 'all';
@@ -110,6 +111,7 @@ export const useExport = ({
   submitDraft,
   fetchAllTasks
 }: UseExportProps) => {
+  const { t } = useI18n();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportScope, setExportScope] = useState<ExportScope>('active');
   const [lastExportFormat, setLastExportFormat] = useState<ExportFormat>('csv');
@@ -235,12 +237,14 @@ export const useExport = ({
       ]));
       doc.setFontSize(12);
       doc.text(
-        scope === 'all' ? 'All Projects - Task Export' : `${activeProject.name} - Task Export`,
+        scope === 'all'
+          ? t('export.pdf.title_all')
+          : t('export.pdf.title_project', { project: activeProject.name }),
         40,
         32
       );
       doc.setFontSize(9);
-      doc.text(`Exported: ${exportDate.toISOString()}`, 40, 48);
+      doc.text(t('export.exported_at', { date: exportDate.toISOString() }), 40, 48);
       autoTable(doc, {
         head: [headers],
         body,
@@ -294,9 +298,11 @@ export const useExport = ({
       ].map(cell => escapeMd(String(cell))).join(' | '));
 
       const markdown = [
-        `# ${scope === 'all' ? 'All Projects' : activeProject.name} Tasks`,
+        scope === 'all'
+          ? t('export.markdown.title_all')
+          : t('export.markdown.title_project', { project: activeProject.name }),
         '',
-        `Exported: ${payload.exportedAt}`,
+        t('export.markdown.exported_at', { date: payload.exportedAt }),
         '',
         `| ${headers.join(' | ')} |`,
         `| ${headers.map(() => '---').join(' | ')} |`,
@@ -346,7 +352,7 @@ export const useExport = ({
     link.click();
     URL.revokeObjectURL(url);
     recordExportPreference(format, scope);
-  }, [activeProject, projects, buildExportRows, recordExportPreference]);
+  }, [activeProject, projects, buildExportRows, recordExportPreference, t]);
 
   const handleImportFile = useCallback((file: File) => {
     const reader = new FileReader();
@@ -393,7 +399,7 @@ export const useExport = ({
             });
           }
         } catch {
-          alert('Import failed: invalid JSON file.');
+          alert(t('import.failed_invalid_json'));
           return;
         }
       } else if (lowerName.endsWith('.csv') || lowerName.endsWith('.tsv')) {
@@ -423,12 +429,12 @@ export const useExport = ({
           };
         });
       } else {
-        alert('Import failed: only JSON, CSV, or TSV files are supported.');
+        alert(t('import.failed_invalid_format'));
         return;
       }
 
       if (importedTasks.length === 0) {
-        alert('No tasks found in the import file.');
+        alert(t('import.no_tasks'));
         return;
       }
 
@@ -488,14 +494,18 @@ export const useExport = ({
         if (taskActions.length > 0) {
           await submitDraft(taskActions, { createdBy: 'user', autoApply: true, reason: 'Import tasks', silent: true });
           await refreshData();
-          alert(`${importStrategy === 'merge' ? 'Merged' : 'Imported'} ${normalizedTasks.length} tasks.`);
+          alert(
+            importStrategy === 'merge'
+              ? t('import.success_merged', { count: normalizedTasks.length })
+              : t('import.success_imported', { count: normalizedTasks.length })
+          );
         }
       };
 
       void runImport();
     };
     reader.readAsText(file);
-  }, [importStrategy, tasks, projects, activeProject, fetchAllTasks, submitDraft, refreshData]);
+  }, [importStrategy, tasks, projects, activeProject, fetchAllTasks, submitDraft, refreshData, t]);
 
   return {
     isExportOpen,

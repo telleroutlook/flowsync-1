@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiService } from '../../services/apiService';
-import { Draft, DraftAction, ChatMessage } from '../../types';
+import { Draft, DraftAction } from '../../types';
+import { useI18n } from '../i18n';
 
 interface UseDraftsProps {
   activeProjectId: string;
@@ -10,6 +11,7 @@ interface UseDraftsProps {
 }
 
 export const useDrafts = ({ activeProjectId, refreshData, refreshAuditLogs, appendSystemMessage }: UseDraftsProps) => {
+  const { t } = useI18n();
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [pendingDraftId, setPendingDraftId] = useState<string | null>(null);
   const [draftWarnings, setDraftWarnings] = useState<string[]>([]);
@@ -55,7 +57,7 @@ export const useDrafts = ({ activeProjectId, refreshData, refreshAuditLogs, appe
       setDraftWarnings(result.warnings);
       
       if (result.warnings.length > 0 && !options.silent) {
-        appendSystemMessage(`Draft warnings: ${result.warnings.join(' | ')}`);
+        appendSystemMessage(t('draft.warnings', { warnings: result.warnings.join(' | ') }));
       }
       
       setDrafts(prev => [...prev, result.draft]);
@@ -66,22 +68,22 @@ export const useDrafts = ({ activeProjectId, refreshData, refreshAuditLogs, appe
         await refreshData();
         await refreshAuditLogs(activeProjectId);
         if (!options.silent) {
-          appendSystemMessage(`Draft applied: ${applied.draft.id}`);
+          appendSystemMessage(t('draft.applied', { id: applied.draft.id }));
         }
         return applied.draft;
       }
       
       setPendingDraftId(result.draft.id);
       if (!options.silent) {
-        appendSystemMessage(`Draft created: ${result.draft.id}. Awaiting approval.`);
+        appendSystemMessage(t('draft.created', { id: result.draft.id }));
       }
       return result.draft;
     } catch (error) {
-       const msg = error instanceof Error ? error.message : 'Failed to submit draft';
-       if (!options.silent) appendSystemMessage(`Error: ${msg}`);
+       const msg = error instanceof Error ? error.message : t('draft.submit_failed');
+       if (!options.silent) appendSystemMessage(t('chat.error_prefix', { error: msg }));
        throw error;
     }
-  }, [activeProjectId, refreshData, refreshAuditLogs, appendSystemMessage]);
+  }, [activeProjectId, refreshData, refreshAuditLogs, appendSystemMessage, t]);
 
   const handleApplyDraft = useCallback(async (draftId: string) => {
     try {
@@ -91,11 +93,11 @@ export const useDrafts = ({ activeProjectId, refreshData, refreshAuditLogs, appe
       await refreshData();
       await refreshDrafts();
       await refreshAuditLogs(activeProjectId);
-      appendSystemMessage(`Draft applied: ${draftId}`);
+      appendSystemMessage(t('draft.applied', { id: draftId }));
     } catch (error) {
-       appendSystemMessage(error instanceof Error ? `Failed to apply draft: ${error.message}` : 'Failed to apply draft');
+       appendSystemMessage(error instanceof Error ? t('draft.apply_failed', { error: error.message }) : t('draft.apply_failed', { error: t('common.na') }));
     }
-  }, [refreshData, refreshDrafts, refreshAuditLogs, activeProjectId, appendSystemMessage]);
+  }, [refreshData, refreshDrafts, refreshAuditLogs, activeProjectId, appendSystemMessage, t]);
 
   const handleDiscardDraft = useCallback(async (draftId: string) => {
     try {
@@ -103,11 +105,11 @@ export const useDrafts = ({ activeProjectId, refreshData, refreshAuditLogs, appe
       setDrafts(prev => prev.map(draft => (draft.id === result.id ? result : draft)));
       if (pendingDraftId === draftId) setPendingDraftId(null);
       await refreshDrafts();
-      appendSystemMessage(`Draft discarded: ${draftId}`);
+      appendSystemMessage(t('draft.discarded', { id: draftId }));
     } catch (error) {
-       appendSystemMessage(error instanceof Error ? `Failed to discard draft: ${error.message}` : 'Failed to discard draft');
+       appendSystemMessage(error instanceof Error ? t('draft.discard_failed', { error: error.message }) : t('draft.discard_failed', { error: t('common.na') }));
     }
-  }, [pendingDraftId, refreshDrafts, appendSystemMessage]);
+  }, [pendingDraftId, refreshDrafts, appendSystemMessage, t]);
 
   return {
     drafts,

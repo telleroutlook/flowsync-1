@@ -1,5 +1,7 @@
 import React from 'react';
 import { Task, Priority, TaskStatus } from '../types';
+import { useI18n } from '../src/i18n';
+import { getPriorityLabel, getStatusLabel } from '../src/i18n/labels';
 
 interface ListViewProps {
   tasks: Task[];
@@ -20,6 +22,7 @@ const statusColors: Record<TaskStatus, string> = {
 };
 
 export const ListView: React.FC<ListViewProps> = ({ tasks, selectedTaskId, onSelectTask }) => {
+  const { t, locale } = useI18n();
   // Sort by WBS if available, otherwise createdAt
   const sortedTasks = [...tasks].sort((a, b) => {
       if (a.wbs && b.wbs) return a.wbs.localeCompare(b.wbs, undefined, { numeric: true });
@@ -32,14 +35,14 @@ export const ListView: React.FC<ListViewProps> = ({ tasks, selectedTaskId, onSel
         <table className="w-full text-left border-collapse">
           <thead className="bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10 border-b border-slate-200">
             <tr>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-16">WBS</th>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-[200px]">Task Name</th>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Assignee</th>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-24">Priority</th>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Status</th>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Progress</th>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Start</th>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Due</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-16">{t('list.header.wbs')}</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-[200px]">{t('list.header.task_name')}</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">{t('list.header.assignee')}</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-24">{t('list.header.priority')}</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">{t('list.header.status')}</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">{t('list.header.progress')}</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">{t('list.header.start')}</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">{t('list.header.due')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -52,7 +55,7 @@ export const ListView: React.FC<ListViewProps> = ({ tasks, selectedTaskId, onSel
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                           </svg>
                        </div>
-                       <span className="text-xs text-slate-400 italic">No tasks in this list</span>
+                       <span className="text-xs text-slate-400 italic">{t('list.empty')}</span>
                     </div>
                  </td>
                </tr>
@@ -89,18 +92,18 @@ export const ListView: React.FC<ListViewProps> = ({ tasks, selectedTaskId, onSel
                           <span className="text-[11px] text-slate-600 truncate max-w-[100px]">{task.assignee}</span>
                        </div>
                      ) : (
-                        <span className="text-[10px] text-slate-300 italic">Unassigned</span>
+                        <span className="text-[10px] text-slate-300 italic">{t('task.unassigned')}</span>
                      )}
                   </td>
                   <td className="py-2 px-3">
                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${priorityColors[task.priority]}`}>
-                        {task.priority}
+                        {getPriorityLabel(task.priority, t)}
                      </span>
                   </td>
                   <td className="py-2 px-3">
                     <span className={`flex items-center gap-1.5 text-[11px] font-medium ${statusColors[task.status]}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${task.status === TaskStatus.TODO ? 'bg-slate-400' : task.status === TaskStatus.IN_PROGRESS ? 'bg-indigo-500' : 'bg-emerald-500'}`}></span>
-                        {task.status === TaskStatus.IN_PROGRESS ? 'In Progress' : task.status.charAt(0).toUpperCase() + task.status.slice(1).toLowerCase().replace('_', ' ')}
+                        {getStatusLabel(task.status, t)}
                     </span>
                   </td>
                   <td className="py-2 px-3">
@@ -112,12 +115,12 @@ export const ListView: React.FC<ListViewProps> = ({ tasks, selectedTaskId, onSel
                      </div>
                   </td>
                   <td className="py-2 px-3 text-[11px] text-slate-500">
-                     {task.startDate ? new Date(task.startDate).toLocaleDateString(undefined, {month:'short', day:'numeric'}) : '-'}
+                     {task.startDate ? new Date(task.startDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : '-'}
                   </td>
                   <td className="py-2 px-3 text-[11px] text-slate-500 font-medium">
                      {task.dueDate ? (
                        <span className={task.dueDate < Date.now() && task.status !== TaskStatus.DONE ? 'text-rose-600' : ''}>
-                          {new Date(task.dueDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
+                          {new Date(task.dueDate).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}
                        </span>
                      ) : '-'}
                   </td>

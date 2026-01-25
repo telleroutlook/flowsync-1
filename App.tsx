@@ -11,6 +11,7 @@ import { useAuditLogs } from './src/hooks/useAuditLogs';
 import { useChat } from './src/hooks/useChat';
 import { useExport } from './src/hooks/useExport';
 import { generateId } from './src/utils';
+import { useI18n } from './src/i18n';
 
 // Lazy Load View Components
 const KanbanBoard = React.lazy(() => import('./components/KanbanBoard').then(module => ({ default: module.KanbanBoard })));
@@ -20,6 +21,8 @@ const GanttChart = React.lazy(() => import('./components/GanttChart').then(modul
 type ViewMode = 'BOARD' | 'LIST' | 'GANTT';
 
 export default function App() {
+  const { t, locale, setLocale } = useI18n();
+
   // UI State
   const [viewMode, setViewMode] = useState<ViewMode>('GANTT'); 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -70,7 +73,7 @@ export default function App() {
     return [{
       id: 'welcome',
       role: 'model',
-      text: "Hello! I'm FlowSync. I'm ready to help you manage your projects, tasks, and schedules. How can I assist you today?",
+      text: t('chat.welcome'),
       timestamp: Date.now(),
     }];
   });
@@ -93,12 +96,12 @@ export default function App() {
     const initialMsg: ChatMessage = {
       id: 'welcome',
       role: 'model',
-      text: "Hello! I'm FlowSync. I'm ready to help you manage your projects, tasks, and schedules. How can I assist you today?",
+      text: t('chat.welcome'),
       timestamp: Date.now(),
     };
     setMessages([initialMsg]);
     localStorage.removeItem('flowsync_chat_history');
-  }, []);
+  }, [t]);
 
   // 3. Audit Logs
   const { 
@@ -253,6 +256,11 @@ export default function App() {
 
   // Derived State
   const filteredAuditLogs = useMemo(() => auditLogs, [auditLogs]);
+  const viewLabels: Record<ViewMode, string> = {
+    BOARD: t('app.view.board'),
+    LIST: t('app.view.list'),
+    GANTT: t('app.view.gantt'),
+  };
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden text-text-primary font-sans selection:bg-primary/20 selection:text-primary">
@@ -277,7 +285,7 @@ export default function App() {
             <button
               onClick={() => setIsSidebarOpen(prev => !prev)}
               className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-background rounded-lg transition-colors"
-              title={isSidebarOpen ? "Close Sidebar" : "Open Sidebar"}
+              title={isSidebarOpen ? t('app.sidebar.close') : t('app.sidebar.open')}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -305,7 +313,7 @@ export default function App() {
                        : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
                    }`}
                  >
-                   {mode}
+                   {viewLabels[mode as ViewMode]}
                  </button>
                ))}
             </div>
@@ -330,17 +338,20 @@ export default function App() {
                 className="flex items-center gap-1.5 rounded px-2 py-1 text-[10px] font-semibold text-text-secondary hover:bg-background hover:text-primary transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                <span>Import</span>
+                <span>{t('app.header.import')}</span>
               </button>
               <div className="w-px h-3 bg-border-subtle"></div>
               <select
                 value={importStrategy}
-                onChange={(event) => recordImportPreference(event.target.value as any)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  recordImportPreference(value === 'merge' ? 'merge' : 'append');
+                }}
                 className="bg-transparent text-[10px] font-medium text-text-secondary outline-none cursor-pointer hover:text-primary border-none py-0 focus:ring-0"
-                aria-label="Import strategy"
+                aria-label={t('app.header.import_strategy')}
               >
-                <option value="append">Append</option>
-                <option value="merge">Merge ID</option>
+                <option value="append">{t('app.header.import.append')}</option>
+                <option value="merge">{t('app.header.import.merge')}</option>
               </select>
              </div>
 
@@ -354,7 +365,7 @@ export default function App() {
                     : 'border-border-subtle bg-surface text-text-secondary hover:border-primary/30 hover:text-primary'
                 }`}
               >
-                <span>Audit</span>
+                <span>{t('app.header.audit')}</span>
                 <span className="rounded-full bg-primary/10 px-1.5 py-0 text-[9px] font-bold text-primary min-w-[16px] text-center">
                   {filteredAuditLogs.length}
                 </span>
@@ -364,13 +375,13 @@ export default function App() {
             <div className="relative">
               <button
                 type="button"
-                onClick={(event) => {
+                 onClick={(event) => {
                   event.stopPropagation();
                   setIsExportOpen(prev => !prev);
                  }}
                  className="flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface px-2 py-1 text-[10px] font-semibold text-text-secondary shadow-sm hover:border-primary/30 hover:text-primary transition-all"
                >
-                 <span>Export</span>
+                 <span>{t('app.header.export')}</span>
                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                  </svg>
@@ -380,7 +391,7 @@ export default function App() {
                    onClick={(event) => event.stopPropagation()}
                    className="absolute right-0 mt-2 w-64 rounded-xl border border-border-subtle bg-surface shadow-xl shadow-black/5 z-50 p-2 animate-fade-in"
                  >
-                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">Export Scope</div>
+                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">{t('app.header.export_scope')}</div>
                    <div className="flex gap-1 p-1 bg-background rounded-lg mb-2">
                      <button
                        type="button"
@@ -391,7 +402,7 @@ export default function App() {
                            : 'text-text-secondary hover:text-text-primary'
                        }`}
                      >
-                       Current Project
+                       {t('app.header.export_current')}
                      </button>
                      <button
                        type="button"
@@ -402,17 +413,17 @@ export default function App() {
                            : 'text-text-secondary hover:text-text-primary'
                        }`}
                      >
-                       All Projects
+                       {t('app.header.export_all')}
                      </button>
                    </div>
                    
-                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">Format</div>
+                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">{t('app.header.format')}</div>
                    <div className="grid grid-cols-1 gap-0.5">
                      {([
-                       { id: 'csv', label: 'CSV', desc: 'Spreadsheet compatible' },
-                       { id: 'pdf', label: 'PDF', desc: 'Document view' },
-                       { id: 'json', label: 'JSON', desc: 'Raw data' },
-                       { id: 'markdown', label: 'Markdown', desc: 'Documentation' },
+                       { id: 'csv', label: 'CSV', desc: t('export.format.csv_desc') },
+                       { id: 'pdf', label: 'PDF', desc: t('export.format.pdf_desc') },
+                       { id: 'json', label: 'JSON', desc: t('export.format.json_desc') },
+                       { id: 'markdown', label: 'Markdown', desc: t('export.format.markdown_desc') },
                      ] as const).map(item => (
                        <button
                          key={item.id}
@@ -437,6 +448,21 @@ export default function App() {
                )}
              </div>
 
+            <div className="relative">
+              <select
+                value={locale}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === 'en' || value === 'zh') setLocale(value);
+                }}
+                aria-label={t('language.switch')}
+                className="rounded-lg border border-border-subtle bg-surface px-2 py-1 text-[10px] font-semibold text-text-secondary shadow-sm hover:border-primary/30 hover:text-primary transition-all outline-none"
+              >
+                <option value="en">{t('language.english')}</option>
+                <option value="zh">{t('language.chinese')}</option>
+              </select>
+            </div>
+
             <div className="h-6 w-px bg-border-subtle mx-1"></div>
 
              <button 
@@ -446,7 +472,7 @@ export default function App() {
                     ? 'text-primary bg-primary/10' 
                     : 'text-text-secondary hover:text-primary hover:bg-background'
                 }`}
-                title="Toggle AI Chat"
+                title={t('app.header.toggle_chat')}
              >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -457,7 +483,7 @@ export default function App() {
 
         {dataError && (
           <div className="px-6 py-3 text-xs font-medium bg-rose-50 text-rose-700 border-b border-slate-200">
-            Failed to load data: {dataError}
+            {t('app.error.load_data', { error: dataError })}
           </div>
         )}
 
@@ -488,9 +514,9 @@ export default function App() {
         <div className="p-4 flex-1 overflow-hidden relative z-10 custom-scrollbar">
           {isLoadingData ? (
              <div className="flex items-center justify-center h-full">
-               <div className="flex flex-col items-center gap-3">
-                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                 <p className="text-xs text-slate-500 font-medium">Loading Project Data...</p>
+                 <div className="flex flex-col items-center gap-3">
+                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                 <p className="text-xs text-slate-500 font-medium">{t('app.loading.project_data')}</p>
                </div>
             </div>
           ) : (
@@ -498,7 +524,7 @@ export default function App() {
             <div className="flex items-center justify-center h-full">
                <div className="flex flex-col items-center gap-3">
                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                 <p className="text-xs text-slate-500 font-medium">Loading View...</p>
+                 <p className="text-xs text-slate-500 font-medium">{t('app.loading.view')}</p>
                </div>
             </div>
           }>

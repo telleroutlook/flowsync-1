@@ -83,6 +83,11 @@ See [manifest.yml](./manifest.yml) for deployment configuration.
 - Required headers for CSV/TSV (case-insensitive):
   `project,id,title,status,priority,assignee,wbs,startDate,dueDate,completion,isMilestone,predecessors,description,createdAt`
 
+## Internationalization (i18n)
+- UI strings live in `src/i18n/translations.ts` (English + Chinese).
+- Use `useI18n()` in components/hooks to access `t`, `locale`, and `setLocale`.
+- Locale persists in localStorage under `flowsync:locale`.
+
 ## Migration from Cloudflare Workers
 
 If you're migrating from the Cloudflare Workers (D1) version, see [MIGRATION.md](./MIGRATION.md) for detailed steps.

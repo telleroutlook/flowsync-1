@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect, useId } from 'react';
 import { Task, Priority } from '../types';
+import { useI18n } from '../src/i18n';
 
 interface GanttChartProps {
   tasks: Task[];
@@ -66,6 +67,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   onSelectTask,
   onUpdateTaskDates,
 }) => {
+  const { t, locale } = useI18n();
   const [viewMode, setViewMode] = useState<ViewMode>('Month');
   const [showList, setShowList] = useState(true);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -78,6 +80,12 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const listRef = useRef<HTMLDivElement>(null);
   const isScrollingLeftRef = useRef(false);
   const isScrollingRightRef = useRef(false);
+  const viewModeLabels: Record<ViewMode, string> = {
+    Day: t('gantt.view.day'),
+    Week: t('gantt.view.week'),
+    Month: t('gantt.view.month'),
+    Year: t('gantt.view.year'),
+  };
 
   // 1. Prepare Task Data
   const taskEntries = useMemo<TaskEntry[]>(() => {
@@ -143,14 +151,14 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
       switch (viewMode) {
         case 'Day':
-          label = cursor.toLocaleDateString(undefined, settings.tickLabelFormat);
+          label = cursor.toLocaleDateString(locale, settings.tickLabelFormat);
           isMajor = cursor.getDay() === 1; // Highlight Mondays
           nextStep = () => cursor.setDate(cursor.getDate() + 1);
           break;
         case 'Week':
            // Label Mondays
           if (cursor.getDay() === 1) {
-             label = cursor.toLocaleDateString(undefined, settings.tickLabelFormat);
+             label = cursor.toLocaleDateString(locale, settings.tickLabelFormat);
              isMajor = true;
           } else {
              label = ''; // Only label weeks
@@ -173,7 +181,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         case 'Month':
           // Major lines at month start
           if (cursor.getDate() === 1) {
-             label = cursor.toLocaleDateString(undefined, { month: 'short' }); // Jun
+             label = cursor.toLocaleDateString(locale, { month: 'short' }); // Jun
              isMajor = true;
              lines.push({ time, label, x, isMajor: true });
           }
@@ -187,7 +195,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
              lines.push({ time, label, x, isMajor });
           } else if (cursor.getDate() === 1) {
              // Month markers
-             label = cursor.toLocaleDateString(undefined, { month: 'narrow' });
+             label = cursor.toLocaleDateString(locale, { month: 'narrow' });
              isMajor = false;
              lines.push({ time, label, x, isMajor });
           }
@@ -219,7 +227,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       pxPerMs: pxPerMsValue,
       gridLines: lines
     };
-  }, [taskEntries, viewMode]);
+  }, [taskEntries, viewMode, locale]);
 
   // Helper: Time -> X
   const getX = (time: number) => (time - startMs) * pxPerMs;
@@ -298,7 +306,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     };
   }, []);
 
-  if (tasks.length === 0) return <div className="p-8 text-center text-slate-500">No tasks found.</div>;
+  if (tasks.length === 0) return <div className="p-8 text-center text-slate-500">{t('gantt.no_tasks')}</div>;
 
   // Render Helpers
   const getDisplayValues = (task: TaskEntry) => {
@@ -346,7 +354,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer font-medium select-none">
             <input type="checkbox" checked={showList} onChange={() => setShowList(!showList)} className="rounded border-slate-300" />
-            Show List
+            {t('gantt.show_list')}
           </label>
         </div>
         <div className="flex gap-1">
@@ -358,7 +366,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                  viewMode === m ? 'bg-white text-primary shadow border border-slate-200' : 'text-slate-500 hover:bg-white hover:text-slate-700'
                }`}
              >
-               {m}
+               {viewModeLabels[m]}
              </button>
           ))}
         </div>
@@ -369,12 +377,12 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         {showList && (
           <div ref={listRef} className="w-64 shrink-0 border-r border-slate-200 bg-white overflow-y-auto overflow-x-hidden z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
              <div className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200 h-10 flex items-center px-4 text-xs font-semibold text-slate-500">
-               Task Name
+               {t('gantt.task_name')}
              </div>
              {taskEntries.map(task => (
                <div key={task.id} className="h-11 px-4 border-b border-slate-50 flex flex-col justify-center hover:bg-slate-50">
                  <div className="text-xs font-medium text-slate-700 truncate">{task.title}</div>
-                 <div className="text-[10px] text-slate-400 truncate">{task.assignee || 'Unassigned'}</div>
+                 <div className="text-[10px] text-slate-400 truncate">{task.assignee || t('gantt.unassigned')}</div>
                </div>
              ))}
           </div>
@@ -413,7 +421,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                    className="absolute top-0 bottom-0 w-px bg-red-400 z-0"
                    style={{ left: getX(Date.now()) }}
                  >
-                   <div className="bg-red-400 text-white text-[9px] px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">Today</div>
+                   <div className="bg-red-400 text-white text-[9px] px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">{t('gantt.today')}</div>
                  </div>
                )}
             </div>
@@ -436,7 +444,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                      if (!source) return null;
                      const sourceTask = taskById.get(predId);
                      const targetTask = taskById.get(task.id);
-                     const label = sourceTask && targetTask ? `${sourceTask.title} → ${targetTask.title}` : 'Dependency';
+                     const label = sourceTask && targetTask ? `${sourceTask.title} → ${targetTask.title}` : t('gantt.dependency');
                      
                      // Coordinates
                      const x1 = source.x + source.w;

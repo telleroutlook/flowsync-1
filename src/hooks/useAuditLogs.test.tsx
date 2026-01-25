@@ -1,8 +1,10 @@
+import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useAuditLogs } from './useAuditLogs';
 import { apiService } from '../../services/apiService';
 import { AuditLog } from '../../types';
+import { I18nProvider } from '../i18n';
 
 vi.mock('../../services/apiService', () => ({
   apiService: {
@@ -28,6 +30,10 @@ const logs: AuditLog[] = [
 ];
 
 describe('useAuditLogs', () => {
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <I18nProvider>{children}</I18nProvider>
+  );
+
   beforeEach(() => {
     api.listAuditLogs.mockResolvedValue({ data: logs, total: 1, page: 1, pageSize: 8 });
   });
@@ -45,7 +51,7 @@ describe('useAuditLogs', () => {
         activeProjectId: 'p1',
         refreshData,
         appendSystemMessage,
-      })
+      }), { wrapper }
     );
 
     await waitFor(() => expect(result.current.isAuditLoading).toBe(false));
@@ -82,7 +88,7 @@ describe('useAuditLogs', () => {
         activeProjectId: 'p1',
         refreshData,
         appendSystemMessage,
-      })
+      }), { wrapper }
     );
 
     await waitFor(() => expect(result.current.isAuditLoading).toBe(false));

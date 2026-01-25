@@ -7,6 +7,7 @@
 
 import type { DraftAction } from '../../../types';
 import type { ApiClient } from './types';
+import type { TFunction } from '../../i18n/types';
 
 // Context passed to tool handlers
 export interface ToolHandlerContext {
@@ -14,6 +15,7 @@ export interface ToolHandlerContext {
   activeProjectId: string;
   generateId: () => string;
   pushProcessingStep?: (step: string) => void;
+  t: TFunction;
 }
 
 // Result of tool execution
@@ -33,24 +35,27 @@ type ToolHandlerFunction = (
 
 const toolHandlers: Record<string, ToolHandlerFunction> = {
   // Read-only tools
-  listProjects: async (_args, { api, pushProcessingStep }) => {
-    pushProcessingStep?.('Reading project list');
+  listProjects: async (_args, { api, pushProcessingStep, t }) => {
+    pushProcessingStep?.(t('processing.reading_project_list'));
     const list = await api.listProjects();
-    const output = `Projects (${list.length}): ${list.map(p => `${p.name} (${p.id})`).join(', ')}`;
+    const output = t('tool.projects_list', {
+      count: list.length,
+      items: list.map(p => `${p.name} (${p.id})`).join(', ')
+    });
     return { output };
   },
 
-  getProject: async (args, { api, pushProcessingStep }) => {
+  getProject: async (args, { api, pushProcessingStep, t }) => {
     if (typeof args.id !== 'string') {
-      return { output: 'Error: Invalid project id' };
+      return { output: t('tool.error.invalid_project_id') };
     }
-    pushProcessingStep?.('Reading project details');
+    pushProcessingStep?.(t('processing.reading_project_details'));
     const project = await api.getProject(args.id);
-    return { output: `Project: ${project.name} (${project.id})` };
+    return { output: t('tool.project_details', { name: project.name, id: project.id }) };
   },
 
-  listTasks: async (args, { api, pushProcessingStep }) => {
-    pushProcessingStep?.('Reading task list');
+  listTasks: async (args, { api, pushProcessingStep, t }) => {
+    pushProcessingStep?.(t('processing.reading_task_list'));
     const result = await api.listTasks({
       projectId: typeof args.projectId === 'string' ? args.projectId : undefined,
       status: typeof args.status === 'string' ? args.status : undefined,
@@ -60,13 +65,16 @@ const toolHandlers: Record<string, ToolHandlerFunction> = {
       pageSize: typeof args.pageSize === 'number' ? args.pageSize : undefined,
     });
     const formatDate = (ts: number | null | undefined) => {
-      if (!ts) return 'N/A';
+      if (!ts) return t('common.na');
       return new Date(ts).toISOString().split('T')[0];
     };
     const sample = result.data.slice(0, 5).map(task => {
       return `${task.title} (${formatDate(task.startDate)} - ${formatDate(task.dueDate)})`;
     }).join(', ');
-    const output = `Tasks (${result.total}): ${sample}${result.total > 5 ? '…' : ''}`;
+    const output = t('tool.tasks_list', {
+      count: result.total,
+      items: `${sample}${result.total > 5 ? '…' : ''}`,
+    });
     return { output };
   },
 
@@ -74,17 +82,23 @@ const toolHandlers: Record<string, ToolHandlerFunction> = {
     return toolHandlers.listTasks(args, context);
   },
 
-  getTask: async (args, { api, pushProcessingStep }) => {
+  getTask: async (args, { api, pushProcessingStep, t }) => {
     if (typeof args.id !== 'string') {
-      return { output: 'Error: Invalid task id' };
+      return { output: t('tool.error.invalid_task_id') };
     }
-    pushProcessingStep?.('Reading task details');
+    pushProcessingStep?.(t('processing.reading_task_details'));
     const task = await api.getTask(args.id);
     const formatDate = (ts: number | null | undefined) => {
-      if (!ts) return 'N/A';
+      if (!ts) return t('common.na');
       return new Date(ts).toISOString().split('T')[0];
     };
-    const output = `Task: ${task.title} (ID: ${task.id}, Start: ${formatDate(task.startDate)}, Due: ${formatDate(task.dueDate)}, Status: ${task.status})`;
+    const output = t('tool.task_details', {
+      title: task.title,
+      id: task.id,
+      start: formatDate(task.startDate),
+      due: formatDate(task.dueDate),
+      status: task.status,
+    });
     return { output };
   },
 
@@ -209,9 +223,9 @@ const toolHandlers: Record<string, ToolHandlerFunction> = {
   },
 
   // planChanges is special - handles multiple actions at once
-  planChanges: (args, { activeProjectId, generateId }) => {
+  planChanges: (args, { activeProjectId, generateId, t }) => {
     if (!Array.isArray(args.actions)) {
-      return { output: 'Error: actions must be an array' };
+      return { output: t('tool.error.invalid_actions') };
     }
 
     const draftActions: DraftAction[] = args.actions
@@ -237,9 +251,9 @@ const toolHandlers: Record<string, ToolHandlerFunction> = {
 
     if (draftActions.length === 0) {
       return {
-        output: 'No valid actions provided',
+        output: t('tool.error.no_valid_actions'),
         shouldRetry: true,
-        retryReason: 'The planChanges call contained no valid actions. Please verify task IDs and criteria, then ensure you populate the actions array correctly.',
+        retryReason: t('tool.retry.no_valid_actions'),
       };
     }
 
@@ -251,13 +265,13 @@ const toolHandlers: Record<string, ToolHandlerFunction> = {
   },
 
   // Action tools
-  applyChanges: async (args, { api, pushProcessingStep }) => {
+  applyChanges: async (args, { api, pushProcessingStep, t }) => {
     if (typeof args.draftId !== 'string') {
-      return { output: 'Error: Invalid draft id' };
+      return { output: t('tool.error.invalid_draft_id') };
     }
-    pushProcessingStep?.('Applying draft');
+    pushProcessingStep?.(t('processing.applying_draft'));
     await api.applyDraft(args.draftId, 'user');
-    return { output: `Applied draft ${args.draftId}.` };
+    return { output: t('tool.apply.success', { id: args.draftId }) };
   },
 };
 
@@ -271,13 +285,13 @@ export async function executeToolCall(
 ): Promise<ToolExecutionResult> {
   const handler = toolHandlers[toolName];
   if (!handler) {
-    return { output: `Unknown tool: ${toolName}` };
+    return { output: context.t('tool.unknown', { name: toolName }) };
   }
   try {
     return await handler(args, context);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return { output: `Error: ${errorMessage}` };
+    return { output: context.t('tool.error.generic', { error: errorMessage }) };
   }
 }
 

@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { Task, TaskStatus, Priority } from '../types';
 import { getTaskStart, getTaskEnd } from '../src/utils';
+import { useI18n } from '../src/i18n';
+import { getPriorityLabel, getStatusLabel } from '../src/i18n/labels';
 
 const DAY_MS = 86400000;
 const clampCompletion = (value: number) => Math.min(100, Math.max(0, value));
@@ -34,6 +36,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
   onUpdate,
   tasks
 }) => {
+  const { t } = useI18n();
   const predecessorDetails = useMemo(() => {
     if (!selectedTask) return [];
     const refs = selectedTask.predecessors || [];
@@ -61,9 +64,9 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
     <div className="w-[300px] bg-white border border-slate-200 rounded-2xl shadow-xl flex flex-col h-full animate-slide-in-right">
       <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-2xl">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Task Details</span>
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('task.details')}</span>
           {selectedTask.isMilestone && (
-              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold border border-amber-200">Milestone</span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold border border-amber-200">{t('task.milestone')}</span>
           )}
         </div>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -74,7 +77,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
         
         {/* Title */}
         <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Title</label>
+          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('task.title')}</label>
           <input
             className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
             value={selectedTask.title}
@@ -88,7 +91,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
         {/* Status & Priority */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('task.status')}</label>
             <select
               className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700 focus:border-indigo-500 outline-none"
               value={selectedTask.status}
@@ -97,13 +100,13 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
                 onUpdate(selectedTask.id, { status });
               }}
             >
-              <option value={TaskStatus.TODO}>Todo</option>
-              <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
-              <option value={TaskStatus.DONE}>Done</option>
+              <option value={TaskStatus.TODO}>{getStatusLabel(TaskStatus.TODO, t)}</option>
+              <option value={TaskStatus.IN_PROGRESS}>{getStatusLabel(TaskStatus.IN_PROGRESS, t)}</option>
+              <option value={TaskStatus.DONE}>{getStatusLabel(TaskStatus.DONE, t)}</option>
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Priority</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('task.priority')}</label>
             <select
               className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700 focus:border-indigo-500 outline-none"
               value={selectedTask.priority}
@@ -112,9 +115,9 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
                 onUpdate(selectedTask.id, { priority });
               }}
             >
-              <option value={Priority.LOW}>Low</option>
-              <option value={Priority.MEDIUM}>Medium</option>
-              <option value={Priority.HIGH}>High</option>
+              <option value={Priority.LOW}>{getPriorityLabel(Priority.LOW, t)}</option>
+              <option value={Priority.MEDIUM}>{getPriorityLabel(Priority.MEDIUM, t)}</option>
+              <option value={Priority.HIGH}>{getPriorityLabel(Priority.HIGH, t)}</option>
             </select>
           </div>
         </div>
@@ -123,7 +126,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase">Start Date</label>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase">{t('task.start_date')}</label>
               <input
                 type="date"
                 className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-indigo-500 outline-none"
@@ -136,7 +139,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase">Due Date</label>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase">{t('task.due_date')}</label>
               <input
                 type="date"
                 className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-indigo-500 outline-none"
@@ -154,10 +157,10 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
         {/* Assignee & WBS */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Assignee</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('task.assignee')}</label>
             <input
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 outline-none"
-              placeholder="Unassigned"
+              placeholder={t('task.unassigned')}
               value={selectedTask.assignee || ''}
               onChange={(event) => {
                 const assignee = event.target.value;
@@ -166,7 +169,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">WBS Code</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('task.wbs_code')}</label>
             <input
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 font-mono focus:border-indigo-500 outline-none"
               placeholder="1.0"
@@ -182,7 +185,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
         {/* Progress */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Completion</label>
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('task.completion')}</label>
               <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{selectedTask.completion ?? 0}%</span>
           </div>
           <input
@@ -201,7 +204,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
         {/* Dependencies */}
         <div className="space-y-2 pt-2 border-t border-slate-100">
           <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-            Dependencies
+            {t('task.dependencies')}
             <span className="bg-slate-100 text-slate-500 text-[10px] px-1.5 py-0.5 rounded-full">{predecessorDetails.length}</span>
           </label>
           
@@ -218,7 +221,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
                     </span>
                   )}
                   {!item.task && (
-                    <span className="text-[10px] text-rose-400 italic">Task not found</span>
+                    <span className="text-[10px] text-rose-400 italic">{t('task.not_found')}</span>
                   )}
                 </div>
                 <button
@@ -246,7 +249,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
                 onUpdate(selectedTask.id, { predecessors });
               }}
             >
-              <option value="" disabled>+ Add Dependency...</option>
+              <option value="" disabled>{t('task.add_dependency')}</option>
               {availableTasks.map(task => (
                 <option key={task.id} value={task.id}>
                    {task.wbs ? `[${task.wbs}] ` : ''}{task.title}
@@ -259,7 +262,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
             <div className="bg-rose-50 border border-rose-100 rounded-lg p-3 animate-fade-in">
               <div className="flex items-start gap-2 text-rose-700 mb-2">
                   <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  <span className="text-xs font-semibold">Schedule Conflict Detected</span>
+                  <span className="text-xs font-semibold">{t('task.schedule_conflict')}</span>
               </div>
               <button
                 type="button"
@@ -277,7 +280,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
                 }}
                 className="w-full rounded-md bg-white border border-rose-200 py-1.5 text-xs font-bold text-rose-600 shadow-sm hover:bg-rose-50 transition-colors"
               >
-                Fix Schedule (Shift Task)
+                {t('task.fix_schedule')}
               </button>
             </div>
           )}
@@ -297,7 +300,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
                 onUpdate(selectedTask.id, { isMilestone });
               }}
             />
-            <span className="text-sm text-slate-700 font-medium">Mark as Milestone</span>
+            <span className="text-sm text-slate-700 font-medium">{t('task.mark_milestone')}</span>
           </label>
         </div>
 

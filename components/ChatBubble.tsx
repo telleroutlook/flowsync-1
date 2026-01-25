@@ -3,12 +3,14 @@ import { ChatMessage, ChatAttachment } from '../types';
 import { Paperclip } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useI18n } from '../src/i18n';
 
 interface ChatBubbleProps {
   message: ChatMessage;
 }
 
 export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
+  const { t, locale } = useI18n();
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
   const hasText = message.text.trim().length > 0;
@@ -101,7 +103,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
                   ) : (
                     <div className={`rounded-lg overflow-hidden my-2 border ${isUser ? "border-white/20 bg-black/20" : "border-border-subtle bg-background"}`}>
                       <div className={`text-[10px] px-3 py-1.5 font-mono opacity-80 border-b ${isUser ? "border-white/10 bg-white/5" : "border-border-subtle bg-gray-50 text-text-secondary"}`}>
-                        {match ? match[1] : 'code'}
+                        {match ? match[1] : t('chat.code')}
                       </div>
                       <code className={`block p-3 overflow-x-auto font-mono text-xs ${isUser ? "text-white/90" : "text-text-primary"}`} {...props}>
                         {children}
@@ -125,8 +127,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
           </div>
         )}
         <div className={`text-[10px] mt-1.5 flex items-center justify-end gap-1 ${isUser ? 'text-white/70' : 'text-text-secondary/70'}`}>
-          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          {isUser && <span>• You</span>}
+          {new Date(message.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
+          {isUser && <span>• {t('chat.you')}</span>}
         </div>
       </div>
     </div>

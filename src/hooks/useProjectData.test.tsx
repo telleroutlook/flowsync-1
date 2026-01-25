@@ -1,8 +1,10 @@
+import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useProjectData } from './useProjectData';
 import { apiService } from '../../services/apiService';
 import { Priority, TaskStatus, Project, Task } from '../../types';
+import { I18nProvider } from '../i18n';
 
 vi.mock('../../services/apiService', () => ({
   apiService: {
@@ -35,6 +37,10 @@ const api = apiService as unknown as {
 };
 
 describe('useProjectData', () => {
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <I18nProvider>{children}</I18nProvider>
+  );
+
   beforeEach(() => {
     localStorage.clear();
     api.listProjects.mockResolvedValue(mockProjects);
@@ -53,7 +59,7 @@ describe('useProjectData', () => {
   it('loads projects and tasks, honoring stored active project', async () => {
     localStorage.setItem('flowsync:activeProjectId', 'p2');
 
-    const { result } = renderHook(() => useProjectData());
+    const { result } = renderHook(() => useProjectData(), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -66,7 +72,7 @@ describe('useProjectData', () => {
   });
 
   it('updates active project and persists to localStorage', async () => {
-    const { result } = renderHook(() => useProjectData());
+    const { result } = renderHook(() => useProjectData(), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 

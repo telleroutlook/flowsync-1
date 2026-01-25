@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { ListView } from './ListView';
 import { Priority, TaskStatus, Task } from '../types';
 import { describe, it, expect } from 'vitest';
+import { I18nProvider } from '../src/i18n';
 
 const baseTask = (overrides: Partial<Task>): Task => ({
   id: 't1',
@@ -16,7 +17,11 @@ const baseTask = (overrides: Partial<Task>): Task => ({
 
 describe('ListView', () => {
   it('shows empty state when no tasks', () => {
-    render(<ListView tasks={[]} />);
+    render(
+      <I18nProvider>
+        <ListView tasks={[]} />
+      </I18nProvider>
+    );
     expect(screen.getByText('No tasks in this list')).toBeInTheDocument();
   });
 
@@ -27,7 +32,11 @@ describe('ListView', () => {
       baseTask({ id: 't3', wbs: '2.1', title: 'Last' }),
     ];
 
-    render(<ListView tasks={tasks} />);
+    render(
+      <I18nProvider>
+        <ListView tasks={tasks} />
+      </I18nProvider>
+    );
 
     const first = screen.getByText('1.2');
     const second = screen.getByText('1.10');

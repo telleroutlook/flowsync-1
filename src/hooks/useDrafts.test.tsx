@@ -1,8 +1,10 @@
+import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useDrafts } from './useDrafts';
 import { apiService } from '../../services/apiService';
 import { Draft, DraftAction } from '../../types';
+import { I18nProvider } from '../i18n';
 
 vi.mock('../../services/apiService', () => ({
   apiService: {
@@ -37,6 +39,10 @@ const action: DraftAction = {
 };
 
 describe('useDrafts', () => {
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <I18nProvider>{children}</I18nProvider>
+  );
+
   beforeEach(() => {
     api.listDrafts.mockResolvedValue([]);
   });
@@ -61,7 +67,7 @@ describe('useDrafts', () => {
         refreshData,
         refreshAuditLogs,
         appendSystemMessage,
-      })
+      }), { wrapper }
     );
 
     await waitFor(() => expect(api.listDrafts).toHaveBeenCalledTimes(1));
@@ -95,7 +101,7 @@ describe('useDrafts', () => {
         refreshData,
         refreshAuditLogs,
         appendSystemMessage,
-      })
+      }), { wrapper }
     );
 
     await waitFor(() => expect(api.listDrafts).toHaveBeenCalledTimes(1));
@@ -128,7 +134,7 @@ describe('useDrafts', () => {
         refreshData,
         refreshAuditLogs,
         appendSystemMessage,
-      })
+      }), { wrapper }
     );
 
     await waitFor(() => expect(api.listDrafts).toHaveBeenCalledTimes(1));

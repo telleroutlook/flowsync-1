@@ -3,6 +3,7 @@ import { ChatBubble } from './ChatBubble';
 import { ChatMessage, ChatAttachment, Draft } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, RotateCcw, X, Paperclip, Send, File, XCircle, AlertTriangle } from 'lucide-react';
+import { useI18n } from '../src/i18n';
 
 interface ChatInterfaceProps {
   isChatOpen: boolean;
@@ -47,6 +48,32 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
   setInputText,
   onResetChat,
 }) => {
+  const { t } = useI18n();
+  const getActionLabel = (action: string) => {
+    switch (action) {
+      case 'create':
+        return t('audit.actions.create');
+      case 'update':
+        return t('audit.actions.update');
+      case 'delete':
+        return t('audit.actions.delete');
+      case 'rollback':
+        return t('audit.actions.rollback');
+      default:
+        return action.toUpperCase();
+    }
+  };
+  const getEntityLabel = (entityType: string) => {
+    switch (entityType) {
+      case 'project':
+        return t('audit.entities.project');
+      case 'task':
+        return t('audit.entities.task');
+      default:
+        return entityType;
+    }
+  };
+
   return (
     <motion.div 
       initial={false}
@@ -61,13 +88,13 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col">
-            <h1 className="font-bold text-sm text-text-primary tracking-tight">Joule Assistant</h1>
+            <h1 className="font-bold text-sm text-text-primary tracking-tight">{t('chat.assistant_name')}</h1>
             <div className="flex items-center gap-1.5">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success/75"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-success"></span>
               </span>
-              <p className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">Online</p>
+              <p className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">{t('chat.status_online')}</p>
             </div>
           </div>
         </div>
@@ -75,14 +102,14 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
           <button 
              onClick={onResetChat}
              className="text-text-secondary hover:text-primary p-2 rounded-lg hover:bg-background transition-colors"
-             title="New Chat"
+             title={t('chat.new_chat')}
           >
              <RotateCcw className="w-4 h-4" />
           </button>
           <button 
              onClick={() => setIsChatOpen(false)}
              className="text-text-secondary hover:text-text-primary p-2 rounded-lg hover:bg-background transition-colors"
-             title="Close Chat"
+             title={t('chat.close_chat')}
           >
              <X className="w-4 h-4" />
           </button>
@@ -101,20 +128,20 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                <p className="text-[11px] font-bold text-amber-900">Review Pending Draft</p>
+                <p className="text-[11px] font-bold text-amber-900">{t('chat.pending.title')}</p>
               </div>
               <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
-                {pendingDraft.actions.length} action(s)
+                {t('chat.pending.action_count', { count: pendingDraft.actions.length })}
               </span>
             </div>
             <div className="space-y-1 pl-5 mb-3">
               {pendingDraft.actions.slice(0, 3).map(action => (
                 <div key={action.id} className="text-[10px] text-amber-800 truncate font-medium">
-                  • {action.action.toUpperCase()} <span className="opacity-75">{action.entityType}</span>
+                  • {getActionLabel(action.action)} <span className="opacity-75">{getEntityLabel(action.entityType)}</span>
                 </div>
               ))}
               {pendingDraft.actions.length > 3 && (
-                <div className="text-[10px] text-amber-700 italic">+{pendingDraft.actions.length - 3} more...</div>
+                <div className="text-[10px] text-amber-700 italic">{t('chat.pending.more', { count: pendingDraft.actions.length - 3 })}</div>
               )}
             </div>
             <div className="flex gap-2 pl-5">
@@ -123,14 +150,14 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
                 onClick={() => onApplyDraft(pendingDraft.id)}
                 className="flex-1 rounded-lg bg-success text-white text-[11px] font-semibold py-1.5 hover:bg-success/90 transition-colors shadow-sm"
               >
-                Accept
+                {t('chat.accept')}
               </button>
               <button
                 type="button"
                 onClick={() => onDiscardDraft(pendingDraft.id)}
                 className="flex-1 rounded-lg bg-white border border-border-subtle text-text-secondary text-[11px] font-semibold py-1.5 hover:bg-background hover:text-text-primary transition-colors"
               >
-                Discard
+                {t('chat.discard')}
               </button>
             </div>
           </motion.div>
@@ -154,7 +181,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
             >
                <div className="bg-surface px-4 py-3 rounded-2xl rounded-bl-none border border-border-subtle shadow-sm max-w-[85%]">
                   <div className="flex items-center gap-2.5 mb-2">
-                    <span className="text-xs font-semibold text-joule-start">Joule thinking</span>
+                    <span className="text-xs font-semibold text-joule-start">{t('chat.thinking')}</span>
                     <div className="flex gap-1">
                       <motion.span 
                         animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} 
@@ -252,7 +279,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
               onClick={() => fileInputRef.current?.click()}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-secondary hover:text-primary hover:bg-white transition-colors"
               disabled={isProcessing}
-              title="Attach files"
+              title={t('chat.attach_files')}
             >
               <Paperclip className="w-4 h-4" />
             </button>
@@ -273,7 +300,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({
                   onSendMessage();
                 }
               }}
-              placeholder="Ask Joule..."
+              placeholder={t('chat.placeholder')}
               className="w-full bg-transparent text-text-primary py-2.5 outline-none placeholder:text-text-secondary/60 text-sm resize-none max-h-[120px] custom-scrollbar leading-relaxed"
               disabled={isProcessing}
             />

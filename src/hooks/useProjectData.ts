@@ -1,17 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiService } from '../../services/apiService';
 import { Project, Task } from '../../types';
+import { useI18n } from '../i18n';
 
 export const useProjectData = () => {
+  const { t } = useI18n();
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>('');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fallbackProject = useMemo(() => ({ id: '', name: t('project.none'), description: '' }), [t]);
 
   const activeProject = useMemo(() => {
-    return projects.find(p => p.id === activeProjectId) || projects[0] || { id: '', name: 'No Project', description: '' };
-  }, [projects, activeProjectId]);
+    return projects.find(p => p.id === activeProjectId) || projects[0] || fallbackProject;
+  }, [projects, activeProjectId, fallbackProject]);
 
   const activeTasks = useMemo(() => {
     if (!activeProjectId) return [];
@@ -56,11 +59,11 @@ export const useProjectData = () => {
       const taskList = await fetchAllTasks(finalId);
       setTasks(taskList);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data.');
+      setError(err instanceof Error ? err.message : t('error.load_data'));
     } finally {
       setIsLoading(false);
     }
-  }, [fetchAllTasks]); // Removed activeProjectId dependency to avoid stale closures
+  }, [fetchAllTasks, t]); // Removed activeProjectId dependency to avoid stale closures
 
   const handleSelectProject = useCallback(async (id: string) => {
     setActiveProjectId(id);
@@ -70,11 +73,11 @@ export const useProjectData = () => {
       const newTasks = await fetchAllTasks(id);
       setTasks(newTasks);
     } catch (err) {
-      setError("Failed to load project tasks");
+      setError(t('error.load_project_tasks'));
     } finally {
       setIsLoading(false);
     }
-  }, [fetchAllTasks]);
+  }, [fetchAllTasks, t]);
 
   // Initial load
   useEffect(() => {

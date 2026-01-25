@@ -1,9 +1,10 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { aiService } from '../../services/aiService';
 import { apiService } from '../../services/apiService';
 import { ChatMessage, ChatAttachment, DraftAction, Project, Task } from '../../types';
 import { generateId } from '../utils';
 import { processToolCalls, type ApiClient, type ProcessingStep } from './ai';
+import { useI18n } from '../i18n';
 
 interface UseChatProps {
   activeProjectId: string;
@@ -24,14 +25,6 @@ type AiHistoryItem = {
   parts: { text: string }[];
 };
 
-// Stage name mapping for UI display
-const STAGE_LABELS: Record<string, string> = {
-      received: 'Request Received',
-      prepare_request: 'Preparing Context',
-      upstream_request: 'Calling AI Model',
-      upstream_response: 'Parsing Response',
-      done: 'Done',};
-
 export const useChat = ({
   activeProjectId,
   activeProject,
@@ -45,6 +38,7 @@ export const useChat = ({
   messages,
   setMessages
 }: UseChatProps) => {
+  const { t } = useI18n();
   const [inputText, setInputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>([]);
@@ -52,6 +46,13 @@ export const useChat = ({
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const stageLabels = useMemo<Record<string, string>>(() => ({
+    received: t('processing.received'),
+    prepare_request: t('processing.preparing'),
+    upstream_request: t('processing.calling_ai'),
+    upstream_response: t('processing.parsing'),
+    done: t('processing.done'),
+  }), [t]);
 
   const pushProcessingStep = useCallback((step: string, elapsedMs?: number) => {
     setProcessingSteps(prev => {
@@ -122,17 +123,17 @@ ${
     systemContext: string,
     attempt: number = 0
   ) => {
-    const MAX_RETRIES = 3;
+      const MAX_RETRIES = 3;
 
-      pushProcessingStep('Calling AI Model');
-      setThinkingPreview('Processing request...');
+      pushProcessingStep(t('processing.calling_ai'));
+      setThinkingPreview(t('chat.processing_request'));
       
       if (attempt > MAX_RETRIES) {
-        throw new Error('Max retries exceeded');
+        throw new Error(t('chat.max_retries'));
       }
       if (attempt > 0) {
-        pushProcessingStep(`Auto Retry (${attempt}/${MAX_RETRIES})`);
-        setThinkingPreview(`Attempting to fix results (${attempt}/${MAX_RETRIES})...`);
+        pushProcessingStep(t('chat.auto_retry', { attempt, max: MAX_RETRIES }));
+        setThinkingPreview(t('chat.attempt_fix', { attempt, max: MAX_RETRIES }));
       }
 
     const updateThinkingPreview = (text: string) => {
@@ -155,7 +156,7 @@ ${
 
           if (event === 'assistant_text' && typeof data.text === 'string') {
             updateThinkingPreview(data.text);
-            pushProcessingStep('Generating Response', elapsedMs);
+            pushProcessingStep(t('processing.generating'), elapsedMs);
             return;
           }
           if (event === 'result' && typeof data.text === 'string') {
@@ -163,16 +164,16 @@ ${
             return;
           }
           if (event === 'tool_start' && typeof data.name === 'string') {
-            pushProcessingStep(`Executing Tool: ${data.name}`, elapsedMs);
+            pushProcessingStep(t('processing.executing_tool', { name: data.name }), elapsedMs);
             return;
           }
           if (event === 'stage' && typeof data.name === 'string') {
-            const label = STAGE_LABELS[data.name];
+            const label = stageLabels[data.name];
             if (label) pushProcessingStep(label, elapsedMs);
             return;
           }
           if (event === 'retry') {
-            pushProcessingStep('Retrying Request', elapsedMs);
+            pushProcessingStep(t('chat.retrying'), elapsedMs);
           }
         }
       );
@@ -181,7 +182,7 @@ ${
 
       // Process tool calls if any
       if (response.toolCalls && response.toolCalls.length > 0) {
-                    pushProcessingStep('Executing Tool Call');
+        pushProcessingStep(t('processing.executing_tool_call'));
         // Create API client context for tool handlers
         const apiClient: ApiClient = {
           listProjects: () => apiService.listProjects(),
@@ -200,6 +201,7 @@ ${
             activeProjectId,
             generateId,
             pushProcessingStep,
+            t,
           }
         );
 
@@ -215,56 +217,56 @@ ${
 
         // Submit draft if there are actions to apply
         if (result.draftActions.length > 0) {
-          pushProcessingStep('Submitting Draft');
+          pushProcessingStep(t('processing.submitting_draft'));
           try {
             const draft = await submitDraft(result.draftActions, {
               createdBy: 'agent',
               autoApply: false,
               reason: result.draftReason,
             });
-            result.outputs.push(`Draft ${draft.id} created with ${result.draftActions.length} action(s).`);
+            result.outputs.push(t('draft.created_action_count', { id: draft.id, count: result.draftActions.length }));
           } catch (draftError) {
             const errorMessage = draftError instanceof Error ? draftError.message : String(draftError);
-            result.outputs.push(`Failed to create draft: ${errorMessage}`);
+            result.outputs.push(t('draft.create_failed', { error: errorMessage }));
             finalText = errorMessage;
           }
         }
 
         // Display tool results
         if (result.outputs.length > 0) {
-      pushProcessingStep('Aggregating Tool Results');
+      pushProcessingStep(t('processing.aggregating_tool_results'));
       
       // const summaryRequest: RequestInput = {
       //   history: [...messages, ...newMessages],
       //   message: 'The tool has been executed. Please verify the results and provide feedback or next steps based on the tool\'s output.',
       // };
       
-      pushProcessingStep('Generating Response');
+      pushProcessingStep(t('processing.generating'));
           appendSystemMessage(result.outputs.join(' | '));
-          if (!finalText) finalText = 'Draft created. Review pending changes before applying.';
+          if (!finalText) finalText = t('chat.draft_created_review');
         }
       } else {
-        pushProcessingStep('Generating Response');
+        pushProcessingStep(t('processing.generating'));
       }
 
       // Add final AI message to chat
       setMessages(prev => [...prev, {
         id: generateId(),
         role: 'model',
-        text: finalText || 'Processed.',
+        text: finalText || t('chat.processed'),
         timestamp: Date.now()
       }]);
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Sorry, something went wrong.';
+      const errorMessage = error instanceof Error ? error.message : t('chat.error_generic');
       setMessages(prev => [...prev, {
         id: generateId(),
         role: 'model',
-        text: `Error: ${errorMessage}`,
+        text: t('chat.error_prefix', { error: errorMessage }),
         timestamp: Date.now()
       }]);
     }
-  }, [activeProjectId, submitDraft, appendSystemMessage, pushProcessingStep, setMessages, setThinkingPreview]);
+  }, [activeProjectId, submitDraft, appendSystemMessage, pushProcessingStep, setMessages, setThinkingPreview, t, stageLabels]);
 
   const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -274,7 +276,7 @@ ${
     const hasAttachments = pendingAttachments.length > 0;
     if (!cleanedInput && !hasAttachments) return;
 
-    const outgoingText = cleanedInput || 'Sent attachment(s).';
+    const outgoingText = cleanedInput || t('chat.sent_attachments');
 
     const userMsg: ChatMessage = {
       id: generateId(),
@@ -292,7 +294,7 @@ ${
     setThinkingPreview('');
 
     try {
-      pushProcessingStep('Preparing Context');
+      pushProcessingStep(t('processing.preparing'));
 
       const history: AiHistoryItem[] = messages.slice(-10).map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
@@ -306,7 +308,7 @@ ${
       setMessages(prev => [...prev, {
         id: generateId(),
         role: 'model',
-        text: 'Sorry, something went wrong.',
+        text: t('chat.error_generic'),
         timestamp: Date.now()
       }]);
     } finally {
@@ -321,7 +323,8 @@ ${
     messages,
     pushProcessingStep,
     processConversationTurn,
-    buildSystemContext
+    buildSystemContext,
+    t
   ]);
 
   return {
