@@ -49,6 +49,14 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
 
   const hasPredecessorConflicts = predecessorDetails.some(item => item.conflict);
 
+  const availableTasks = useMemo(() => {
+    return tasks.filter(task => 
+      task.id !== selectedTask.id && 
+      !selectedTask.predecessors?.includes(task.id) &&
+      (!task.wbs || !selectedTask.predecessors?.includes(task.wbs))
+    );
+  }, [tasks, selectedTask]);
+
   return (
     <div className="w-[300px] bg-white border border-slate-200 rounded-2xl shadow-xl flex flex-col h-full animate-slide-in-right">
       <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-2xl">
@@ -113,7 +121,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
 
         {/* Dates */}
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-semibold text-slate-400 uppercase">Start Date</label>
               <input
@@ -196,22 +204,55 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
             Dependencies
             <span className="bg-slate-100 text-slate-500 text-[10px] px-1.5 py-0.5 rounded-full">{predecessorDetails.length}</span>
           </label>
-          <div className="relative">
-            <input
-              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs text-slate-700 focus:border-indigo-500 outline-none"
-              placeholder="Add IDs (e.g. t1, 1.2)..."
-              value={(selectedTask.predecessors || []).join(', ')}
+          
+          <div className="space-y-2">
+            {predecessorDetails.map((item) => (
+              <div key={item.ref} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2">
+                <div className="flex flex-col overflow-hidden">
+                  <span className="text-xs font-semibold text-slate-700 truncate">
+                    {item.task ? item.task.title : item.ref}
+                  </span>
+                  {item.task && (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {item.task.wbs ? `WBS: ${item.task.wbs}` : `ID: ${item.task.id.slice(0, 8)}`}
+                    </span>
+                  )}
+                  {!item.task && (
+                    <span className="text-[10px] text-rose-400 italic">Task not found</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    const predecessors = (selectedTask.predecessors || []).filter(p => p !== item.ref);
+                    onUpdate(selectedTask.id, { predecessors });
+                  }}
+                  className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors"
+                  title="Remove dependency"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+            
+            <select
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-indigo-500 outline-none"
+              value=""
               onChange={(event) => {
-                const predecessors = event.target.value
-                  .split(',')
-                  .map(item => item.trim())
-                  .filter(Boolean);
+                const taskId = event.target.value;
+                if (!taskId) return;
+                const predecessors = [...(selectedTask.predecessors || []), taskId];
                 onUpdate(selectedTask.id, { predecessors });
               }}
-            />
-            <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
+            >
+              <option value="" disabled>+ Add Dependency...</option>
+              {availableTasks.map(task => (
+                <option key={task.id} value={task.id}>
+                   {task.wbs ? `[${task.wbs}] ` : ''}{task.title}
+                </option>
+              ))}
+            </select>
           </div>
           
           {hasPredecessorConflicts && (
