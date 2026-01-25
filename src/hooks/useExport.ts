@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Project, Task, DraftAction, TaskStatus, Priority } from '../../types';
+import { Project, Task, DraftAction, TaskStatus, Priority, Draft } from '../../types';
 import { apiService } from '../../services/apiService';
 import { generateId, getTaskStart, getTaskEnd, formatExportDate, parseDateFlexible } from '../utils';
 
@@ -97,7 +97,7 @@ interface UseExportProps {
   activeProject: Project;
   activeTasks: Task[];
   refreshData: () => Promise<void>;
-  submitDraft: (actions: DraftAction[], options: { createdBy: string; autoApply: boolean; reason: string; silent: boolean }) => Promise<any>;
+  submitDraft: (actions: DraftAction[], options: { createdBy: Draft['createdBy']; autoApply?: boolean; reason?: string; silent?: boolean }) => Promise<any>;
   fetchAllTasks: () => Promise<Task[]>;
 }
 

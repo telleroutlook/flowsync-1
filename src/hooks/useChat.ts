@@ -204,7 +204,7 @@ ${
 
         // Handle retry logic for invalid responses
         if (result.shouldRetry && attempt < MAX_RETRIES) {
-          const nextHistory = [
+          const nextHistory: AiHistoryItem[] = [
             ...initialHistory,
             { role: 'model', parts: [{ text: response.text || 'I will plan the changes.' }] }
           ];
@@ -286,7 +286,7 @@ ${
     try {
       pushProcessingStep('整理上下文');
 
-      const history = messages.slice(-10).map(m => ({
+      const history: AiHistoryItem[] = messages.slice(-10).map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.text }]
       }));

@@ -205,7 +205,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         // For Week/Month/Year we are iterating days to find boundaries
         // Optimization: For Month view, we can jump? No, months length vary.
         // But iterating days for 5 years is ~1800 iterations, totally fine.
-        if (viewMode !== 'Day' && lines[lines.length - 1]?.time !== time) {
+        if (lines[lines.length - 1]?.time !== time) {
            // If we didn't push inside switch (e.g. Week view non-Monday), don't push
         }
         nextStep();
