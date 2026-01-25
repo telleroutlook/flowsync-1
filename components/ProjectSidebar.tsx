@@ -7,6 +7,7 @@ interface ProjectSidebarProps {
   onSelectProject: (id: string) => void;
   onCreateProject: () => void;
   onDeleteProject: (id: string) => void;
+  onClose: () => void;
 }
 
 export const ProjectSidebar = React.memo<ProjectSidebarProps>(({
@@ -15,20 +16,32 @@ export const ProjectSidebar = React.memo<ProjectSidebarProps>(({
   onSelectProject,
   onCreateProject,
   onDeleteProject,
+  onClose,
 }) => {
   return (
     <div className="w-full bg-white flex flex-col h-full shrink-0 shadow-sm z-10 flex flex-col">
       <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">
         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Projects</h3>
-        <button 
-          onClick={onCreateProject}
-          className="text-slate-400 hover:text-primary hover:bg-indigo-50 transition-all p-1 rounded-md"
-          title="Create New Project"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={onCreateProject}
+            className="text-slate-400 hover:text-primary hover:bg-indigo-50 transition-all p-1 rounded-md"
+            title="Create New Project"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          <button 
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors"
+            title="Collapse Sidebar"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        </div>
       </div>
       
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-0.5">

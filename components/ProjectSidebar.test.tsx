@@ -10,11 +10,12 @@ const projects = [
 ];
 
 describe('ProjectSidebar', () => {
-  it('handles select, create, and delete actions', async () => {
+  it('handles select, create, delete, and close actions', async () => {
     const user = userEvent.setup();
     const onSelectProject = vi.fn();
     const onCreateProject = vi.fn();
     const onDeleteProject = vi.fn();
+    const onClose = vi.fn();
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(
@@ -24,6 +25,7 @@ describe('ProjectSidebar', () => {
         onSelectProject={onSelectProject}
         onCreateProject={onCreateProject}
         onDeleteProject={onDeleteProject}
+        onClose={onClose}
       />
     );
 
@@ -32,6 +34,9 @@ describe('ProjectSidebar', () => {
 
     await user.click(screen.getByTitle('Create New Project'));
     expect(onCreateProject).toHaveBeenCalledTimes(1);
+    
+    await user.click(screen.getByTitle('Collapse Sidebar'));
+    expect(onClose).toHaveBeenCalledTimes(1);
 
     const deleteButtons = screen.getAllByTitle('Delete Project');
     await user.click(deleteButtons[1]);

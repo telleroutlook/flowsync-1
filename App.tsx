@@ -265,6 +265,7 @@ export default function App() {
           onSelectProject={handleSelectProject}
           onCreateProject={manualCreateProject}
           onDeleteProject={handleDeleteProject}
+          onClose={() => setIsSidebarOpen(false)}
         />
       </div>
 
