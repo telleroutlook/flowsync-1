@@ -1,5 +1,16 @@
 import type { ApiResponse, AuditLog, Draft, DraftAction, Project, Task } from '../types';
 
+const buildQueryString = (params: Record<string, string | number | boolean | undefined | null>): string => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      query.set(key, String(value));
+    }
+  });
+  const suffix = query.toString();
+  return suffix ? `?${suffix}` : '';
+};
+
 const fetchJson = async <T>(input: RequestInfo, init?: RequestInit): Promise<T> => {
   const response = await fetch(input, init);
   const payload: ApiResponse<T> = await response.json();
@@ -37,15 +48,8 @@ export const apiService = {
     page?: number;
     pageSize?: number;
   }) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        query.set(key, String(value));
-      }
-    });
-    const suffix = query.toString();
     return fetchJson<{ data: Task[]; total: number; page: number; pageSize: number }>(
-      `/api/tasks${suffix ? `?${suffix}` : ''}`
+      `/api/tasks${buildQueryString(params)}`
     );
   },
   getTask: (id: string) => fetchJson<Task>(`/api/tasks/${id}`),
@@ -97,13 +101,8 @@ export const apiService = {
     from?: number;
     to?: number;
   }) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') query.set(key, String(value));
-    });
-    const suffix = query.toString();
     return fetchJson<{ data: AuditLog[]; total: number; page: number; pageSize: number }>(
-      `/api/audit${suffix ? `?${suffix}` : ''}`
+      `/api/audit${buildQueryString(params)}`
     );
   },
   getAuditLog: (id: string) => fetchJson<AuditLog>(`/api/audit/${id}`),

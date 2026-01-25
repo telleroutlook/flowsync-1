@@ -102,14 +102,13 @@ describe('i18n', () => {
       // The logic is: const dict = translations[locale] || translations.en;
       // This is covered by code inspection.
   });
-  
+
   it('should return key if translation missing in en and zh', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <I18nProvider>{children}</I18nProvider>
     );
     const { result } = renderHook(() => useI18n(), { wrapper });
-    
-    // @ts-expect-error Testing runtime fallback for invalid key
+
     expect(result.current.t('missing.key')).toBe('missing.key');
   });
 });

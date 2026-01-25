@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { apiService } from '../../services/apiService';
 import { Project, Task } from '../../types';
 import { useI18n } from '../i18n';
+
+const PAGE_SIZE = 100;
 
 export const useProjectData = () => {
   const { t } = useI18n();
@@ -10,6 +12,11 @@ export const useProjectData = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Track if component is mounted to avoid state updates after unmount
+  const isMountedRef = useRef(true);
+  const activeProjectIdRef = useRef<string>('');
+
   const fallbackProject = useMemo(() => ({ id: '', name: t('project.none'), description: '' }), [t]);
 
   const activeProject = useMemo(() => {
@@ -18,7 +25,7 @@ export const useProjectData = () => {
 
   const activeTasks = useMemo(() => {
     if (!activeProjectId) return [];
-    return tasks.filter(t => t.projectId === activeProjectId);
+    return tasks.filter(task => task.projectId === activeProjectId);
   }, [tasks, activeProjectId]);
 
   const fetchAllTasks = useCallback(async (projectId?: string) => {
@@ -27,7 +34,7 @@ export const useProjectData = () => {
     let total = 0;
     try {
       do {
-        const params: any = { page, pageSize: 100 };
+        const params: Record<string, string | number> = { page, pageSize: PAGE_SIZE };
         if (projectId) params.projectId = projectId;
         const result = await apiService.listTasks(params);
         collected.push(...result.data);
@@ -45,44 +52,61 @@ export const useProjectData = () => {
       setIsLoading(true);
       setError(null);
       const projectList = await apiService.listProjects();
+      if (!isMountedRef.current) return;
+
       setProjects(projectList);
-      
+
       const stored = window.localStorage.getItem('flowsync:activeProjectId');
-      const candidate = stored && projectList.find(project => project.id === stored) ? stored : activeProjectId;
+      const candidate = stored && projectList.find(project => project.id === stored) ? stored : activeProjectIdRef.current;
       const finalId = candidate && projectList.find(project => project.id === candidate)
           ? candidate
           : projectList[0]?.id || '';
-          
+
       setActiveProjectId(finalId);
-      
+      activeProjectIdRef.current = finalId;
+
       // Only fetch tasks for the active project
       const taskList = await fetchAllTasks(finalId);
+      if (!isMountedRef.current) return;
       setTasks(taskList);
     } catch (err) {
+      if (!isMountedRef.current) return;
       setError(err instanceof Error ? err.message : t('error.load_data'));
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [fetchAllTasks, t]); // Removed activeProjectId dependency to avoid stale closures
+  }, [fetchAllTasks, t]);
 
   const handleSelectProject = useCallback(async (id: string) => {
     setActiveProjectId(id);
+    activeProjectIdRef.current = id;
     window.localStorage.setItem('flowsync:activeProjectId', id);
     try {
       setIsLoading(true);
       const newTasks = await fetchAllTasks(id);
+      if (!isMountedRef.current) return;
       setTasks(newTasks);
     } catch (err) {
+      if (!isMountedRef.current) return;
       setError(t('error.load_project_tasks'));
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [fetchAllTasks, t]);
 
   // Initial load
   useEffect(() => {
+    isMountedRef.current = true;
     refreshData();
-  }, [refreshData]);
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []); // Only run on mount
 
   // Persist active project selection
   useEffect(() => {
@@ -94,7 +118,7 @@ export const useProjectData = () => {
   return {
     projects,
     tasks,
-    setTasks, // Exposed for optimistic updates
+    setTasks,
     activeProjectId,
     activeProject,
     activeTasks,

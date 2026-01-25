@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense, useCallback, memo } from 'react';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ChatInterface } from './components/ChatInterface';
 import { AuditPanel } from './components/AuditPanel';
@@ -19,6 +19,17 @@ const ListView = React.lazy(() => import('./components/ListView').then(module =>
 const GanttChart = React.lazy(() => import('./components/GanttChart').then(module => ({ default: module.GanttChart })));
 
 type ViewMode = 'BOARD' | 'LIST' | 'GANTT';
+
+// Memoized loading spinner component
+const LoadingSpinner = memo(({ message }: { message: string }) => (
+  <div className="flex items-center justify-center h-full">
+    <div className="flex flex-col items-center gap-3">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" aria-hidden="true" />
+      <p className="text-sm text-slate-500 font-medium">{message}</p>
+    </div>
+  </div>
+));
+LoadingSpinner.displayName = 'LoadingSpinner';
 
 export default function App() {
   const { t, locale, setLocale } = useI18n();
@@ -293,9 +304,9 @@ export default function App() {
             </button>
 
             <div className="flex flex-col">
-              <h2 className="text-sm font-bold text-text-primary leading-tight truncate max-w-[200px]">{activeProject.name}</h2>
+              <h2 className="text-base font-bold text-text-primary leading-tight truncate max-w-[200px]">{activeProject.name}</h2>
               {activeProject.description && (
-                 <p className="text-[10px] font-medium text-text-secondary truncate max-w-[200px]">{activeProject.description}</p>
+                 <p className="text-xs font-medium text-text-secondary truncate max-w-[200px]">{activeProject.description}</p>
               )}
             </div>
             
@@ -304,14 +315,16 @@ export default function App() {
             {/* View Switcher */}
             <div className="flex p-0.5 bg-background rounded-lg border border-border-subtle backdrop-blur-sm">
                {['BOARD', 'LIST', 'GANTT'].map((mode) => (
-                 <button 
+                 <button
                    key={mode}
                    onClick={() => setViewMode(mode as ViewMode)}
-                   className={`px-3 py-1 rounded-md text-[10px] font-bold tracking-wide transition-all ${ 
-                     viewMode === mode 
-                       ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5' 
+                   className={`px-3 py-1.5 rounded-md text-xs font-bold tracking-wide transition-all ${
+                     viewMode === mode
+                       ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5'
                        : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
                    }`}
+                   aria-label={`${viewLabels[mode as ViewMode]} view`}
+                   aria-pressed={viewMode === mode}
                  >
                    {viewLabels[mode as ViewMode]}
                  </button>
@@ -335,9 +348,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => importInputRef.current?.click()}
-                className="flex items-center gap-1.5 rounded px-2 py-1 text-[10px] font-semibold text-text-secondary hover:bg-background hover:text-primary transition-colors"
+                className="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-semibold text-text-secondary hover:bg-background hover:text-primary transition-colors"
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                 <span>{t('app.header.import')}</span>
               </button>
               <div className="w-px h-3 bg-border-subtle"></div>
@@ -347,7 +360,7 @@ export default function App() {
                   const value = event.target.value;
                   recordImportPreference(value === 'merge' ? 'merge' : 'append');
                 }}
-                className="bg-transparent text-[10px] font-medium text-text-secondary outline-none cursor-pointer hover:text-primary border-none py-0 focus:ring-0"
+                className="bg-transparent text-xs font-medium text-text-secondary outline-none cursor-pointer hover:text-primary border-none py-0 focus:ring-0"
                 aria-label={t('app.header.import_strategy')}
               >
                 <option value="append">{t('app.header.import.append')}</option>
@@ -359,14 +372,15 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setIsAuditOpen(prev => !prev)}
-                className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold shadow-sm transition-all ${ 
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold shadow-sm transition-all ${
                   isAuditOpen
                     ? 'border-primary/20 bg-primary/10 text-primary'
                     : 'border-border-subtle bg-surface text-text-secondary hover:border-primary/30 hover:text-primary'
                 }`}
+                aria-label={`${t('app.header.audit')} (${filteredAuditLogs.length})`}
               >
                 <span>{t('app.header.audit')}</span>
-                <span className="rounded-full bg-primary/10 px-1.5 py-0 text-[9px] font-bold text-primary min-w-[16px] text-center">
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary min-w-[18px] text-center">
                   {filteredAuditLogs.length}
                 </span>
               </button>
@@ -379,10 +393,11 @@ export default function App() {
                   event.stopPropagation();
                   setIsExportOpen(prev => !prev);
                  }}
-                 className="flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface px-2 py-1 text-[10px] font-semibold text-text-secondary shadow-sm hover:border-primary/30 hover:text-primary transition-all"
+                 className="flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface px-2.5 py-1.5 text-xs font-semibold text-text-secondary shadow-sm hover:border-primary/30 hover:text-primary transition-all"
+                 aria-label={t('app.header.export')}
                >
                  <span>{t('app.header.export')}</span>
-                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                  </svg>
                </button>
@@ -390,24 +405,27 @@ export default function App() {
                  <div
                    onClick={(event) => event.stopPropagation()}
                    className="absolute right-0 mt-2 w-64 rounded-xl border border-border-subtle bg-surface shadow-xl shadow-black/5 z-50 p-2 animate-fade-in"
+                   role="menu"
                  >
-                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">{t('app.header.export_scope')}</div>
+                   <div className="px-3 pt-2 pb-1 text-xs font-bold uppercase tracking-widest text-text-secondary/50">{t('app.header.export_scope')}</div>
                    <div className="flex gap-1 p-1 bg-background rounded-lg mb-2">
                      <button
                        type="button"
                        onClick={() => setExportScope('active')}
-                       className={`flex-1 rounded-md px-2 py-1.5 text-[10px] font-bold transition-all ${ 
+                       className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-all ${
                          exportScope === 'active'
                            ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5'
                            : 'text-text-secondary hover:text-text-primary'
                        }`}
+                       role="menuitemradio"
+                       aria-checked={exportScope === 'active'}
                      >
                        {t('app.header.export_current')}
                      </button>
                      <button
                        type="button"
                        onClick={() => setExportScope('all')}
-                       className={`flex-1 rounded-md px-2 py-1.5 text-[10px] font-bold transition-all ${ 
+                       className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-all ${ 
                          exportScope === 'all'
                            ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5'
                            : 'text-text-secondary hover:text-text-primary'
@@ -482,7 +500,7 @@ export default function App() {
         </div>
 
         {dataError && (
-          <div className="px-6 py-3 text-xs font-medium bg-rose-50 text-rose-700 border-b border-slate-200">
+          <div className="px-6 py-3 text-sm font-medium bg-rose-50 text-rose-700 border-b border-slate-200" role="alert">
             {t('app.error.load_data', { error: dataError })}
           </div>
         )}
@@ -513,60 +531,48 @@ export default function App() {
         {/* View Area */}
         <div className="p-4 flex-1 overflow-hidden relative z-10 custom-scrollbar">
           {isLoadingData ? (
-             <div className="flex items-center justify-center h-full">
-                 <div className="flex flex-col items-center gap-3">
-                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                 <p className="text-xs text-slate-500 font-medium">{t('app.loading.project_data')}</p>
-               </div>
-            </div>
+            <LoadingSpinner message={t('app.loading.project_data')} />
           ) : (
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-full">
-               <div className="flex flex-col items-center gap-3">
-                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                 <p className="text-xs text-slate-500 font-medium">{t('app.loading.view')}</p>
-               </div>
-            </div>
-          }>
-            {viewMode === 'BOARD' && (
-              <KanbanBoard
-                tasks={activeTasks}
-                selectedTaskId={selectedTaskId}
-                onSelectTask={(id) => setSelectedTaskId(id)}
-              />
-            )}
-            {viewMode === 'LIST' && (
-              <ListView
-                tasks={activeTasks}
-                selectedTaskId={selectedTaskId}
-                onSelectTask={(id) => setSelectedTaskId(id)}
-              />
-            )}
-            {viewMode === 'GANTT' && (
-              <div className="flex h-full gap-4">
-                <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <GanttChart
-                    tasks={activeTasks}
-                    selectedTaskId={selectedTaskId}
-                    onSelectTask={(id) => setSelectedTaskId(id)}
-                    onUpdateTaskDates={(id, startDate, dueDate) => {
-                      queueTaskUpdate(id, { startDate, dueDate });
-                    }}
-                  />
+            <Suspense fallback={<LoadingSpinner message={t('app.loading.view')} />}>
+              {viewMode === 'BOARD' && (
+                <KanbanBoard
+                  tasks={activeTasks}
+                  selectedTaskId={selectedTaskId}
+                  onSelectTask={(id) => setSelectedTaskId(id)}
+                />
+              )}
+              {viewMode === 'LIST' && (
+                <ListView
+                  tasks={activeTasks}
+                  selectedTaskId={selectedTaskId}
+                  onSelectTask={(id) => setSelectedTaskId(id)}
+                />
+              )}
+              {viewMode === 'GANTT' && (
+                <div className="flex h-full gap-4">
+                  <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <GanttChart
+                      tasks={activeTasks}
+                      selectedTaskId={selectedTaskId}
+                      onSelectTask={(id) => setSelectedTaskId(id)}
+                      onUpdateTaskDates={(id, startDate, dueDate) => {
+                        queueTaskUpdate(id, { startDate, dueDate });
+                      }}
+                    />
+                  </div>
+                  <div className={`transition-all duration-300 ${selectedTask ? 'w-[300px] opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-10 pointer-events-none'}`}>
+                     {selectedTask && (
+                       <TaskDetailPanel
+                         selectedTask={selectedTask}
+                         onClose={() => setSelectedTaskId(null)}
+                         onUpdate={queueTaskUpdate}
+                         tasks={tasks}
+                       />
+                     )}
+                  </div>
                 </div>
-                <div className={`transition-all duration-300 ${selectedTask ? 'w-[300px] opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-10 pointer-events-none'}`}>
-                   {selectedTask && (
-                     <TaskDetailPanel 
-                       selectedTask={selectedTask}
-                       onClose={() => setSelectedTaskId(null)}
-                       onUpdate={queueTaskUpdate}
-                       tasks={tasks}
-                     />
-                   )}
-                </div>
-              </div>
-            )}
-          </Suspense>
+              )}
+            </Suspense>
           )}
         </div>
         

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect, useId } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useId, memo, useCallback } from 'react';
 import { Task, Priority } from '../types';
 import { useI18n } from '../src/i18n';
 
@@ -38,9 +38,9 @@ const DAY_MS = 86400000;
 
 const VIEW_SETTINGS: Record<ViewMode, { pxPerDay: number; tickLabelFormat: Intl.DateTimeFormatOptions }> = {
   Day: { pxPerDay: 60, tickLabelFormat: { day: 'numeric', month: 'short' } },
-  Week: { pxPerDay: 30, tickLabelFormat: { day: 'numeric', month: 'short' } }, // ~210px per week
-  Month: { pxPerDay: 10, tickLabelFormat: { month: 'long', year: 'numeric' } }, // ~300px per month
-  Year: { pxPerDay: 1.5, tickLabelFormat: { year: 'numeric' } }, // ~550px per year
+  Week: { pxPerDay: 30, tickLabelFormat: { day: 'numeric', month: 'short' } },
+  Month: { pxPerDay: 10, tickLabelFormat: { month: 'long', year: 'numeric' } },
+  Year: { pxPerDay: 1.5, tickLabelFormat: { year: 'numeric' } },
 };
 
 const getTaskColor = (priority: Priority, isMilestone?: boolean) => {
@@ -61,7 +61,7 @@ const ROW_HEIGHT = 44;
 const BAR_HEIGHT = 32;
 const BAR_OFFSET_Y = (ROW_HEIGHT - BAR_HEIGHT) / 2;
 
-export const GanttChart: React.FC<GanttChartProps> = ({
+export const GanttChart: React.FC<GanttChartProps> = memo(({
   tasks,
   selectedTaskId,
   onSelectTask,
@@ -80,12 +80,13 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const listRef = useRef<HTMLDivElement>(null);
   const isScrollingLeftRef = useRef(false);
   const isScrollingRightRef = useRef(false);
-  const viewModeLabels: Record<ViewMode, string> = {
+
+  const viewModeLabels: Record<ViewMode, string> = useMemo(() => ({
     Day: t('gantt.view.day'),
     Week: t('gantt.view.week'),
     Month: t('gantt.view.month'),
     Year: t('gantt.view.year'),
-  };
+  }), [t]);
 
   // 1. Prepare Task Data
   const taskEntries = useMemo<TaskEntry[]>(() => {
@@ -352,7 +353,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       {/* Controls */}
       <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200 shrink-0 z-20">
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer font-medium select-none">
+          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer font-medium select-none">
             <input type="checkbox" checked={showList} onChange={() => setShowList(!showList)} className="rounded border-slate-300" />
             {t('gantt.show_list')}
           </label>
@@ -362,9 +363,11 @@ export const GanttChart: React.FC<GanttChartProps> = ({
              <button
                key={m}
                onClick={() => setViewMode(m)}
-               className={`px-3 py-1 text-[11px] font-medium rounded-md transition-colors ${
+               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                  viewMode === m ? 'bg-white text-primary shadow border border-slate-200' : 'text-slate-500 hover:bg-white hover:text-slate-700'
                }`}
+               aria-label={`${viewModeLabels[m]} view`}
+               aria-pressed={viewMode === m}
              >
                {viewModeLabels[m]}
              </button>
@@ -381,8 +384,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({
              </div>
              {taskEntries.map(task => (
                <div key={task.id} className="h-11 px-4 border-b border-slate-50 flex flex-col justify-center hover:bg-slate-50">
-                 <div className="text-xs font-medium text-slate-700 truncate">{task.title}</div>
-                 <div className="text-[10px] text-slate-400 truncate">{task.assignee || t('gantt.unassigned')}</div>
+                 <div className="text-sm font-medium text-slate-700 truncate">{task.title}</div>
+                 <div className="text-xs text-slate-400 truncate">{task.assignee || t('gantt.unassigned')}</div>
                </div>
              ))}
           </div>
@@ -397,7 +400,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                {gridLines.map(line => (
                  <div
                    key={line.time}
-                   className={`absolute top-0 bottom-0 border-l border-slate-100 pl-2 pt-2.5 text-[10px] font-medium text-slate-500 truncate ${line.isMajor ? 'border-slate-300' : ''}`}
+                   className={`absolute top-0 bottom-0 border-l border-slate-100 pl-2 pt-2.5 text-xs font-medium text-slate-500 truncate ${line.isMajor ? 'border-slate-300' : ''}`}
                    style={{ left: line.x, width: 200 }} // width just for overflow text
                  >
                    {line.label}
@@ -421,7 +424,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                    className="absolute top-0 bottom-0 w-px bg-red-400 z-0"
                    style={{ left: getX(Date.now()) }}
                  >
-                   <div className="bg-red-400 text-white text-[9px] px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">{t('gantt.today')}</div>
+                   <div className="bg-red-400 text-white text-xs px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">{t('gantt.today')}</div>
                  </div>
                )}
             </div>
@@ -563,4 +566,5 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       </div>
     </div>
   );
-};
+});
+GanttChart.displayName = 'GanttChart';
