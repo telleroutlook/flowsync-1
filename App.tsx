@@ -24,6 +24,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('GANTT'); 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   
@@ -256,62 +257,48 @@ export default function App() {
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       
-      {/* 1. Chat Interface (Left) */}
-      <ChatInterface
-        isChatOpen={isChatOpen}
-        setIsChatOpen={setIsChatOpen}
-        onResetChat={handleResetChat}
-        pendingDraft={pendingDraft}
-        draftWarnings={draftWarnings}
-        onApplyDraft={handleApplyDraft}
-        onDiscardDraft={handleDiscardDraft}
-        messages={messages}
-        isProcessing={isProcessing}
-        processingSteps={processingSteps}
-        thinkingPreview={thinkingPreview}
-        messagesEndRef={messagesEndRef}
-        onSendMessage={handleSendMessage}
-        pendingAttachments={pendingAttachments}
-        onRemoveAttachment={handleRemoveAttachment}
-        fileInputRef={fileInputRef}
-        onAttachFiles={handleAttachFiles}
-        inputText={inputText}
-        setInputText={setInputText}
-      />
+      {/* 1. Project Sidebar (Left) */}
+      <div className={`${isSidebarOpen ? 'w-[260px]' : 'w-0'} transition-all duration-300 overflow-hidden border-r border-slate-200 bg-white relative z-20 flex-shrink-0`}>
+        <ProjectSidebar 
+          projects={projects}
+          activeProjectId={activeProjectId}
+          onSelectProject={handleSelectProject}
+          onCreateProject={manualCreateProject}
+          onDeleteProject={handleDeleteProject}
+        />
+      </div>
 
-      {/* 2. Project Sidebar (Middle-Left) */}
-      <ProjectSidebar 
-        projects={projects}
-        activeProjectId={activeProjectId}
-        onSelectProject={handleSelectProject}
-        onCreateProject={manualCreateProject}
-        onDeleteProject={handleDeleteProject}
-        showChatToggle={!isChatOpen}
-        onToggleChat={() => setIsChatOpen(true)}
-      />
-
-      {/* 3. Workspace (Right) */}
-      <div className="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden">
+      {/* 2. Workspace (Middle) */}
+      <div className="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden min-w-0">
         {/* Header */}
-        <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md z-20 sticky top-0">
-          <div className="flex items-center gap-6">
+        <div className="h-12 border-b border-slate-200 flex items-center justify-between px-4 bg-white/80 backdrop-blur-md z-20 sticky top-0 shrink-0">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(prev => !prev)}
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+              title={isSidebarOpen ? "Close Sidebar" : "Open Sidebar"}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+
             <div className="flex flex-col">
-              <h2 className="text-lg font-bold text-slate-800 leading-tight">{activeProject.name}</h2>
-              <div className="flex items-center gap-2">
-                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                 <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{activeProject.description || 'Workspace'}</p>
-              </div>
+              <h2 className="text-sm font-bold text-slate-800 leading-tight truncate max-w-[200px]">{activeProject.name}</h2>
+              {activeProject.description && (
+                 <p className="text-[10px] font-medium text-slate-500 truncate max-w-[200px]">{activeProject.description}</p>
+              )}
             </div>
             
-            <div className="h-8 w-px bg-slate-200 mx-2"></div>
+            <div className="h-4 w-px bg-slate-300 mx-2"></div>
 
             {/* View Switcher */}
-            <div className="flex p-1 bg-slate-100/80 rounded-lg border border-slate-200/60 backdrop-blur-sm">
+            <div className="flex p-0.5 bg-slate-100/80 rounded-lg border border-slate-200/60 backdrop-blur-sm">
                {['BOARD', 'LIST', 'GANTT'].map((mode) => (
                  <button 
                    key={mode}
                    onClick={() => setViewMode(mode as ViewMode)}
-                   className={`px-3.5 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all ${ 
+                   className={`px-3 py-1 rounded-md text-[10px] font-bold tracking-wide transition-all ${ 
                      viewMode === mode 
                        ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5' 
                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
@@ -323,8 +310,8 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-             <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2">
+             <div className="flex items-center gap-1.5 bg-white p-0.5 rounded-lg border border-slate-200 shadow-sm">
                <input
                  ref={importInputRef}
                  type="file"
@@ -339,16 +326,16 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => importInputRef.current?.click()}
-                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
+                className="flex items-center gap-1.5 rounded px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                 <span>Import</span>
               </button>
-              <div className="w-px h-4 bg-slate-200"></div>
+              <div className="w-px h-3 bg-slate-200"></div>
               <select
                 value={importStrategy}
                 onChange={(event) => recordImportPreference(event.target.value as any)}
-                className="bg-transparent text-[10px] font-medium text-slate-500 outline-none cursor-pointer hover:text-indigo-600"
+                className="bg-transparent text-[10px] font-medium text-slate-500 outline-none cursor-pointer hover:text-indigo-600 border-none py-0 focus:ring-0"
                 aria-label="Import strategy"
               >
                 <option value="append">Append</option>
@@ -360,14 +347,14 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setIsAuditOpen(prev => !prev)}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition-all ${ 
+                className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold shadow-sm transition-all ${ 
                   isAuditOpen
                     ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
                 }`}
               >
                 <span>Audit</span>
-                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                <span className="rounded-full bg-indigo-100 px-1.5 py-0 text-[9px] font-bold text-indigo-700 min-w-[16px] text-center">
                   {filteredAuditLogs.length}
                 </span>
               </button>
@@ -380,10 +367,10 @@ export default function App() {
                   event.stopPropagation();
                   setIsExportOpen(prev => !prev);
                  }}
-                 className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm hover:border-indigo-200 hover:text-indigo-600 transition-all"
+                 className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm hover:border-indigo-200 hover:text-indigo-600 transition-all"
                >
                  <span>Export</span>
-                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                  </svg>
                </button>
@@ -448,6 +435,22 @@ export default function App() {
                  </div>
                )}
              </div>
+
+            <div className="h-6 w-px bg-slate-200 mx-1"></div>
+
+             <button 
+                onClick={() => setIsChatOpen(prev => !prev)}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isChatOpen 
+                    ? 'text-indigo-600 bg-indigo-50' 
+                    : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-100'
+                }`}
+                title="Toggle AI Chat"
+             >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+             </button>
           </div>
         </div>
 
@@ -481,7 +484,7 @@ export default function App() {
         />
 
         {/* View Area */}
-        <div className="p-6 flex-1 overflow-hidden relative z-10">
+        <div className="p-4 flex-1 overflow-hidden relative z-10 custom-scrollbar">
           {isLoadingData ? (
              <div className="flex items-center justify-center h-full">
                <div className="flex flex-col items-center gap-3">
@@ -513,8 +516,8 @@ export default function App() {
               />
             )}
             {viewMode === 'GANTT' && (
-              <div className="flex h-full gap-6">
-                <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="flex h-full gap-4">
+                <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                   <GanttChart
                     tasks={activeTasks}
                     selectedTaskId={selectedTaskId}
@@ -541,6 +544,29 @@ export default function App() {
         </div>
         
       </div>
+
+      {/* 3. Chat Interface (Right) */}
+      <ChatInterface
+        isChatOpen={isChatOpen}
+        setIsChatOpen={setIsChatOpen}
+        onResetChat={handleResetChat}
+        pendingDraft={pendingDraft}
+        draftWarnings={draftWarnings}
+        onApplyDraft={handleApplyDraft}
+        onDiscardDraft={handleDiscardDraft}
+        messages={messages}
+        isProcessing={isProcessing}
+        processingSteps={processingSteps}
+        thinkingPreview={thinkingPreview}
+        messagesEndRef={messagesEndRef}
+        onSendMessage={handleSendMessage}
+        pendingAttachments={pendingAttachments}
+        onRemoveAttachment={handleRemoveAttachment}
+        fileInputRef={fileInputRef}
+        onAttachFiles={handleAttachFiles}
+        inputText={inputText}
+        setInputText={setInputText}
+      />
     </div>
   );
 }

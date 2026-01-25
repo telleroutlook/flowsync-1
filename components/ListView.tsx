@@ -27,19 +27,19 @@ export const ListView: React.FC<ListViewProps> = ({ tasks, selectedTaskId, onSel
   });
 
   return (
-    <div className="w-full h-full overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col">
+    <div className="w-full h-full overflow-hidden bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col">
        <div className="overflow-auto custom-scrollbar flex-1">
         <table className="w-full text-left border-collapse">
           <thead className="bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10 border-b border-slate-200">
             <tr>
-              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-16">WBS</th>
-              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-[200px]">Task Name</th>
-              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Assignee</th>
-              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-24">Priority</th>
-              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Status</th>
-              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Progress</th>
-              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Start</th>
-              <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Due</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-16">WBS</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-[200px]">Task Name</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Assignee</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-24">Priority</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Status</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Progress</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Start</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-28">Due</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -66,44 +66,44 @@ export const ListView: React.FC<ListViewProps> = ({ tasks, selectedTaskId, onSel
                     selectedTaskId === task.id ? 'bg-indigo-50/70' : 'hover:bg-slate-50/60'
                   }`}
                 >
-                  <td className="py-3 px-4 text-xs font-mono text-slate-400">{task.wbs || '-'}</td>
-                  <td className="py-3 px-4">
+                  <td className="py-2 px-3 text-[11px] font-mono text-slate-400">{task.wbs || '-'}</td>
+                  <td className="py-2 px-3">
                      <div className="flex flex-col">
-                        <span className={`text-sm font-medium flex items-center gap-1.5 ${task.isMilestone ? 'text-amber-700' : 'text-slate-700'}`}>
+                        <span className={`text-xs font-medium flex items-center gap-1.5 ${task.isMilestone ? 'text-amber-700' : 'text-slate-700'}`}>
                            {task.isMilestone && (
                              <svg className="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" /></svg>
                            )}
                            {task.title}
                         </span>
                         {task.description && (
-                           <span className="text-[10px] text-slate-400 truncate max-w-[200px] mt-0.5">{task.description}</span>
+                           <span className="text-[9px] text-slate-400 truncate max-w-[200px] mt-0.5">{task.description}</span>
                         )}
                      </div>
                   </td>
-                  <td className="py-3 px-4">
+                  <td className="py-2 px-3">
                      {task.assignee ? (
                        <div className="flex items-center gap-1.5">
-                          <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[9px] font-bold">
+                          <div className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[9px] font-bold">
                              {task.assignee.charAt(0).toUpperCase()}
                           </div>
-                          <span className="text-xs text-slate-600 truncate max-w-[100px]">{task.assignee}</span>
+                          <span className="text-[11px] text-slate-600 truncate max-w-[100px]">{task.assignee}</span>
                        </div>
                      ) : (
-                        <span className="text-xs text-slate-300 italic">Unassigned</span>
+                        <span className="text-[10px] text-slate-300 italic">Unassigned</span>
                      )}
                   </td>
-                  <td className="py-3 px-4">
+                  <td className="py-2 px-3">
                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${priorityColors[task.priority]}`}>
                         {task.priority}
                      </span>
                   </td>
-                  <td className="py-3 px-4">
-                    <span className={`flex items-center gap-1.5 text-xs font-medium ${statusColors[task.status]}`}>
+                  <td className="py-2 px-3">
+                    <span className={`flex items-center gap-1.5 text-[11px] font-medium ${statusColors[task.status]}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${task.status === TaskStatus.TODO ? 'bg-slate-400' : task.status === TaskStatus.IN_PROGRESS ? 'bg-indigo-500' : 'bg-emerald-500'}`}></span>
                         {task.status === TaskStatus.IN_PROGRESS ? 'In Progress' : task.status.charAt(0).toUpperCase() + task.status.slice(1).toLowerCase().replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="py-3 px-4">
+                  <td className="py-2 px-3">
                      <div className="flex items-center gap-2 w-full max-w-[120px]">
                         <div className="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden">
                            <div className={`h-full rounded-full ${task.completion === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${task.completion || 0}%`}}></div>
@@ -111,10 +111,10 @@ export const ListView: React.FC<ListViewProps> = ({ tasks, selectedTaskId, onSel
                         <span className="text-[10px] w-6 text-right text-slate-500">{task.completion || 0}%</span>
                      </div>
                   </td>
-                  <td className="py-3 px-4 text-xs text-slate-500">
+                  <td className="py-2 px-3 text-[11px] text-slate-500">
                      {task.startDate ? new Date(task.startDate).toLocaleDateString(undefined, {month:'short', day:'numeric'}) : '-'}
                   </td>
-                  <td className="py-3 px-4 text-xs text-slate-500 font-medium">
+                  <td className="py-2 px-3 text-[11px] text-slate-500 font-medium">
                      {task.dueDate ? (
                        <span className={task.dueDate < Date.now() && task.status !== TaskStatus.DONE ? 'text-rose-600' : ''}>
                           {new Date(task.dueDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
