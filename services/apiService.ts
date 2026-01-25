@@ -1,4 +1,4 @@
-import type { ApiResponse, AuditLog, Draft, DraftAction, Project, Task } from '../types';
+import type { ApiResponse, AuditLog, Draft, DraftAction, Project, Task, User, Workspace, WorkspaceJoinRequest, WorkspaceMember, WorkspaceMemberActionResult, WorkspaceMembership, WorkspaceWithMembership } from '../types';
 
 const buildQueryString = (params: Record<string, string | number | boolean | undefined | null>): string => {
   const query = new URLSearchParams();
@@ -11,8 +11,26 @@ const buildQueryString = (params: Record<string, string | number | boolean | und
   return suffix ? `?${suffix}` : '';
 };
 
+const getStoredValue = (key: string) => {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const buildHeaders = (headers?: HeadersInit) => {
+  const merged = new Headers(headers || {});
+  const token = getStoredValue('flowsync:authToken');
+  if (token) merged.set('Authorization', `Bearer ${token}`);
+  const workspaceId = getStoredValue('flowsync:activeWorkspaceId');
+  if (workspaceId) merged.set('X-Workspace-Id', workspaceId);
+  return merged;
+};
+
 const fetchJson = async <T>(input: RequestInfo, init?: RequestInit): Promise<T> => {
-  const response = await fetch(input, init);
+  const response = await fetch(input, { ...init, headers: buildHeaders(init?.headers) });
   const payload: ApiResponse<T> = await response.json();
   if (!response.ok || !payload.success || payload.data === undefined) {
     throw new Error(payload.error?.message || 'Request failed.');
@@ -21,6 +39,44 @@ const fetchJson = async <T>(input: RequestInfo, init?: RequestInit): Promise<T> 
 };
 
 export const apiService = {
+  register: (data: { username: string; password: string }) =>
+    fetchJson<{ user: User; token: string; expiresAt: number }>('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  login: (data: { username: string; password: string }) =>
+    fetchJson<{ user: User; token: string; expiresAt: number }>('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  me: () => fetchJson<{ user: User }>('/api/auth/me'),
+  logout: () =>
+    fetchJson<{ success: true }>('/api/auth/logout', {
+      method: 'POST',
+    }),
+
+  listWorkspaces: () => fetchJson<WorkspaceWithMembership[]>('/api/workspaces'),
+  createWorkspace: (data: { name: string; description?: string }) =>
+    fetchJson<Workspace>('/api/workspaces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  requestJoinWorkspace: (id: string) =>
+    fetchJson<WorkspaceMembership>(`/api/workspaces/${id}/join`, { method: 'POST' }),
+  listWorkspaceRequests: (id: string) =>
+    fetchJson<WorkspaceJoinRequest[]>(`/api/workspaces/${id}/requests`),
+  approveWorkspaceRequest: (workspaceId: string, userId: string) =>
+    fetchJson<WorkspaceMembership>(`/api/workspaces/${workspaceId}/requests/${userId}/approve`, { method: 'POST' }),
+  rejectWorkspaceRequest: (workspaceId: string, userId: string) =>
+    fetchJson<WorkspaceMemberActionResult>(`/api/workspaces/${workspaceId}/requests/${userId}/reject`, { method: 'POST' }),
+  listWorkspaceMembers: (id: string) =>
+    fetchJson<WorkspaceMember[]>(`/api/workspaces/${id}/members`),
+  removeWorkspaceMember: (workspaceId: string, userId: string) =>
+    fetchJson<WorkspaceMemberActionResult>(`/api/workspaces/${workspaceId}/members/${userId}`, { method: 'DELETE' }),
+
   listProjects: () => fetchJson<Project[]>('/api/projects'),
   getProject: (id: string) => fetchJson<Project>(`/api/projects/${id}`),
   createProject: (data: { name: string; description?: string; icon?: string }) =>

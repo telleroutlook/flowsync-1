@@ -1,13 +1,13 @@
 import { and, eq, like, sql } from 'drizzle-orm';
 import type { SQLWrapper } from 'drizzle-orm';
-import { tasks } from '../db/schema';
+import { projects, tasks } from '../db/schema';
 import { toTaskRecord } from './serializers';
 import { clampNumber, generateId, now } from './utils';
-import type { TaskRecord } from './types';
+import type { Priority, TaskRecord, TaskStatus } from './types';
 
 export type TaskFilters = {
   projectId?: string;
-  status?: string;
+  status?: TaskStatus;
   assignee?: string;
   q?: string;
   page?: number;
@@ -26,35 +26,46 @@ const buildWhere = (filters: TaskFilters) => {
 
 export const listTasks = async (
   db: ReturnType<typeof import('../db').getDb>,
-  filters: TaskFilters
+  filters: TaskFilters,
+  workspaceId: string
 ): Promise<{ data: TaskRecord[]; total: number; page: number; pageSize: number }> => {
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 50));
   const whereClause = buildWhere(filters);
+  const workspaceClause = eq(projects.workspaceId, workspaceId);
+  const combinedClause = whereClause ? and(whereClause, workspaceClause) : workspaceClause;
 
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)` })
     .from(tasks)
-    .where(whereClause);
+    .innerJoin(projects, eq(tasks.projectId, projects.id))
+    .where(combinedClause);
 
   const rows = await db
     .select()
     .from(tasks)
-    .where(whereClause)
+    .innerJoin(projects, eq(tasks.projectId, projects.id))
+    .where(combinedClause)
     .orderBy(tasks.createdAt)
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 
-  return { data: rows.map(toTaskRecord), total: count, page, pageSize };
+  return { data: rows.map((row) => toTaskRecord(row.tasks)), total: count, page, pageSize };
 };
 
 export const getTaskById = async (
   db: ReturnType<typeof import('../db').getDb>,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<TaskRecord | null> => {
-  const rows = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+  const rows = await db
+    .select()
+    .from(tasks)
+    .innerJoin(projects, eq(tasks.projectId, projects.id))
+    .where(and(eq(tasks.id, id), eq(projects.workspaceId, workspaceId)))
+    .limit(1);
   const row = rows[0];
-  return row ? toTaskRecord(row) : null;
+  return row ? toTaskRecord(row.tasks) : null;
 };
 
 export const createTask = async (
@@ -63,8 +74,8 @@ export const createTask = async (
     projectId: string;
     title: string;
     description?: string;
-    status: string;
-    priority: string;
+    status: TaskStatus;
+    priority: Priority;
     wbs?: string;
     startDate?: number;
     dueDate?: number;
@@ -73,8 +84,16 @@ export const createTask = async (
     isMilestone?: boolean;
     predecessors?: string[];
     createdAt?: number;
-  }
-): Promise<TaskRecord> => {
+  },
+  workspaceId: string
+): Promise<TaskRecord | null> => {
+  const projectRows = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, data.projectId), eq(projects.workspaceId, workspaceId)))
+    .limit(1);
+  if (projectRows.length === 0) return null;
+
   const timestamp = now();
   const createdAt = data.createdAt ?? timestamp;
   const record = {
@@ -104,8 +123,8 @@ export const updateTask = async (
   data: Partial<{
     title: string;
     description: string;
-    status: string;
-    priority: string;
+    status: TaskStatus;
+    priority: Priority;
     wbs: string;
     startDate: number;
     dueDate: number;
@@ -113,10 +132,10 @@ export const updateTask = async (
     assignee: string;
     isMilestone: boolean;
     predecessors: string[];
-  }>
+  }>,
+  workspaceId: string
 ): Promise<TaskRecord | null> => {
-  const existingRows = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
-  const existing = existingRows[0];
+  const existing = await getTaskById(db, id, workspaceId);
   if (!existing) return null;
 
   const next = {
@@ -135,17 +154,16 @@ export const updateTask = async (
   };
 
   await db.update(tasks).set(next).where(eq(tasks.id, id));
-  const result = toTaskRecord({ ...existing, ...next });
-  return result;
+  return { ...existing, ...next };
 };
 
 export const deleteTask = async (
   db: ReturnType<typeof import('../db').getDb>,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<TaskRecord | null> => {
-  const existingRows = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
-  const existing = existingRows[0];
+  const existing = await getTaskById(db, id, workspaceId);
   if (!existing) return null;
   await db.delete(tasks).where(eq(tasks.id, id));
-  return toTaskRecord(existing);
+  return existing;
 };

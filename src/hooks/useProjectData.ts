@@ -5,13 +5,14 @@ import { useI18n } from '../i18n';
 
 const PAGE_SIZE = 100;
 
-export const useProjectData = () => {
+export const useProjectData = (workspaceId: string) => {
   const { t } = useI18n();
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>('');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const storageKey = workspaceId ? `flowsync:activeProjectId:${workspaceId}` : 'flowsync:activeProjectId';
 
   // Track if component is mounted to avoid state updates after unmount
   const isMountedRef = useRef(true);
@@ -56,7 +57,7 @@ export const useProjectData = () => {
 
       setProjects(projectList);
 
-      const stored = window.localStorage.getItem('flowsync:activeProjectId');
+      const stored = window.localStorage.getItem(storageKey);
       const candidate = stored && projectList.find(project => project.id === stored) ? stored : activeProjectIdRef.current;
       const finalId = candidate && projectList.find(project => project.id === candidate)
           ? candidate
@@ -77,12 +78,12 @@ export const useProjectData = () => {
         setIsLoading(false);
       }
     }
-  }, [fetchAllTasks, t]);
+  }, [fetchAllTasks, t, storageKey]);
 
   const handleSelectProject = useCallback(async (id: string) => {
     setActiveProjectId(id);
     activeProjectIdRef.current = id;
-    window.localStorage.setItem('flowsync:activeProjectId', id);
+    window.localStorage.setItem(storageKey, id);
     try {
       setIsLoading(true);
       const newTasks = await fetchAllTasks(id);
@@ -96,7 +97,7 @@ export const useProjectData = () => {
         setIsLoading(false);
       }
     }
-  }, [fetchAllTasks, t]);
+  }, [fetchAllTasks, t, storageKey]);
 
   // Initial load
   useEffect(() => {
@@ -106,14 +107,14 @@ export const useProjectData = () => {
     return () => {
       isMountedRef.current = false;
     };
-  }, []); // Only run on mount
+  }, [refreshData, workspaceId]); // re-run when workspace changes
 
   // Persist active project selection
   useEffect(() => {
     if (activeProjectId) {
-      window.localStorage.setItem('flowsync:activeProjectId', activeProjectId);
+      window.localStorage.setItem(storageKey, activeProjectId);
     }
-  }, [activeProjectId]);
+  }, [activeProjectId, storageKey]);
 
   return {
     projects,

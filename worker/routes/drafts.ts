@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { jsonError, jsonOk } from './helpers';
+import { workspaceMiddleware } from './middleware';
 import { applyDraft, createDraft, discardDraft, getDraftById, listDrafts } from '../services/draftService';
 import { recordLog } from '../services/logService';
 import { generateId } from '../services/utils';
@@ -9,6 +10,7 @@ import type { DraftAction } from '../services/types';
 import type { Variables } from '../types';
 
 export const draftsRoute = new Hono<{ Variables: Variables }>();
+draftsRoute.use('*', workspaceMiddleware);
 
 const actionSchema = z.object({
   id: z.string().optional(),
@@ -30,17 +32,23 @@ const applySchema = z.object({
 });
 
 draftsRoute.get('/', async (c) => {
-  const drafts = await listDrafts(c.get('db'));
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
+  const drafts = await listDrafts(c.get('db'), workspace.id);
   return jsonOk(c, drafts);
 });
 
 draftsRoute.get('/:id', async (c) => {
-  const draft = await getDraftById(c.get('db'), c.req.param('id'));
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
+  const draft = await getDraftById(c.get('db'), c.req.param('id'), workspace.id);
   if (!draft) return jsonError(c, 'NOT_FOUND', 'Draft not found.', 404);
   return jsonOk(c, draft);
 });
 
 draftsRoute.post('/', zValidator('json', createDraftSchema), async (c) => {
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
   try {
     const payload = c.req.valid('json') as z.infer<typeof createDraftSchema>;
     const actions: DraftAction[] = payload.actions.map(action => ({
@@ -51,7 +59,7 @@ draftsRoute.post('/', zValidator('json', createDraftSchema), async (c) => {
       after: action.after,
     }));
     const createdBy = payload.createdBy ?? 'agent';
-    const result = await createDraft(c.get('db'), { ...payload, createdBy, actions });
+    const result = await createDraft(c.get('db'), { ...payload, createdBy, actions, workspaceId: workspace.id });
     await recordLog(c.get('db'), 'tool_execution', {
       tool: 'planChanges',
       draftId: result.draft.id,
@@ -64,9 +72,11 @@ draftsRoute.post('/', zValidator('json', createDraftSchema), async (c) => {
 });
 
 draftsRoute.post('/:id/apply', zValidator('json', applySchema), async (c) => {
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
   const payload = c.req.valid('json');
   try {
-    const result = await applyDraft(c.get('db'), c.req.param('id'), payload.actor);
+    const result = await applyDraft(c.get('db'), c.req.param('id'), payload.actor, workspace.id);
     await recordLog(c.get('db'), 'tool_execution', {
       tool: 'applyChanges',
       draftId: result.draft.id,
@@ -79,7 +89,9 @@ draftsRoute.post('/:id/apply', zValidator('json', applySchema), async (c) => {
 });
 
 draftsRoute.post('/:id/discard', async (c) => {
-  const draft = await discardDraft(c.get('db'), c.req.param('id'));
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
+  const draft = await discardDraft(c.get('db'), c.req.param('id'), workspace.id);
   if (!draft) return jsonError(c, 'NOT_FOUND', 'Draft not found.', 404);
   return jsonOk(c, draft);
 });

@@ -5,6 +5,9 @@ import { tasksRoute } from './routes/tasks';
 import { draftsRoute } from './routes/drafts';
 import { auditRoute } from './routes/audit';
 import { aiRoute } from './routes/ai';
+import { authRoute } from './routes/auth';
+import { workspacesRoute } from './routes/workspaces';
+import { authMiddleware } from './routes/middleware';
 
 export { Variables, Bindings };
 
@@ -17,8 +20,11 @@ export const createApp = (db: DrizzleDB, bindings: Bindings) => {
     c.env = bindings;
     await next();
   });
+  app.use('*', authMiddleware);
 
   app.route('/', aiRoute);
+  app.route('/api/auth', authRoute);
+  app.route('/api/workspaces', workspacesRoute);
   app.route('/api/projects', projectsRoute);
   app.route('/api/tasks', tasksRoute);
   app.route('/api/drafts', draftsRoute);

@@ -1,30 +1,43 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { projects, tasks } from '../db/schema';
 import { toProjectRecord } from './serializers';
 import { generateId, now } from './utils';
 import type { ProjectRecord } from './types';
 
-export const listProjects = async (db: ReturnType<typeof import('../db').getDb>): Promise<ProjectRecord[]> => {
-  const rows = await db.select().from(projects).orderBy(projects.createdAt);
+export const listProjects = async (
+  db: ReturnType<typeof import('../db').getDb>,
+  workspaceId: string
+): Promise<ProjectRecord[]> => {
+  const rows = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.workspaceId, workspaceId))
+    .orderBy(projects.createdAt);
   return rows.map(toProjectRecord);
 };
 
 export const getProjectById = async (
   db: ReturnType<typeof import('../db').getDb>,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<ProjectRecord | null> => {
-  const rows = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+  const rows = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+    .limit(1);
   const row = rows[0];
   return row ? toProjectRecord(row) : null;
 };
 
 export const createProject = async (
   db: ReturnType<typeof import('../db').getDb>,
-  data: { name: string; description?: string; icon?: string }
+  data: { name: string; description?: string; icon?: string; workspaceId: string }
 ): Promise<ProjectRecord> => {
   const timestamp = now();
   const record = {
     id: generateId(),
+    workspaceId: data.workspaceId,
     name: data.name,
     description: data.description ?? null,
     icon: data.icon ?? null,
@@ -38,9 +51,14 @@ export const createProject = async (
 export const updateProject = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string,
-  data: { name?: string; description?: string; icon?: string }
+  data: { name?: string; description?: string; icon?: string },
+  workspaceId: string
 ): Promise<ProjectRecord | null> => {
-  const existingRows = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+  const existingRows = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+    .limit(1);
   const existing = existingRows[0];
   if (!existing) return null;
 
@@ -57,9 +75,14 @@ export const updateProject = async (
 
 export const deleteProject = async (
   db: ReturnType<typeof import('../db').getDb>,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<{ project: ProjectRecord | null; deletedTasks: number }> => {
-  const existingRows = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+  const existingRows = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+    .limit(1);
   const existing = existingRows[0];
   if (!existing) return { project: null, deletedTasks: 0 };
 
@@ -69,10 +92,14 @@ export const deleteProject = async (
     .where(eq(tasks.projectId, id));
   await db.delete(tasks).where(eq(tasks.projectId, id));
   await db.delete(projects).where(eq(projects.id, id));
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(projects);
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(projects)
+    .where(eq(projects.workspaceId, workspaceId));
   if (count === 0) {
     await db.insert(projects).values({
       id: generateId(),
+      workspaceId,
       name: 'New Project',
       description: 'Auto-created project',
       icon: '🧭',

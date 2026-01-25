@@ -1,6 +1,29 @@
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE';
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
 
+export type UserRecord = {
+  id: string;
+  username: string;
+  createdAt: number;
+};
+
+export type WorkspaceRecord = {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: number;
+  createdBy: string | null;
+  isPublic: boolean;
+};
+
+export type WorkspaceMembershipRecord = {
+  workspaceId: string;
+  userId: string;
+  role: 'admin' | 'member';
+  status: 'active' | 'pending';
+  createdAt: number;
+};
+
 export type TaskRecord = {
   id: string;
   projectId: string;
@@ -21,6 +44,7 @@ export type TaskRecord = {
 
 export type ProjectRecord = {
   id: string;
+  workspaceId: string;
   name: string;
   description: string | null;
   icon: string | null;
@@ -41,6 +65,7 @@ export type DraftAction = {
 
 export type DraftRecord = {
   id: string;
+  workspaceId: string;
   projectId: string | null;
   status: 'pending' | 'applied' | 'discarded';
   actions: DraftAction[];
@@ -51,6 +76,7 @@ export type DraftRecord = {
 
 export type AuditRecord = {
   id: string;
+  workspaceId: string;
   entityType: 'task' | 'project';
   entityId: string;
   action: string;

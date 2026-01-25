@@ -12,6 +12,7 @@ export enum Priority {
 
 export interface Project {
   id: string;
+  workspaceId?: string;
   name: string;
   description?: string;
   icon?: string; // Emoji or simple string char
@@ -70,6 +71,7 @@ export interface DraftAction {
 
 export interface Draft {
   id: string;
+  workspaceId?: string;
   projectId: string | null;
   status: 'pending' | 'applied' | 'discarded';
   actions: DraftAction[];
@@ -80,6 +82,7 @@ export interface Draft {
 
 export interface AuditLog {
   id: string;
+  workspaceId?: string | null;
   entityType: 'task' | 'project';
   entityId: string;
   action: string;
@@ -98,6 +101,56 @@ export interface ApiResponse<T> {
   data?: T;
   error?: { code: string; message: string };
 }
+
+export interface User {
+  id: string;
+  username: string;
+  createdAt: number;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description?: string | null;
+  createdAt: number;
+  createdBy?: string | null;
+  isPublic: boolean;
+}
+
+export interface WorkspaceMembership {
+  workspaceId: string;
+  userId: string;
+  role: 'admin' | 'member';
+  status: 'active' | 'pending';
+  createdAt: number;
+}
+
+export interface WorkspaceWithMembership extends Workspace {
+  membership?: WorkspaceMembership | null;
+}
+
+export interface WorkspaceJoinRequest {
+  userId: string;
+  username: string;
+  role: 'admin' | 'member';
+  status: 'active' | 'pending';
+  createdAt: number;
+}
+
+export interface WorkspaceMember {
+  userId: string;
+  username: string;
+  role: 'admin' | 'member';
+  status: 'active' | 'pending';
+  createdAt: number;
+}
+
+export interface WorkspaceMemberActionResult {
+  workspaceId: string;
+  userId: string;
+}
+
+export const PUBLIC_WORKSPACE_ID = 'public';
 
 // AI Tool Arguments
 export interface ToolCall {

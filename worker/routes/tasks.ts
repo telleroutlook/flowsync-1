@@ -2,11 +2,13 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { jsonError, jsonOk } from './helpers';
+import { workspaceMiddleware } from './middleware';
 import { createTask, deleteTask, getTaskById, listTasks, updateTask } from '../services/taskService';
 import { recordAudit } from '../services/auditService';
 import type { Variables } from '../types';
 
 export const tasksRoute = new Hono<{ Variables: Variables }>();
+tasksRoute.use('*', workspaceMiddleware);
 
 const statusEnum = z.enum(['TODO', 'IN_PROGRESS', 'DONE']);
 const priorityEnum = z.enum(['LOW', 'MEDIUM', 'HIGH']);
@@ -50,19 +52,25 @@ const listQuerySchema = z.object({
 });
 
 tasksRoute.get('/', async (c) => {
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
   const parsed = listQuerySchema.safeParse(c.req.query());
   if (!parsed.success) return jsonError(c, 'INVALID_QUERY', 'Invalid query parameters.', 400);
-  const result = await listTasks(c.get('db'), parsed.data);
+  const result = await listTasks(c.get('db'), parsed.data, workspace.id);
   return jsonOk(c, result);
 });
 
 tasksRoute.get('/:id', async (c) => {
-  const task = await getTaskById(c.get('db'), c.req.param('id'));
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
+  const task = await getTaskById(c.get('db'), c.req.param('id'), workspace.id);
   if (!task) return jsonError(c, 'NOT_FOUND', 'Task not found.', 404);
   return jsonOk(c, task);
 });
 
 tasksRoute.post('/', zValidator('json', taskInputSchema), async (c) => {
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
   const data = c.req.valid('json');
   const task = await createTask(c.get('db'), {
     projectId: data.projectId,
@@ -77,8 +85,10 @@ tasksRoute.post('/', zValidator('json', taskInputSchema), async (c) => {
     assignee: data.assignee,
     isMilestone: data.isMilestone,
     predecessors: data.predecessors,
-  });
+  }, workspace.id);
+  if (!task) return jsonError(c, 'INVALID_PROJECT', 'Project not found in workspace.', 404);
   await recordAudit(c.get('db'), {
+    workspaceId: workspace.id,
     entityType: 'task',
     entityId: task.id,
     action: 'create',
@@ -94,8 +104,10 @@ tasksRoute.post('/', zValidator('json', taskInputSchema), async (c) => {
 });
 
 tasksRoute.patch('/:id', zValidator('json', taskUpdateSchema), async (c) => {
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
   const id = c.req.param('id');
-  const before = await getTaskById(c.get('db'), id);
+  const before = await getTaskById(c.get('db'), id, workspace.id);
   const data = c.req.valid('json');
   const task = await updateTask(c.get('db'), id, {
     title: data.title,
@@ -109,9 +121,10 @@ tasksRoute.patch('/:id', zValidator('json', taskUpdateSchema), async (c) => {
     assignee: data.assignee,
     isMilestone: data.isMilestone,
     predecessors: data.predecessors,
-  });
+  }, workspace.id);
   if (!task) return jsonError(c, 'NOT_FOUND', 'Task not found.', 404);
   await recordAudit(c.get('db'), {
+    workspaceId: workspace.id,
     entityType: 'task',
     entityId: task.id,
     action: 'update',
@@ -127,11 +140,14 @@ tasksRoute.patch('/:id', zValidator('json', taskUpdateSchema), async (c) => {
 });
 
 tasksRoute.delete('/:id', async (c) => {
+  const workspace = c.get('workspace');
+  if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
   const id = c.req.param('id');
-  const before = await getTaskById(c.get('db'), id);
-  const task = await deleteTask(c.get('db'), id);
+  const before = await getTaskById(c.get('db'), id, workspace.id);
+  const task = await deleteTask(c.get('db'), id, workspace.id);
   if (!task) return jsonError(c, 'NOT_FOUND', 'Task not found.', 404);
   await recordAudit(c.get('db'), {
+    workspaceId: workspace.id,
     entityType: 'task',
     entityId: task.id,
     action: 'delete',

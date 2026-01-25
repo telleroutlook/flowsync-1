@@ -6,10 +6,31 @@ import { recordAudit } from './auditService';
 import { createProject, updateProject, deleteProject, getProjectById } from './projectService';
 import { createTask, updateTask, deleteTask, getTaskById } from './taskService';
 import { generateId, now } from './utils';
-import type { DraftAction, DraftRecord, PlanResult, TaskRecord, ProjectRecord } from './types';
+import type { DraftAction, DraftRecord, PlanResult, TaskRecord, ProjectRecord, TaskStatus, Priority } from './types';
+
+const toTaskStatus = (value: unknown, fallback: TaskStatus): TaskStatus => {
+  if (value === 'TODO' || value === 'IN_PROGRESS' || value === 'DONE') return value;
+  return fallback;
+};
+
+const toPriority = (value: unknown, fallback: Priority): Priority => {
+  if (value === 'LOW' || value === 'MEDIUM' || value === 'HIGH') return value;
+  return fallback;
+};
+
+const toOptionalTaskStatus = (value: unknown): TaskStatus | undefined => {
+  if (value === 'TODO' || value === 'IN_PROGRESS' || value === 'DONE') return value;
+  return undefined;
+};
+
+const toOptionalPriority = (value: unknown): Priority | undefined => {
+  if (value === 'LOW' || value === 'MEDIUM' || value === 'HIGH') return value;
+  return undefined;
+};
 
 const parseDraftRow = (row: {
   id: string;
+  workspaceId: string;
   projectId: string | null;
   status: string;
   actions: any[];
@@ -18,6 +39,7 @@ const parseDraftRow = (row: {
   reason: string | null;
 }): DraftRecord => ({
   id: row.id,
+  workspaceId: row.workspaceId,
   projectId: row.projectId,
   status: row.status as DraftRecord['status'],
   actions: row.actions as DraftAction[],
@@ -33,8 +55,8 @@ const normalizeTaskInput = (
 ): TaskRecord => {
   const timestamp = now();
   const projectId = (input.projectId as string | undefined) ?? projectIdOverride ?? fallback?.projectId ?? '';
-  const status = (input.status as string | undefined) ?? fallback?.status ?? 'TODO';
-  const priority = (input.priority as string | undefined) ?? fallback?.priority ?? 'MEDIUM';
+  const status = toTaskStatus(input.status, fallback?.status ?? 'TODO');
+  const priority = toPriority(input.priority, fallback?.priority ?? 'MEDIUM');
   const createdAt = (input.createdAt as number | undefined) ?? fallback?.createdAt ?? timestamp;
   const startDate = (input.startDate as number | undefined) ?? fallback?.startDate ?? createdAt;
   const dueDate = (input.dueDate as number | undefined) ?? fallback?.dueDate ?? null;
@@ -62,11 +84,14 @@ const normalizeTaskInput = (
 
 const normalizeProjectInput = (
   input: Record<string, unknown>,
-  fallback: ProjectRecord | null
+  fallback: ProjectRecord | null,
+  workspaceId: string
 ): ProjectRecord => {
   const timestamp = now();
+  const resolvedWorkspaceId = fallback?.workspaceId ?? workspaceId;
   return {
     id: (input.id as string | undefined) ?? fallback?.id ?? generateId(),
+    workspaceId: resolvedWorkspaceId,
     name: (input.name as string | undefined) ?? fallback?.name ?? 'Untitled Project',
     description: (input.description as string | undefined) ?? fallback?.description ?? null,
     icon: (input.icon as string | undefined) ?? fallback?.icon ?? null,
@@ -77,7 +102,8 @@ const normalizeProjectInput = (
 
 const planActions = async (
   db: ReturnType<typeof import('../db').getDb>,
-  actions: DraftAction[]
+  actions: DraftAction[],
+  workspaceId: string
 ) => {
   const planned: DraftAction[] = [];
   const warnings: string[] = [];
@@ -105,7 +131,7 @@ const planActions = async (
   // Fetch only the projects we need
   let projectState: ProjectRecord[] = [];
   if (projectIdsToFetch.size > 0 || projectIdsReferenced.size > 0) {
-    const { inArray, or } = await import('drizzle-orm');
+    const { and, inArray, or } = await import('drizzle-orm');
     const conditions = [];
     if (projectIdsToFetch.size > 0) {
       conditions.push(inArray(projects.id, Array.from(projectIdsToFetch).filter(Boolean)));
@@ -113,10 +139,9 @@ const planActions = async (
     if (projectIdsReferenced.size > 0) {
       conditions.push(inArray(projects.id, Array.from(projectIdsReferenced).filter(Boolean)));
     }
-    const whereClause = conditions.length > 1 ? or(...conditions) : conditions[0];
-    const projectRows = whereClause
-      ? await db.select().from(projects).where(whereClause)
-      : await db.select().from(projects);
+    const targetClause = conditions.length > 1 ? or(...conditions) : conditions[0];
+    const whereClause = targetClause ? and(eq(projects.workspaceId, workspaceId), targetClause) : eq(projects.workspaceId, workspaceId);
+    const projectRows = await db.select().from(projects).where(whereClause);
     projectState = projectRows.map(toProjectRecord);
   }
 
@@ -132,11 +157,15 @@ const planActions = async (
     taskState = [];
   } else if (taskIdsToFetch.size > SELECTIVE_LOAD_THRESHOLD) {
     // Large draft - fetch all tasks (more efficient than many individual queries)
-    const taskRows = await db.select().from(tasks);
-    taskState = taskRows.map(toTaskRecord);
+    const taskRows = await db
+      .select()
+      .from(tasks)
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(eq(projects.workspaceId, workspaceId));
+    taskState = taskRows.map((row) => toTaskRecord(row.tasks));
   } else {
     // Small draft - fetch selectively
-    const { inArray, or } = await import('drizzle-orm');
+    const { and, inArray, or } = await import('drizzle-orm');
     const conditions = [];
 
     // Tasks being directly modified
@@ -155,21 +184,20 @@ const planActions = async (
       }
     }
 
-    let taskRows;
-    if (conditions.length === 0) {
-      taskRows = await db.select().from(tasks);
-    } else if (conditions.length === 1) {
-      taskRows = await db.select().from(tasks).where(conditions[0]);
-    } else {
-      taskRows = await db.select().from(tasks).where(or(...conditions));
-    }
-    taskState = taskRows.map(toTaskRecord);
+    const taskFilter = conditions.length === 0 ? undefined : (conditions.length === 1 ? conditions[0] : or(...conditions));
+    const combinedClause = taskFilter ? and(taskFilter, eq(projects.workspaceId, workspaceId)) : eq(projects.workspaceId, workspaceId);
+    const taskRows = await db
+      .select()
+      .from(tasks)
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(combinedClause);
+    taskState = taskRows.map((row) => toTaskRecord(row.tasks));
   }
 
   for (const action of actions) {
     if (action.entityType === 'project') {
       if (action.action === 'create') {
-        const project = normalizeProjectInput(action.after ?? {}, null);
+        const project = normalizeProjectInput(action.after ?? {}, null, workspaceId);
         projectState = [...projectState, project];
         planned.push({
           ...action,
@@ -191,7 +219,7 @@ const planActions = async (
           warnings.push('Project not found for update.');
           continue;
         }
-        const updated = normalizeProjectInput(action.after ?? {}, existing);
+        const updated = normalizeProjectInput(action.after ?? {}, existing, workspaceId);
         projectState = projectState.map((item) => (item.id === existing.id ? updated : item));
         planned.push({
           ...action,
@@ -354,11 +382,13 @@ export const createDraft = async (
     createdBy: DraftRecord['createdBy'];
     reason?: string;
     projectId?: string | null;
+    workspaceId: string;
   }
 ): Promise<PlanResult> => {
-  const { actions, warnings } = await planActions(db, input.actions);
+  const { actions, warnings } = await planActions(db, input.actions, input.workspaceId);
   const draft: DraftRecord = {
     id: generateId(),
+    workspaceId: input.workspaceId,
     projectId: input.projectId ?? null,
     status: 'pending',
     actions,
@@ -369,6 +399,7 @@ export const createDraft = async (
 
   await db.insert(drafts).values({
     id: draft.id,
+    workspaceId: draft.workspaceId,
     projectId: draft.projectId,
     status: draft.status,
     actions: draft.actions,
@@ -382,23 +413,37 @@ export const createDraft = async (
 
 export const getDraftById = async (
   db: ReturnType<typeof import('../db').getDb>,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<DraftRecord | null> => {
-  const rows = await db.select().from(drafts).where(eq(drafts.id, id)).limit(1);
+  const { and } = await import('drizzle-orm');
+  const rows = await db
+    .select()
+    .from(drafts)
+    .where(and(eq(drafts.id, id), eq(drafts.workspaceId, workspaceId)))
+    .limit(1);
   const row = rows[0];
   return row ? parseDraftRow(row) : null;
 };
 
-export const listDrafts = async (db: ReturnType<typeof import('../db').getDb>): Promise<DraftRecord[]> => {
-  const rows = await db.select().from(drafts).orderBy(drafts.createdAt);
+export const listDrafts = async (
+  db: ReturnType<typeof import('../db').getDb>,
+  workspaceId: string
+): Promise<DraftRecord[]> => {
+  const rows = await db
+    .select()
+    .from(drafts)
+    .where(eq(drafts.workspaceId, workspaceId))
+    .orderBy(drafts.createdAt);
   return rows.map(parseDraftRow);
 };
 
 export const discardDraft = async (
   db: ReturnType<typeof import('../db').getDb>,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<DraftRecord | null> => {
-  const draft = await getDraftById(db, id);
+  const draft = await getDraftById(db, id, workspaceId);
   if (!draft) return null;
   await db.update(drafts).set({ status: 'discarded' }).where(eq(drafts.id, id));
   return { ...draft, status: 'discarded' };
@@ -407,9 +452,10 @@ export const discardDraft = async (
 export const applyDraft = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string,
-  actor: DraftRecord['createdBy']
+  actor: DraftRecord['createdBy'],
+  workspaceId: string
 ): Promise<{ draft: DraftRecord; results: DraftAction[] }> => {
-  const draft = await getDraftById(db, id);
+  const draft = await getDraftById(db, id, workspaceId);
   if (!draft) {
     throw new Error('Draft not found.');
   }
@@ -426,9 +472,11 @@ export const applyDraft = async (
           name: (action.after.name as string) ?? 'Untitled Project',
           description: (action.after.description as string) ?? undefined,
           icon: (action.after.icon as string) ?? undefined,
+          workspaceId,
         });
         results.push({ ...action, entityId: created.id, after: created });
         await recordAudit(db, {
+          workspaceId,
           entityType: 'project',
           entityId: created.id,
           action: 'create',
@@ -441,15 +489,16 @@ export const applyDraft = async (
           draftId: draft.id,
         });
       } else if (action.action === 'update' && action.entityId) {
-        const before = await getProjectById(db, action.entityId);
+        const before = await getProjectById(db, action.entityId, workspaceId);
         const updated = await updateProject(db, action.entityId, {
           name: (action.after?.name as string) ?? undefined,
           description: (action.after?.description as string) ?? undefined,
           icon: (action.after?.icon as string) ?? undefined,
-        });
+        }, workspaceId);
         if (updated) {
           results.push({ ...action, before: before ?? undefined, after: updated });
           await recordAudit(db, {
+            workspaceId,
             entityType: 'project',
             entityId: updated.id,
             action: 'update',
@@ -463,13 +512,14 @@ export const applyDraft = async (
           });
         }
       } else if (action.action === 'delete' && action.entityId) {
-        const before = await getProjectById(db, action.entityId);
+        const before = await getProjectById(db, action.entityId, workspaceId);
         const taskRows = await db.select().from(tasks).where(eq(tasks.projectId, action.entityId));
         const tasksBefore = taskRows.map(toTaskRecord);
-        const deleted = await deleteProject(db, action.entityId);
+        const deleted = await deleteProject(db, action.entityId, workspaceId);
         results.push({ ...action, before: before ?? undefined, after: null });
         if (deleted.project) {
           await recordAudit(db, {
+            workspaceId,
             entityType: 'project',
             entityId: deleted.project.id,
             action: 'delete',
@@ -492,8 +542,8 @@ export const applyDraft = async (
           projectId: (action.after.projectId as string) ?? '',
           title: (action.after.title as string) ?? 'Untitled Task',
           description: (action.after.description as string) ?? undefined,
-          status: (action.after.status as string) ?? 'TODO',
-          priority: (action.after.priority as string) ?? 'MEDIUM',
+          status: toTaskStatus(action.after.status, 'TODO'),
+          priority: toPriority(action.after.priority, 'MEDIUM'),
           wbs: (action.after.wbs as string) ?? undefined,
           startDate: (action.after.startDate as number) ?? undefined,
           dueDate: (action.after.dueDate as number) ?? undefined,
@@ -502,9 +552,13 @@ export const applyDraft = async (
           isMilestone: (action.after.isMilestone as boolean) ?? undefined,
           predecessors: (action.after.predecessors as string[]) ?? undefined,
           createdAt: (action.after.createdAt as number) ?? undefined,
-        });
+        }, workspaceId);
+        if (!created) {
+          throw new Error('Invalid project for task creation.');
+        }
         results.push({ ...action, entityId: created.id, after: created });
         await recordAudit(db, {
+          workspaceId,
           entityType: 'task',
           entityId: created.id,
           action: 'create',
@@ -517,7 +571,7 @@ export const applyDraft = async (
           draftId: draft.id,
         });
       } else if (action.action === 'update' && action.entityId) {
-        const before = await getTaskById(db, action.entityId);
+        const before = await getTaskById(db, action.entityId, workspaceId);
 
         if (!before) {
           throw new Error(`Task not found: ${action.entityId}. The task may have been deleted or the draft is outdated.`);
@@ -530,8 +584,8 @@ export const applyDraft = async (
         const updated = await updateTask(db, action.entityId, {
           title: (action.after?.title as string) ?? undefined,
           description: (action.after?.description as string) ?? undefined,
-          status: (action.after?.status as string) ?? undefined,
-          priority: (action.after?.priority as string) ?? undefined,
+          status: toOptionalTaskStatus(action.after?.status),
+          priority: toOptionalPriority(action.after?.priority),
           wbs: (action.after?.wbs as string) ?? undefined,
           startDate: (action.after?.startDate as number) ?? undefined,
           dueDate: (action.after?.dueDate as number) ?? undefined,
@@ -539,10 +593,11 @@ export const applyDraft = async (
           assignee: (action.after?.assignee as string) ?? undefined,
           isMilestone: (action.after?.isMilestone as boolean) ?? undefined,
           predecessors: (action.after?.predecessors as string[]) ?? undefined,
-        });
+        }, workspaceId);
         if (updated) {
           results.push({ ...action, before: before ?? undefined, after: updated });
           await recordAudit(db, {
+            workspaceId,
             entityType: 'task',
             entityId: updated.id,
             action: 'update',
@@ -556,11 +611,12 @@ export const applyDraft = async (
           });
         }
       } else if (action.action === 'delete' && action.entityId) {
-        const before = await getTaskById(db, action.entityId);
-        const deleted = await deleteTask(db, action.entityId);
+        const before = await getTaskById(db, action.entityId, workspaceId);
+        const deleted = await deleteTask(db, action.entityId, workspaceId);
         results.push({ ...action, before: before ?? undefined, after: null });
         if (deleted) {
           await recordAudit(db, {
+            workspaceId,
             entityType: 'task',
             entityId: deleted.id,
             action: 'delete',
@@ -583,11 +639,12 @@ export const applyDraft = async (
 
 export const refreshDraftActions = async (
   db: ReturnType<typeof import('../db').getDb>,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<DraftRecord | null> => {
-  const draft = await getDraftById(db, id);
+  const draft = await getDraftById(db, id, workspaceId);
   if (!draft) return null;
-  const planned = await planActions(db, draft.actions);
+  const planned = await planActions(db, draft.actions, workspaceId);
   const next = { ...draft, actions: planned.actions };
   await db.update(drafts).set({ actions: next.actions }).where(eq(drafts.id, id));
   return next;

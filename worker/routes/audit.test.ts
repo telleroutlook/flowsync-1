@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { auditRoute } from './audit';
+import type { Variables } from '../types';
 
 vi.mock('../services/auditService', () => ({
   listAuditLogs: vi.fn(),
@@ -9,14 +10,28 @@ vi.mock('../services/auditService', () => ({
   isRollbackError: vi.fn(),
 }));
 
+vi.mock('./middleware', () => ({
+  workspaceMiddleware: async (
+    c: { set: (key: string, value: unknown) => void },
+    next: () => Promise<void>
+  ) => {
+    c.set('workspace', { id: 'public', name: 'Public', description: null, createdAt: 0, createdBy: null, isPublic: true });
+    c.set('workspaceMembership', null);
+    await next();
+  },
+}));
+
 import { getAuditLogById, rollbackAuditLog, isRollbackError } from '../services/auditService';
 
 const mockDb = {};
 
 const buildApp = () => {
-  const app = new Hono<{ Variables: { db: any } }>();
+  const app = new Hono<{ Variables: Variables }>();
   app.use('*', async (c, next) => {
     c.set('db', mockDb as any);
+    c.set('user', null);
+    c.set('workspace', null);
+    c.set('workspaceMembership', null);
     await next();
   });
   app.route('/api/audit', auditRoute);

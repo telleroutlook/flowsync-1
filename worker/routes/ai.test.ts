@@ -1,9 +1,21 @@
 import { Hono } from 'hono';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { aiRoute } from './ai';
+import type { Variables } from '../types';
 
 vi.mock('../services/logService', () => ({
   recordLog: vi.fn(),
+}));
+
+vi.mock('./middleware', () => ({
+  workspaceMiddleware: async (
+    c: { set: (key: string, value: unknown) => void },
+    next: () => Promise<void>
+  ) => {
+    c.set('workspace', { id: 'public', name: 'Public', description: null, createdAt: 0, createdBy: null, isPublic: true });
+    c.set('workspaceMembership', null);
+    await next();
+  },
 }));
 
 import { recordLog } from '../services/logService';
@@ -11,9 +23,12 @@ import { recordLog } from '../services/logService';
 const mockDb = {};
 
 const buildApp = () => {
-  const app = new Hono<{ Variables: { db: any } }>();
+  const app = new Hono<{ Variables: Variables }>();
   app.use('*', async (c, next) => {
     c.set('db', mockDb as any);
+    c.set('user', null);
+    c.set('workspace', null);
+    c.set('workspaceMembership', null);
     await next();
   });
   app.route('/', aiRoute);

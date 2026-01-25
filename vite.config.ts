@@ -20,6 +20,32 @@ export default defineConfig(() => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: (id) => {
+              if (!id.includes('node_modules')) return undefined;
+              if (id.includes('jspdf-autotable')) return 'jspdf-autotable';
+              if (id.includes('jspdf')) return 'jspdf';
+              if (id.includes('html2canvas')) return 'html2canvas';
+              if (id.includes('react-markdown') || id.includes('remark-gfm') || id.includes('purify')) {
+                return 'markdown';
+              }
+              if (id.includes('framer-motion')) return 'motion';
+              if (
+                id.includes('/node_modules/react/') ||
+                id.includes('/node_modules/react-dom/') ||
+                id.includes('/node_modules/scheduler/') ||
+                id.includes('/node_modules/use-sync-external-store/') ||
+                id.includes('/node_modules/react-is/')
+              ) {
+                return 'react';
+              }
+              return 'vendor';
+            },
+          },
+        },
+      },
     };
 });

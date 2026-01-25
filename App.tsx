@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, useCallback, memo } from 'react';
 import { ProjectSidebar } from './components/ProjectSidebar';
+import { WorkspacePanel } from './components/WorkspacePanel';
+import { LoginModal } from './components/LoginModal';
+import { WorkspaceModal } from './components/WorkspaceModal';
+import { UserProfileModal } from './components/UserProfileModal';
 import { ChatInterface } from './components/ChatInterface';
 import { AuditPanel } from './components/AuditPanel';
 import { TaskDetailPanel } from './components/TaskDetailPanel';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { Task, DraftAction, ChatMessage } from './types';
 import { useProjectData } from './src/hooks/useProjectData';
+import { useAuth } from './src/hooks/useAuth';
+import { useWorkspaces } from './src/hooks/useWorkspaces';
 import { useDrafts } from './src/hooks/useDrafts';
 import { useAuditLogs } from './src/hooks/useAuditLogs';
 import { useChat } from './src/hooks/useChat';
@@ -32,7 +38,7 @@ const LoadingSpinner = memo(({ message }: { message: string }) => (
 LoadingSpinner.displayName = 'LoadingSpinner';
 
 export default function App() {
-  const { t, locale, setLocale } = useI18n();
+  const { t } = useI18n();
 
   // UI State
   const [viewMode, setViewMode] = useState<ViewMode>('GANTT'); 
@@ -41,6 +47,9 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   
   // Refs
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -49,7 +58,23 @@ export default function App() {
 
   // --- HOOKS ---
 
-  // 1. Data
+  // 1. Auth & Workspaces
+  const { user, error: authError, login, register, logout } = useAuth();
+  const {
+    workspaces,
+    accessibleWorkspaces,
+    activeWorkspaceId,
+    setActiveWorkspaceId,
+    pendingRequests,
+    members,
+    createWorkspace,
+    requestJoin,
+    approveRequest,
+    rejectRequest,
+    removeMember,
+  } = useWorkspaces(user);
+
+  // 2. Data
   const { 
     projects, 
     tasks, 
@@ -62,7 +87,7 @@ export default function App() {
     refreshData, 
     handleSelectProject,
     fetchAllTasks
-  } = useProjectData();
+  } = useProjectData(activeWorkspaceId);
 
   const selectedTask = useMemo(
     () => (selectedTaskId ? tasks.find(task => task.id === selectedTaskId) ?? null : null),
@@ -279,6 +304,18 @@ export default function App() {
       {/* 1. Project Sidebar (Left) */}
       <div className={`${isSidebarOpen ? 'w-[260px]' : 'w-0'} transition-all duration-300 overflow-hidden border-r border-border-subtle bg-surface relative z-20 flex-shrink-0`}>
         <ProjectSidebar 
+          topSlot={(
+            <WorkspacePanel
+              user={user}
+              workspaces={accessibleWorkspaces}
+              activeWorkspaceId={activeWorkspaceId}
+              onSelectWorkspace={setActiveWorkspaceId}
+              onOpenLogin={() => setIsLoginOpen(true)}
+              onLogout={logout}
+              onOpenManage={() => setIsWorkspaceOpen(true)}
+              onOpenProfile={() => setIsProfileOpen(true)}
+            />
+          )}
           projects={projects}
           activeProjectId={activeProjectId}
           onSelectProject={handleSelectProject}
@@ -466,23 +503,6 @@ export default function App() {
                )}
              </div>
 
-            <div className="relative">
-              <select
-                value={locale}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (value === 'en' || value === 'zh') setLocale(value);
-                }}
-                aria-label={t('language.switch')}
-                className="rounded-lg border border-border-subtle bg-surface px-2 py-1 text-[10px] font-semibold text-text-secondary shadow-sm hover:border-primary/30 hover:text-primary transition-all outline-none"
-              >
-                <option value="en">{t('language.english')}</option>
-                <option value="zh">{t('language.chinese')}</option>
-              </select>
-            </div>
-
-            <div className="h-6 w-px bg-border-subtle mx-1"></div>
-
              <button 
                 onClick={() => setIsChatOpen(prev => !prev)}
                 className={`p-1.5 rounded-lg transition-colors ${
@@ -526,6 +546,34 @@ export default function App() {
           isOpen={isCreateProjectOpen}
           onClose={() => setIsCreateProjectOpen(false)}
           onCreate={handleCreateProject}
+        />
+
+        <LoginModal
+          isOpen={isLoginOpen}
+          error={authError}
+          onClose={() => setIsLoginOpen(false)}
+          onLogin={login}
+          onRegister={register}
+        />
+
+        <WorkspaceModal
+          isOpen={isWorkspaceOpen}
+          onClose={() => setIsWorkspaceOpen(false)}
+          workspaces={workspaces}
+          pendingRequests={pendingRequests}
+          members={members}
+          activeWorkspaceId={activeWorkspaceId}
+          onCreate={createWorkspace}
+          onRequestJoin={requestJoin}
+          onApprove={approveRequest}
+          onReject={rejectRequest}
+          onRemoveMember={removeMember}
+        />
+
+        <UserProfileModal
+          isOpen={isProfileOpen}
+          onClose={() => setIsProfileOpen(false)}
+          user={user}
         />
 
         {/* View Area */}

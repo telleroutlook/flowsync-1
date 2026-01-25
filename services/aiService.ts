@@ -1,4 +1,15 @@
 export class AIService {
+  private buildHeaders() {
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    if (typeof window !== 'undefined') {
+      const token = window.localStorage.getItem('flowsync:authToken');
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+      const workspaceId = window.localStorage.getItem('flowsync:activeWorkspaceId');
+      if (workspaceId) headers.set('X-Workspace-Id', workspaceId);
+    }
+    return headers;
+  }
+
   async sendMessageStream(
     history: { role: string; parts: { text: string }[] }[],
     newMessage: string,
@@ -17,7 +28,7 @@ export class AIService {
     try {
       const response = await fetch('/api/ai/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.buildHeaders(),
         body: JSON.stringify({ history, message: newMessage, systemContext }),
         signal: controller.signal,
       });
@@ -111,7 +122,7 @@ export class AIService {
       const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       const response = await fetch('/api/ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.buildHeaders(),
         body: JSON.stringify({ history, message: newMessage, systemContext }),
         signal: controller.signal,
       }).finally(() => {

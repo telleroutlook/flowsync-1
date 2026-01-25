@@ -1,7 +1,46 @@
-import { pgTable, text, bigint, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, text, bigint, boolean, jsonb, primaryKey, uniqueIndex } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  username: text('username').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+}, (table) => ({
+  usernameIdx: uniqueIndex('users_username_unique').on(table.username),
+}));
+
+export const sessions = pgTable('sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
+}, (table) => ({
+  tokenIdx: uniqueIndex('sessions_token_hash_unique').on(table.tokenHash),
+}));
+
+export const workspaces = pgTable('workspaces', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  createdBy: text('created_by'),
+  isPublic: boolean('is_public').notNull().default(false),
+});
+
+export const workspaceMembers = pgTable('workspace_members', {
+  workspaceId: text('workspace_id').notNull(),
+  userId: text('user_id').notNull(),
+  role: text('role').notNull(),
+  status: text('status').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.workspaceId, table.userId] }),
+}));
 
 export const projects = pgTable('projects', {
   id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
   name: text('name').notNull(),
   description: text('description'),
   icon: text('icon'),
@@ -29,6 +68,7 @@ export const tasks = pgTable('tasks', {
 
 export const drafts = pgTable('drafts', {
   id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
   projectId: text('project_id'),
   status: text('status').notNull(),
   actions: jsonb('actions').notNull().$type<any[]>(),
@@ -39,6 +79,7 @@ export const drafts = pgTable('drafts', {
 
 export const auditLogs = pgTable('audit_logs', {
   id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
   entityType: text('entity_type').notNull(),
   entityId: text('entity_id').notNull(),
   action: text('action').notNull(),

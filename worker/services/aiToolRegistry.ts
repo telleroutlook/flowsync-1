@@ -8,6 +8,7 @@
 
 import type { Context } from 'hono';
 import type { Bindings, Variables } from '../types';
+import { PUBLIC_WORKSPACE_ID } from './workspaceService';
 
 // ============================================================================
 // Type Definitions
@@ -163,7 +164,8 @@ class AIToolRegistry {
 // Default Tool Definitions for Project/Task Domain
 // ============================================================================
 
-function createDefaultTools(_c: Context<{ Bindings: Bindings; Variables: Variables }>): ToolDefinition[] {
+function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variables }>): ToolDefinition[] {
+  const workspaceId = c.get('workspace')?.id ?? PUBLIC_WORKSPACE_ID;
   return [
     // Read-only tools
     {
@@ -173,9 +175,11 @@ function createDefaultTools(_c: Context<{ Bindings: Bindings; Variables: Variabl
       category: 'read',
       handler: async ({ db }) => {
         const { projects } = await import('../db/schema');
+        const { eq } = await import('drizzle-orm');
         const projectRows = await db
           .select({ id: projects.id, name: projects.name, description: projects.description })
-          .from(projects);
+          .from(projects)
+          .where(eq(projects.workspaceId, workspaceId));
         return JSON.stringify({ success: true, data: projectRows });
       },
     },
@@ -190,9 +194,13 @@ function createDefaultTools(_c: Context<{ Bindings: Bindings; Variables: Variabl
       category: 'read',
       handler: async ({ db, args }) => {
         const { projects } = await import('../db/schema');
-        const { eq } = await import('drizzle-orm');
+        const { and, eq } = await import('drizzle-orm');
         const id = typeof args.id === 'string' ? args.id : '';
-        const projectList = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+        const projectList = await db
+          .select()
+          .from(projects)
+          .where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+          .limit(1);
         if (projectList.length === 0) {
           return JSON.stringify({ success: false, error: { code: 'NOT_FOUND', message: 'Project not found' } });
         }
@@ -214,7 +222,7 @@ function createDefaultTools(_c: Context<{ Bindings: Bindings; Variables: Variabl
       },
       category: 'read',
       handler: async ({ db, args }) => {
-        const { tasks } = await import('../db/schema');
+        const { tasks, projects } = await import('../db/schema');
         const { and, eq, like, or, sql } = await import('drizzle-orm');
         const { toTaskRecord } = await import('../services/serializers');
 
@@ -239,17 +247,30 @@ function createDefaultTools(_c: Context<{ Bindings: Bindings; Variables: Variabl
         }
 
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+        const workspaceClause = eq(projects.workspaceId, workspaceId);
+        const combinedClause = whereClause ? and(whereClause, workspaceClause) : workspaceClause;
         const page = typeof args.page === 'number' ? args.page : 1;
         const pageSize = typeof args.pageSize === 'number' ? args.pageSize : 50;
         const offset = (page - 1) * pageSize;
 
-        const taskList = await db.select().from(tasks).where(whereClause).limit(pageSize).offset(offset);
-        const totalCount = await db.select({ count: tasks.id }).from(tasks).where(whereClause);
+        const taskList = await db
+          .select()
+          .from(tasks)
+          .innerJoin(projects, eq(tasks.projectId, projects.id))
+          .where(combinedClause)
+          .limit(pageSize)
+          .offset(offset);
+        const totalCountRows = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(tasks)
+          .innerJoin(projects, eq(tasks.projectId, projects.id))
+          .where(combinedClause);
+        const totalCount = totalCountRows[0]?.count ?? 0;
 
         return JSON.stringify({
           success: true,
-          data: taskList.map(toTaskRecord),
-          total: totalCount.length,
+          data: taskList.map((row) => toTaskRecord(row.tasks)),
+          total: totalCount,
           page,
           pageSize,
         });
@@ -270,7 +291,7 @@ function createDefaultTools(_c: Context<{ Bindings: Bindings; Variables: Variabl
       category: 'read',
       handler: async ({ db, args }) => {
         // searchTasks is an alias to listTasks with different default behavior
-        const { tasks } = await import('../db/schema');
+        const { tasks, projects } = await import('../db/schema');
         const { and, eq, like, or, sql } = await import('drizzle-orm');
         const { toTaskRecord } = await import('../services/serializers');
 
@@ -295,17 +316,30 @@ function createDefaultTools(_c: Context<{ Bindings: Bindings; Variables: Variabl
         }
 
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+        const workspaceClause = eq(projects.workspaceId, workspaceId);
+        const combinedClause = whereClause ? and(whereClause, workspaceClause) : workspaceClause;
         const page = typeof args.page === 'number' ? args.page : 1;
         const pageSize = typeof args.pageSize === 'number' ? args.pageSize : 50;
         const offset = (page - 1) * pageSize;
 
-        const taskList = await db.select().from(tasks).where(whereClause).limit(pageSize).offset(offset);
-        const totalCount = await db.select({ count: tasks.id }).from(tasks).where(whereClause);
+        const taskList = await db
+          .select()
+          .from(tasks)
+          .innerJoin(projects, eq(tasks.projectId, projects.id))
+          .where(combinedClause)
+          .limit(pageSize)
+          .offset(offset);
+        const totalCountRows = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(tasks)
+          .innerJoin(projects, eq(tasks.projectId, projects.id))
+          .where(combinedClause);
+        const totalCount = totalCountRows[0]?.count ?? 0;
 
         return JSON.stringify({
           success: true,
-          data: taskList.map(toTaskRecord),
-          total: totalCount.length,
+          data: taskList.map((row) => toTaskRecord(row.tasks)),
+          total: totalCount,
           page,
           pageSize,
         });
@@ -321,15 +355,20 @@ function createDefaultTools(_c: Context<{ Bindings: Bindings; Variables: Variabl
       },
       category: 'read',
       handler: async ({ db, args }) => {
-        const { tasks } = await import('../db/schema');
-        const { eq } = await import('drizzle-orm');
+        const { tasks, projects } = await import('../db/schema');
+        const { and, eq } = await import('drizzle-orm');
         const { toTaskRecord } = await import('../services/serializers');
         const id = typeof args.id === 'string' ? args.id : '';
-        const taskList = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+        const taskList = await db
+          .select()
+          .from(tasks)
+          .innerJoin(projects, eq(tasks.projectId, projects.id))
+          .where(and(eq(tasks.id, id), eq(projects.workspaceId, workspaceId)))
+          .limit(1);
         if (taskList.length === 0) {
           return JSON.stringify({ success: false, error: { code: 'NOT_FOUND', message: 'Task not found' } });
         }
-        return JSON.stringify({ success: true, data: toTaskRecord(taskList[0]) });
+        return JSON.stringify({ success: true, data: toTaskRecord(taskList[0].tasks) });
       },
     },
 

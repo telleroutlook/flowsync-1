@@ -2,6 +2,7 @@ import type { ProjectRecord, TaskRecord } from './types';
 
 export const toProjectRecord = (row: {
   id: string;
+  workspaceId: string;
   name: string;
   description: string | null;
   icon: string | null;
@@ -9,6 +10,7 @@ export const toProjectRecord = (row: {
   updatedAt: number;
 }): ProjectRecord => ({
   id: row.id,
+  workspaceId: row.workspaceId,
   name: row.name,
   description: row.description,
   icon: row.icon,

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { auditLogs, projects, tasks } from '../db/schema';
 import type { AuditRecord, ProjectRecord, TaskRecord } from './types';
 import { generateId, now } from './utils';
+import { PUBLIC_WORKSPACE_ID } from './workspaceService';
 import { toProjectRecord, toTaskRecord } from './serializers';
 
 class RollbackError extends Error {
@@ -19,6 +20,7 @@ class RollbackError extends Error {
 const projectSnapshotSchema = z
   .object({
     id: z.string(),
+    workspaceId: z.string().optional().default(PUBLIC_WORKSPACE_ID),
     name: z.string(),
     description: z.string().nullable().optional(),
     icon: z.string().nullable().optional(),
@@ -27,6 +29,7 @@ const projectSnapshotSchema = z
   })
   .transform((data) => ({
     id: data.id,
+    workspaceId: data.workspaceId,
     name: data.name,
     description: data.description ?? null,
     icon: data.icon ?? null,
@@ -110,6 +113,7 @@ export const recordAudit = async (
   const timestamp = now();
   const record: AuditRecord = {
     id: generateId(),
+    workspaceId: entry.workspaceId,
     entityType: entry.entityType,
     entityId: entry.entityId,
     action: entry.action,
@@ -125,6 +129,7 @@ export const recordAudit = async (
 
   await db.insert(auditLogs).values({
     id: record.id,
+    workspaceId: record.workspaceId,
     entityType: record.entityType,
     entityId: record.entityId,
     action: record.action,
@@ -144,6 +149,7 @@ export const recordAudit = async (
 export const listAuditLogs = async (
   db: ReturnType<typeof import('../db').getDb>,
   filters: {
+    workspaceId: string;
     projectId?: string;
     taskId?: string;
     page?: number;
@@ -168,6 +174,7 @@ export const listAuditLogs = async (
     const q = `%${filters.q}%`;
     clauses.push(or(like(auditLogs.entityId, q), like(auditLogs.reason, q)));
   }
+  clauses.push(eq(auditLogs.workspaceId, filters.workspaceId));
   const whereClause = clauses.length ? and(...clauses) : undefined;
 
   const page = Math.max(1, filters.page ?? 1);
@@ -188,6 +195,7 @@ export const listAuditLogs = async (
 
   const data = rows.map((row) => ({
     id: row.id,
+    workspaceId: row.workspaceId,
     entityType: row.entityType as AuditRecord['entityType'],
     entityId: row.entityId,
     action: row.action,
@@ -205,13 +213,19 @@ export const listAuditLogs = async (
 
 export const getAuditLogById = async (
   db: ReturnType<typeof import('../db').getDb>,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<AuditRecord | null> => {
-  const rows = await db.select().from(auditLogs).where(eq(auditLogs.id, id)).limit(1);
+  const rows = await db
+    .select()
+    .from(auditLogs)
+    .where(and(eq(auditLogs.id, id), eq(auditLogs.workspaceId, workspaceId)))
+    .limit(1);
   const row = rows[0];
   if (!row) return null;
   return {
     id: row.id,
+    workspaceId: row.workspaceId,
     entityType: row.entityType as AuditRecord['entityType'],
     entityId: row.entityId,
     action: row.action,
@@ -229,9 +243,10 @@ export const getAuditLogById = async (
 export const rollbackAuditLog = async (
   db: ReturnType<typeof import('../db').getDb>,
   id: string,
-  input: { actor: AuditRecord['actor']; reason?: string }
+  input: { actor: AuditRecord['actor']; reason?: string },
+  workspaceId: string
 ): Promise<{ audit: AuditRecord; entity: ProjectRecord | TaskRecord | null }> => {
-  const entry = await getAuditLogById(db, id);
+  const entry = await getAuditLogById(db, id, workspaceId);
   if (!entry) throw new RollbackError('NOT_FOUND', 'Audit log not found.', 404);
   if (entry.action === 'rollback') {
     throw new RollbackError('INVALID_ROLLBACK', 'Rollback entries cannot be rolled back.', 400);
@@ -259,6 +274,7 @@ export const rollbackAuditLog = async (
       await db
         .update(projects)
         .set({
+          workspaceId: snapshot.workspaceId,
           name: snapshot.name,
           description: snapshot.description,
           icon: snapshot.icon,
@@ -275,6 +291,7 @@ export const rollbackAuditLog = async (
         await db
           .update(projects)
           .set({
+            workspaceId: snapshot.project.workspaceId,
             name: snapshot.project.name,
             description: snapshot.project.description,
             icon: snapshot.project.icon,
@@ -285,6 +302,7 @@ export const rollbackAuditLog = async (
       } else {
         await db.insert(projects).values({
           id: snapshot.project.id,
+          workspaceId: snapshot.project.workspaceId,
           name: snapshot.project.name,
           description: snapshot.project.description,
           icon: snapshot.project.icon,
@@ -413,6 +431,7 @@ export const rollbackAuditLog = async (
 
   const reason = input.reason ?? `Rollback of audit ${entry.id}`;
   const audit = await recordAudit(db, {
+    workspaceId,
     entityType: entry.entityType,
     entityId: entry.entityId,
     action: 'rollback',

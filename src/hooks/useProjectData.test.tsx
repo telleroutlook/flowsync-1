@@ -57,9 +57,9 @@ describe('useProjectData', () => {
   });
 
   it('loads projects and tasks, honoring stored active project', async () => {
-    localStorage.setItem('flowsync:activeProjectId', 'p2');
+    localStorage.setItem('flowsync:activeProjectId:public', 'p2');
 
-    const { result } = renderHook(() => useProjectData(), { wrapper });
+    const { result } = renderHook(() => useProjectData('public'), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -72,7 +72,7 @@ describe('useProjectData', () => {
   });
 
   it('updates active project and persists to localStorage', async () => {
-    const { result } = renderHook(() => useProjectData(), { wrapper });
+    const { result } = renderHook(() => useProjectData('public'), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -81,6 +81,6 @@ describe('useProjectData', () => {
     });
 
     expect(result.current.activeProjectId).toBe('p1');
-    expect(localStorage.getItem('flowsync:activeProjectId')).toBe('p1');
+    expect(localStorage.getItem('flowsync:activeProjectId:public')).toBe('p1');
   });
 });

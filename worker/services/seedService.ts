@@ -2,8 +2,10 @@ import { sql } from 'drizzle-orm';
 import { projects, tasks } from '../db/schema';
 import { seedProjects, seedTasks } from '../db/seed';
 import { now } from './utils';
+import { ensurePublicWorkspace } from './workspaceService';
 
 export const ensureSeedData = async (db: ReturnType<typeof import('../db').getDb>) => {
+  const publicWorkspace = await ensurePublicWorkspace(db);
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(projects);
   if (count > 0) return;
 
@@ -11,6 +13,7 @@ export const ensureSeedData = async (db: ReturnType<typeof import('../db').getDb
   await db.insert(projects).values(
     seedProjects.map((project) => ({
       id: project.id,
+      workspaceId: publicWorkspace.id,
       name: project.name,
       description: project.description ?? null,
       icon: project.icon ?? null,

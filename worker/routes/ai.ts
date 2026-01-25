@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { jsonError, jsonOk } from './helpers';
+import { workspaceMiddleware } from './middleware';
 import { recordLog } from '../services/logService';
 import { getAuthorizationHeader } from '../utils/bigmodelAuth';
 import { createToolRegistry } from '../services/aiToolRegistry';
@@ -9,6 +10,7 @@ import type { Bindings, Variables } from '../types';
 import type { Context } from 'hono';
 
 export const aiRoute = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+aiRoute.use('*', workspaceMiddleware);
 
 const MAX_HISTORY_MESSAGES = 30;
 const MAX_MESSAGE_CHARS = 4000;

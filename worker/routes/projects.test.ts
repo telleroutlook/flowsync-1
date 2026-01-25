@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { projectsRoute } from './projects';
 import { tasks } from '../db/schema';
+import type { Variables } from '../types';
 
 vi.mock('../services/projectService', () => ({
   listProjects: vi.fn(),
@@ -19,6 +20,17 @@ vi.mock('../services/serializers', () => ({
   toTaskRecord: vi.fn((row: { id: string }) => row),
 }));
 
+vi.mock('./middleware', () => ({
+  workspaceMiddleware: async (
+    c: { set: (key: string, value: unknown) => void },
+    next: () => Promise<void>
+  ) => {
+    c.set('workspace', { id: 'public', name: 'Public', description: null, createdAt: 0, createdBy: null, isPublic: true });
+    c.set('workspaceMembership', null);
+    await next();
+  },
+}));
+
 import { listProjects, getProjectById, createProject, updateProject, deleteProject } from '../services/projectService';
 import { recordAudit } from '../services/auditService';
 
@@ -31,9 +43,12 @@ const mockDb = {
 };
 
 const buildApp = () => {
-  const app = new Hono<{ Variables: { db: any } }>();
+  const app = new Hono<{ Variables: Variables }>();
   app.use('*', async (c, next) => {
     c.set('db', mockDb as any);
+    c.set('user', null);
+    c.set('workspace', null);
+    c.set('workspaceMembership', null);
     await next();
   });
   app.route('/api/projects', projectsRoute);
