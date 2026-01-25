@@ -72,12 +72,12 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white sticky top-0 z-10">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-white sticky top-0 z-10">
           <div>
-            <h3 className="text-lg font-bold text-slate-800 tracking-tight">{t('workspace.manage')}</h3>
+            <h3 className="text-xl font-bold text-slate-900 tracking-tight">{t('workspace.manage')}</h3>
             {activeWorkspace && (
-              <p className="text-xs text-slate-500 mt-0.5 font-medium flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+              <p className="text-sm text-slate-500 mt-1 font-medium flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
                 {activeWorkspace.name}
               </p>
             )}
@@ -170,16 +170,16 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     }`}
                   >
                     <div className="min-w-0 flex-1 mr-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="text-sm font-bold text-slate-800 truncate">{workspace.name}</h4>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <h4 className="text-base font-bold text-slate-800 truncate">{workspace.name}</h4>
                         {isActive && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
                             {t('workspace.active')}
                           </span>
                         )}
                       </div>
                       {workspace.description && (
-                        <p className="text-xs text-slate-500 truncate">{workspace.description}</p>
+                        <p className="text-sm text-slate-500 truncate">{workspace.description}</p>
                       )}
                     </div>
                     
@@ -255,14 +255,14 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   {members.map((member) => (
                     <div key={member.userId} className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
                       <div className="flex items-center gap-3">
-                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                           <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
                            member.role === 'admin' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'
                          }`}>
                            {member.username.charAt(0).toUpperCase()}
                          </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-700">{member.username}</p>
-                          <p className="text-[10px] text-slate-400">
+                          <p className="text-base font-semibold text-slate-700">{member.username}</p>
+                          <p className="text-xs text-slate-400">
                             {member.role === 'admin' ? t('workspace.role_admin') : t('workspace.role_member')}
                           </p>
                         </div>

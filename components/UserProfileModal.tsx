@@ -25,15 +25,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
            <div className="text-center">
              {user ? (
                <>
-                 <h3 className="text-lg font-bold text-slate-800">{user.username}</h3>
-                 <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
+                 <h3 className="text-xl font-bold text-slate-900">{user.username}</h3>
+                 <span className="inline-block mt-1 px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-700 text-xs font-bold uppercase tracking-wider">
                    {t('auth.signed_in')}
                  </span>
                </>
              ) : (
                <>
-                 <h3 className="text-lg font-bold text-slate-400">{t('auth.guest')}</h3>
-                 <p className="text-xs text-slate-400 mt-1 max-w-[200px]">{t('profile.guest_hint')}</p>
+                 <h3 className="text-xl font-bold text-slate-400">{t('auth.guest')}</h3>
+                 <p className="text-sm text-slate-400 mt-1 max-w-[200px]">{t('profile.guest_hint')}</p>
                </>
              )}
            </div>
