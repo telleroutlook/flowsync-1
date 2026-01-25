@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, memo, useCallback } from 'react';
 import { useI18n } from '../src/i18n';
 
 interface ModalProps {
@@ -8,13 +8,14 @@ interface ModalProps {
   children: React.ReactNode;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const Modal = memo<ModalProps>(({ isOpen, onClose, title, children }) => {
   const { t } = useI18n();
 
+  const handleEscape = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  }, [onClose]);
+
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
@@ -23,13 +24,13 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, handleEscape]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-      <div 
+      <div
         className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-scale-in"
         role="dialog"
         aria-modal="true"
@@ -53,4 +54,5 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
       </div>
     </div>
   );
-};
+});
+Modal.displayName = 'Modal';

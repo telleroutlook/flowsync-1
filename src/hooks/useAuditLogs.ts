@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiService } from '../../services/apiService';
 import { AuditLog } from '../../types';
 import { useI18n } from '../i18n';
@@ -85,10 +85,21 @@ export const useAuditLogs = ({ activeProjectId, refreshData, appendSystemMessage
     setAuditPage(1);
   }, [auditFilters, auditPageSize]);
 
+  // Debounced refresh for search input to reduce API calls
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    // Debounce or just rely on dependencies. 
-    // Since refreshAuditLogs is memoized with deps, calling it here is safe.
-    void refreshAuditLogs(activeProjectId);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      void refreshAuditLogs(activeProjectId);
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
   }, [refreshAuditLogs, activeProjectId]);
 
   return {

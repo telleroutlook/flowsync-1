@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Modal } from './Modal';
 import { useI18n } from '../src/i18n';
 
@@ -8,7 +8,7 @@ interface CreateProjectModalProps {
   onCreate: (name: string, description: string) => void;
 }
 
-export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose, onCreate }) => {
+export const CreateProjectModal = memo<CreateProjectModalProps>(({ isOpen, onClose, onCreate }) => {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -18,17 +18,24 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, 
     if (isOpen) {
         setName('');
         setDescription('');
-        // Focus the input after a short delay to allow animation to start
         setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     onCreate(name.trim(), description.trim());
     onClose();
-  };
+  }, [name, description, onCreate, onClose]);
+
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setName(e.target.value);
+  }, []);
+
+  const handleDescChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setDescription(e.target.value);
+  }, []);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('project.create.title')}>
@@ -42,7 +49,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, 
             id="project-name"
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={handleNameChange}
             className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400 text-sm"
             placeholder={t('project.create.placeholder_name')}
             required
@@ -55,7 +62,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, 
           <textarea
             id="project-desc"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={handleDescChange}
             className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400 text-sm resize-none"
             placeholder={t('project.create.placeholder_description')}
             rows={3}
@@ -80,4 +87,5 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, 
       </form>
     </Modal>
   );
-};
+});
+CreateProjectModal.displayName = 'CreateProjectModal';

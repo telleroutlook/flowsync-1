@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, memo, useCallback } from 'react';
 import { Modal } from './Modal';
 import { useI18n } from '../src/i18n';
 
@@ -10,7 +10,7 @@ interface LoginModalProps {
   onRegister: (username: string, password: string) => Promise<unknown> | void;
 }
 
-export const LoginModal: React.FC<LoginModalProps> = ({
+export const LoginModal = memo<LoginModalProps>(({
   isOpen,
   error,
   onClose,
@@ -33,7 +33,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   }, [isOpen]);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = useCallback(async (event: React.FormEvent) => {
     event.preventDefault();
     if (!username.trim() || !password) return;
     setIsSubmitting(true);
@@ -49,7 +49,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [username, password, mode, onLogin, onRegister, onClose]);
+
+  const handleUsernameChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setUsername(event.target.value);
+  }, []);
+
+  const handlePasswordChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(event.target.value);
+  }, []);
+
+  const toggleMode = useCallback(() => {
+    setMode(prev => prev === 'login' ? 'register' : 'login');
+  }, []);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="">
@@ -82,7 +94,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 id="auth-username"
                 type="text"
                 value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                onChange={handleUsernameChange}
                 className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400 text-sm shadow-sm"
                 placeholder={t('auth.username_placeholder')}
                 required
@@ -101,7 +113,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 id="auth-password"
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={handlePasswordChange}
                 className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400 text-sm shadow-sm"
                 placeholder={t('auth.password_placeholder')}
                 required
@@ -131,7 +143,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
            <span>{mode === 'login' ? t('auth.no_account') : t('auth.have_account')}</span>
           <button
             type="button"
-            onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+            onClick={toggleMode}
             className="font-bold text-indigo-600 hover:text-indigo-700 hover:underline transition-all"
           >
             {mode === 'login' ? t('auth.register_now') : t('auth.login_now')}
@@ -140,4 +152,5 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       </form>
     </Modal>
   );
-};
+});
+LoginModal.displayName = 'LoginModal';

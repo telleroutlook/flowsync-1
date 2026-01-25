@@ -1,6 +1,7 @@
 import React, { useState, memo, useMemo, useCallback } from 'react';
 import { AuditLog } from '../types';
 import { useI18n } from '../src/i18n';
+import { getActionLabel, getEntityLabel, getActorLabel } from '../src/i18n/labels';
 
 interface AuditPanelProps {
   isOpen: boolean;
@@ -122,45 +123,6 @@ export const AuditPanel = memo<AuditPanelProps>(({
     setSelectedAudit(null);
   }, []);
 
-  const getActionLabel = useCallback((action: string) => {
-    switch (action) {
-      case 'create':
-        return t('audit.actions.create');
-      case 'update':
-        return t('audit.actions.update');
-      case 'delete':
-        return t('audit.actions.delete');
-      case 'rollback':
-        return t('audit.actions.rollback');
-      default:
-        return action;
-    }
-  }, [t]);
-
-  const getEntityLabel = useCallback((entityType: string) => {
-    switch (entityType) {
-      case 'project':
-        return t('audit.entities.project');
-      case 'task':
-        return t('audit.entities.task');
-      default:
-        return entityType;
-    }
-  }, [t]);
-
-  const getActorLabel = useCallback((actor: string) => {
-    switch (actor) {
-      case 'user':
-        return t('audit.actors.user');
-      case 'agent':
-        return t('audit.actors.agent');
-      case 'system':
-        return t('audit.actors.system');
-      default:
-        return actor;
-    }
-  }, [t]);
-
   const selectedAuditDiff = useMemo(() => {
     if (!selectedAudit) return [];
     return diffAuditRecords(selectedAudit.before ?? null, selectedAudit.after ?? null);
@@ -261,14 +223,14 @@ export const AuditPanel = memo<AuditPanelProps>(({
             <div key={log.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
               <div className="flex items-start gap-3">
                 <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-bold uppercase tracking-wider ${auditBadgeClass(log.action)}`}>
-                  {getActionLabel(log.action)}
+                  {getActionLabel(log.action, t)}
                 </span>
                 <div>
                   <div className="text-sm font-semibold text-slate-700">
-                    {getEntityLabel(log.entityType)} · {log.entityId}
+                    {getEntityLabel(log.entityType, t)} · {log.entityId}
                   </div>
                   <div className="text-xs text-slate-500">
-                    {getActorLabel(log.actor)} · {formatAuditTimestamp(log.timestamp, locale)}
+                    {getActorLabel(log.actor, t)} · {formatAuditTimestamp(log.timestamp, locale)}
                   </div>
                   {log.reason && (
                     <div className="text-xs text-slate-500">{t('audit.reason', { reason: log.reason })}</div>
@@ -343,7 +305,7 @@ export const AuditPanel = memo<AuditPanelProps>(({
               <div>
                 <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">{t('audit.detail_title')}</p>
                 <p className="text-base font-semibold text-slate-800">
-                  {getEntityLabel(selectedAudit.entityType)} · {selectedAudit.entityId}
+                  {getEntityLabel(selectedAudit.entityType, t)} · {selectedAudit.entityId}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -366,9 +328,9 @@ export const AuditPanel = memo<AuditPanelProps>(({
             <div className="px-5 py-4 space-y-3">
               <div className="flex flex-wrap gap-2 text-xs text-slate-500">
                 <span className={`inline-flex rounded-full border px-2 py-0.5 font-bold uppercase tracking-wider ${auditBadgeClass(selectedAudit.action)}`}>
-                  {getActionLabel(selectedAudit.action)}
+                  {getActionLabel(selectedAudit.action, t)}
                 </span>
-                <span>{getActorLabel(selectedAudit.actor)}</span>
+                <span>{getActorLabel(selectedAudit.actor, t)}</span>
                 <span>· {formatAuditTimestamp(selectedAudit.timestamp, locale)}</span>
                 {selectedAudit.reason && <span>· {selectedAudit.reason}</span>}
               </div>

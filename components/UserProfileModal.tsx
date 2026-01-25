@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import type { User } from '../types';
 import { useI18n } from '../src/i18n';
 import { Modal } from './Modal';
@@ -9,8 +9,15 @@ interface UserProfileModalProps {
   user: User | null;
 }
 
-export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, user }) => {
+export const UserProfileModal = memo<UserProfileModalProps>(({ isOpen, onClose, user }) => {
   const { t, locale, setLocale } = useI18n();
+
+  const userInitial = useMemo(() => user ? user.username.charAt(0).toUpperCase() : '?', [user]);
+
+  const handleLocaleChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value;
+    if (value === 'en' || value === 'zh') setLocale(value);
+  }, [setLocale]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('profile.title')}>
@@ -19,9 +26,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
            <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold shadow-sm mb-3 ${
              user ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-400'
            }`}>
-             {user ? user.username.charAt(0).toUpperCase() : '?'}
+             {userInitial}
            </div>
-           
+
            <div className="text-center">
              {user ? (
                <>
@@ -47,10 +54,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
             <select
               id="profile-language"
               value={locale}
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === 'en' || value === 'zh') setLocale(value);
-              }}
+              onChange={handleLocaleChange}
               aria-label={t('language.switch')}
               className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-all hover:border-indigo-300 cursor-pointer"
             >
@@ -67,4 +71,5 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
       </div>
     </Modal>
   );
-};
+});
+UserProfileModal.displayName = 'UserProfileModal';

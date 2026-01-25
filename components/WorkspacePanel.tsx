@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import type { User, WorkspaceWithMembership } from '../types';
 import { useI18n } from '../src/i18n';
 
@@ -13,7 +13,7 @@ interface WorkspacePanelProps {
   onOpenProfile: () => void;
 }
 
-export const WorkspacePanel: React.FC<WorkspacePanelProps> = ({
+export const WorkspacePanel = memo<WorkspacePanelProps>(({
   user,
   workspaces,
   activeWorkspaceId,
@@ -25,6 +25,17 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = ({
 }) => {
   const { t } = useI18n();
 
+  const userInitial = useMemo(() => user ? user.username.charAt(0).toUpperCase() : '?', [user]);
+  const userName = useMemo(() => user ? user.username : t('auth.guest'), [user, t]);
+
+  const handleLogout = useCallback(() => {
+    void onLogout();
+  }, [onLogout]);
+
+  const handleWorkspaceChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    onSelectWorkspace(event.target.value);
+  }, [onSelectWorkspace]);
+
   return (
     <div className="space-y-3">
       {/* User Info Section */}
@@ -33,11 +44,11 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = ({
            <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm shadow-sm ${
              user ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'
            }`}>
-             {user ? user.username.charAt(0).toUpperCase() : '?'}
+             {userInitial}
            </div>
            <div className="flex flex-col min-w-0">
               <span className="text-sm font-bold text-slate-800 truncate">
-                {user ? user.username : t('auth.guest')}
+                {userName}
               </span>
               <button
                 onClick={onOpenProfile}
@@ -52,9 +63,7 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = ({
           {user ? (
             <button
               type="button"
-              onClick={() => {
-                void onLogout();
-              }}
+              onClick={handleLogout}
               className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-all"
               title={t('auth.logout')}
             >
@@ -83,7 +92,7 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = ({
           <div className="relative flex-1">
             <select
               value={activeWorkspaceId}
-              onChange={(event) => onSelectWorkspace(event.target.value)}
+              onChange={handleWorkspaceChange}
               className="w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:border-indigo-300 transition-all shadow-sm cursor-pointer"
               aria-label={t('workspace.select')}
             >
@@ -99,7 +108,7 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = ({
               </svg>
             </div>
           </div>
-          
+
           {user && (
             <button
               type="button"
@@ -117,4 +126,5 @@ export const WorkspacePanel: React.FC<WorkspacePanelProps> = ({
       </div>
     </div>
   );
-};
+});
+WorkspacePanel.displayName = 'WorkspacePanel';

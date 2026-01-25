@@ -4,6 +4,7 @@ import { ChatMessage, ChatAttachment, Draft } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, RotateCcw, X, Paperclip, Send, File, XCircle, AlertTriangle } from 'lucide-react';
 import { useI18n } from '../src/i18n';
+import { getActionLabel, getEntityLabel } from '../src/i18n/labels';
 
 interface ChatInterfaceProps {
   isChatOpen: boolean;
@@ -49,32 +50,6 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
   onResetChat,
 }) => {
   const { t } = useI18n();
-
-  const getActionLabel = useCallback((action: string) => {
-    switch (action) {
-      case 'create':
-        return t('audit.actions.create');
-      case 'update':
-        return t('audit.actions.update');
-      case 'delete':
-        return t('audit.actions.delete');
-      case 'rollback':
-        return t('audit.actions.rollback');
-      default:
-        return action.toUpperCase();
-    }
-  }, [t]);
-
-  const getEntityLabel = useCallback((entityType: string) => {
-    switch (entityType) {
-      case 'project':
-        return t('audit.entities.project');
-      case 'task':
-        return t('audit.entities.task');
-      default:
-        return entityType;
-    }
-  }, [t]);
 
   const handleFileInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     onAttachFiles(event.target.files);
@@ -159,7 +134,7 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
             <div className="space-y-1 pl-5 mb-3">
               {pendingDraft.actions.slice(0, 3).map(action => (
                 <div key={action.id} className="text-xs text-amber-800 truncate font-medium">
-                  {getActionLabel(action.action)} <span className="opacity-75">{getEntityLabel(action.entityType)}</span>
+                  {getActionLabel(action.action, t)} <span className="opacity-75">{getEntityLabel(action.entityType, t)}</span>
                 </div>
               ))}
               {pendingDraft.actions.length > 3 && (

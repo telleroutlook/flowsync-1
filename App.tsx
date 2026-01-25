@@ -291,7 +291,6 @@ export default function App() {
   }, [setTasks, submitDraft]);
 
   // Derived State
-  const filteredAuditLogs = useMemo(() => auditLogs, [auditLogs]);
   const viewLabels: Record<ViewMode, string> = {
     BOARD: t('app.view.board'),
     LIST: t('app.view.list'),
@@ -414,11 +413,11 @@ export default function App() {
                     ? 'border-primary/20 bg-primary/10 text-primary'
                     : 'border-border-subtle bg-surface text-text-secondary hover:border-primary/30 hover:text-primary'
                 }`}
-                aria-label={`${t('app.header.audit')} (${filteredAuditLogs.length})`}
+                aria-label={`${t('app.header.audit')} (${auditLogs.length})`}
               >
                 <span>{t('app.header.audit')}</span>
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary min-w-[18px] text-center">
-                  {filteredAuditLogs.length}
+                  {auditLogs.length}
                 </span>
               </button>
             </div>
@@ -531,7 +530,7 @@ export default function App() {
           onRefresh={() => refreshAuditLogs(activeProjectId)}
           filters={auditFilters}
           setFilters={setAuditFilters}
-          logs={filteredAuditLogs}
+          logs={auditLogs}
           total={auditTotal}
           page={auditPage}
           setPage={setAuditPage}

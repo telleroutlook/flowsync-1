@@ -82,8 +82,8 @@ export const useChat = ({
     });
   }, []);
 
-  // Build system context for the AI
-  const buildSystemContext = useCallback((): string => {
+  // Build system context for the AI - memoized to avoid recalculating on every render
+  const systemContext = useMemo(() => {
     const maxContextTasks = 30;
     const limitedTasks = activeTasks.slice(0, maxContextTasks);
     const taskIdMap = limitedTasks.map(task => ({ id: task.id, title: task.title }));
@@ -105,10 +105,12 @@ export const useChat = ({
       ? `User is currently inspecting task: ${selectedTask.title} (ID: ${selectedTask.id}, Status: ${selectedTask.status}, Start: ${formatDate(selectedTask.startDate)}, Due: ${formatDate(selectedTask.dueDate)}).`
       : '';
 
+    const projectsList = projects.map(p => `${p.name} (${p.id})`).join(', ');
+
     return `Active Project: ${activeProject.name || 'None'}.
 Active Project ID: ${activeProject.id || 'N/A'}.
 ${selectedTaskInfo}
-Available Projects: ${projects.map(p => `${p.name} (${p.id})`).join(', ')}.
+Available Projects: ${projectsList}.
 ${
   shouldIncludeFullMappings
     ? `Task IDs in Active Project (JSON): ${mappingJson}.`
@@ -301,7 +303,6 @@ ${
         parts: [{ text: m.text }]
       }));
 
-      const systemContext = buildSystemContext();
       await processConversationTurn(history, userMsg.text, systemContext, 0);
 
     } catch {
@@ -323,7 +324,7 @@ ${
     messages,
     pushProcessingStep,
     processConversationTurn,
-    buildSystemContext,
+    systemContext,
     t
   ]);
 

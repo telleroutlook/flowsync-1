@@ -23,10 +23,6 @@ export const ProjectSidebar = memo<ProjectSidebarProps>(({
 }) => {
   const { t } = useI18n();
 
-  const handleSelectProject = useCallback((id: string) => {
-    onSelectProject(id);
-  }, [onSelectProject]);
-
   const handleDeleteProject = useCallback((event: React.MouseEvent, id: string, name: string) => {
     event.stopPropagation();
     if (confirm(t('app.sidebar.delete_confirm', { name }))) {
@@ -71,7 +67,7 @@ export const ProjectSidebar = memo<ProjectSidebarProps>(({
           return (
             <div
               key={project.id}
-              onClick={() => handleSelectProject(project.id)}
+              onClick={() => onSelectProject(project.id)}
               className={`group flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-200 border ${
                 isActive
                   ? 'bg-indigo-50/60 text-indigo-700 border-indigo-100/50 shadow-sm'
@@ -83,7 +79,7 @@ export const ProjectSidebar = memo<ProjectSidebarProps>(({
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
-                  handleSelectProject(project.id);
+                  onSelectProject(project.id);
                 }
               }}
             >

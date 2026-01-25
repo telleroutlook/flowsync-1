@@ -309,35 +309,67 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
 
   if (tasks.length === 0) return <div className="p-8 text-center text-slate-500">{t('gantt.no_tasks')}</div>;
 
-  // Render Helpers
-  const getDisplayValues = (task: TaskEntry) => {
-    let s = task.startMs;
-    let e = task.endMs;
+  // Compute task coordinates with drag state applied - memoized for performance
+  const taskCoords = useMemo(() => {
+    return taskEntries.map((task, i) => {
+      let s = task.startMs;
+      let e = task.endMs;
 
-    if (dragState?.id === task.id) {
-      if (dragState.mode === 'move') {
-        s += dragDeltaMs;
-        e += dragDeltaMs;
-      } else if (dragState.mode === 'start') {
-        s = Math.min(task.endMs - DAY_MS, s + dragDeltaMs);
-      } else if (dragState.mode === 'end') {
-        e = Math.max(task.startMs + DAY_MS, e + dragDeltaMs);
+      if (dragState?.id === task.id) {
+        if (dragState.mode === 'move') {
+          s += dragDeltaMs;
+          e += dragDeltaMs;
+        } else if (dragState.mode === 'start') {
+          s = Math.min(task.endMs - DAY_MS, s + dragDeltaMs);
+        } else if (dragState.mode === 'end') {
+          e = Math.max(task.startMs + DAY_MS, e + dragDeltaMs);
+        }
       }
-    }
-    return { start: s, end: e };
-  };
 
-  const taskCoords: TaskCoord[] = taskEntries.map((task, i) => {
-    const { start, end } = getDisplayValues(task);
-    const x = getX(start);
-    const w = Math.max(2, getX(end) - x); // Min 2px width
-    const top = i * ROW_HEIGHT + BAR_OFFSET_Y;
-    const centerY = top + BAR_HEIGHT / 2;
-    return { id: task.id, x, top, w, start, end, centerY, original: task };
-  });
+      const x = getX(s);
+      const w = Math.max(2, getX(e) - x);
+      const top = i * ROW_HEIGHT + BAR_OFFSET_Y;
+      const centerY = top + BAR_HEIGHT / 2;
+      return { id: task.id, x, top, w, start: s, end: e, centerY, original: task };
+    });
+  }, [taskEntries, dragState, dragDeltaMs, getX]);
 
-  const taskMap = new Map<string, TaskCoord>(taskCoords.map((t) => [t.id, t]));
+  const taskMap = useMemo(() => new Map(taskCoords.map((t) => [t.id, t])), [taskCoords]);
   const taskById = useMemo(() => new Map(taskEntries.map(task => [task.id, task])), [taskEntries]);
+
+  // Pre-compute dependency links to avoid flatMap on every render
+  const dependencyLinks = useMemo(() => {
+    const links: Array<{
+      key: string;
+      d: string;
+      label: string;
+    }> = [];
+
+    taskEntries.forEach(task => {
+      if (!task.predecessors?.length) return;
+      const target = taskMap.get(task.id);
+      if (!target) return;
+
+      task.predecessors.forEach(predId => {
+        const source = taskMap.get(predId);
+        if (!source) return;
+        const sourceTask = taskById.get(predId);
+        const targetTask = taskById.get(task.id);
+        const label = sourceTask && targetTask ? `${sourceTask.title} → ${targetTask.title}` : t('gantt.dependency');
+
+        const x1 = source.x + source.w;
+        const y1 = source.centerY;
+        const x2 = target.x;
+        const y2 = target.centerY;
+        const midX = x1 + 20;
+        const d = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+
+        links.push({ key: `${source.id}-${target.id}`, d, label });
+      });
+    });
+
+    return links;
+  }, [taskEntries, taskMap, taskById, t]);
 
   const updateDependencyTooltip = (event: React.MouseEvent<SVGPathElement>, text: string) => {
     const timeline = timelineRef.current;
@@ -442,45 +474,21 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                       <path d="M0,0 L6,3 L0,6 Z" fill="#94a3b8" />
                     </marker>
                  </defs>
-                 {taskEntries.flatMap(task => {
-                   if (!task.predecessors?.length) return [];
-                   const target = taskMap.get(task.id);
-                   if (!target) return [];
-                   return task.predecessors.map(predId => {
-                     const source = taskMap.get(predId);
-                     if (!source) return null;
-                     const sourceTask = taskById.get(predId);
-                     const targetTask = taskById.get(task.id);
-                     const label = sourceTask && targetTask ? `${sourceTask.title} → ${targetTask.title}` : t('gantt.dependency');
-                     
-                     // Coordinates
-                     const x1 = source.x + source.w;
-                     const y1 = source.centerY;
-                     const x2 = target.x;
-                     const y2 = target.centerY;
-                     
-                     // Path logic: Orthogonal routing
-                     const midX = x1 + 20;
-                     // Simple S-curve or L-curve
-                     const d = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
-
-                     return (
-                       <path 
-                         key={`${source.id}-${target.id}`}
-                         d={d}
-                         stroke="#cbd5e1"
-                         strokeWidth="1.5"
-                         fill="none"
-                         markerEnd={`url(#arrow-head-${arrowId})`}
-                         className="transition-colors hover:stroke-indigo-400"
-                         style={{ pointerEvents: 'stroke' }}
-                         onMouseEnter={(event) => updateDependencyTooltip(event, label)}
-                         onMouseMove={(event) => updateDependencyTooltip(event, label)}
-                         onMouseLeave={() => setDependencyTooltip(null)}
-                       />
-                     );
-                   });
-                 })}
+                 {dependencyLinks.map(link => (
+                   <path
+                     key={link.key}
+                     d={link.d}
+                     stroke="#cbd5e1"
+                     strokeWidth="1.5"
+                     fill="none"
+                     markerEnd={`url(#arrow-head-${arrowId})`}
+                     className="transition-colors hover:stroke-indigo-400"
+                     style={{ pointerEvents: 'stroke' }}
+                     onMouseEnter={(event) => updateDependencyTooltip(event, link.label)}
+                     onMouseMove={(event) => updateDependencyTooltip(event, link.label)}
+                     onMouseLeave={() => setDependencyTooltip(null)}
+                   />
+                 ))}
                </svg>
 
                {dependencyTooltip && (
