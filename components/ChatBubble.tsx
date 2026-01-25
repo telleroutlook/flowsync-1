@@ -47,10 +47,10 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
 
   if (isSystem) {
     return (
-      <div className="flex justify-center my-4 animate-fade-in">
-        <span className="text-[10px] font-medium text-text-secondary bg-background px-3 py-1 rounded-full border border-border-subtle shadow-sm">
+      <div className="flex justify-center my-4 animate-fade-in w-full">
+        <div className="max-w-[85%] text-[10px] font-medium text-text-secondary bg-background px-3 py-1.5 rounded-lg border border-border-subtle shadow-sm text-center break-words whitespace-pre-wrap">
           {message.text}
-        </span>
+        </div>
       </div>
     );
   }
