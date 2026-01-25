@@ -31,7 +31,7 @@ export const useDrafts = ({ activeProjectId, refreshData, refreshAuditLogs, appe
          return prevId;
       });
     } catch (err) {
-      console.error("Failed to refresh drafts", err);
+      // Silently fail on draft refresh
     }
   }, []);
 

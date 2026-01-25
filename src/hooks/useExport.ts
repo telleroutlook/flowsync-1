@@ -1,44 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Project, Task, DraftAction, TaskStatus, Priority } from '../../types';
 import { apiService } from '../../services/apiService';
+import { generateId, getTaskStart, getTaskEnd, formatExportDate, parseDateFlexible } from '../utils';
 
 export type ExportFormat = 'csv' | 'tsv' | 'json' | 'markdown' | 'pdf';
 export type ExportScope = 'active' | 'all';
 export type ImportStrategy = 'append' | 'merge';
 
-// Helper Utils
-const generateId = () =>
-  (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2, 11);
-
-const day = 86400000;
 const clampCompletion = (value: number) => Math.min(100, Math.max(0, value));
-
-const getTaskStart = (task: Task) => task.startDate ?? task.createdAt;
-const getTaskEnd = (task: Task) => {
-  const start = getTaskStart(task);
-  const end = task.dueDate ?? start + day;
-  return end <= start ? start + day : end;
-};
-
-const formatExportDate = (value?: number) => {
-  if (!value) return '';
-  return new Date(value).toISOString().slice(0, 10);
-};
-
-const parseDateFlexible = (value?: string) => {
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  if (/^\d+$/.test(trimmed)) {
-    const numeric = Number(trimmed);
-    if (!Number.isNaN(numeric)) return numeric;
-  }
-  const parsed = Date.parse(trimmed);
-  if (!Number.isNaN(parsed)) return parsed;
-  return undefined;
-};
 
 const makeSafeFileName = (value: string) => {
   const cleaned = value
@@ -57,19 +26,27 @@ const formatCsvValue = (value: string, delimiter: string) => {
 };
 
 const normalizeStatus = (value?: string): TaskStatus => {
-  const normalized = (value || '').toUpperCase();
-  if (normalized === 'DONE') return TaskStatus.DONE;
-  if (normalized === 'IN_PROGRESS' || normalized === 'IN-PROGRESS' || normalized === 'IN PROGRESS') {
-    return TaskStatus.IN_PROGRESS;
+  const normalized = (value || '').toUpperCase().replace(/[- ]/g, '_');
+  switch (normalized) {
+    case 'DONE':
+      return TaskStatus.DONE;
+    case 'IN_PROGRESS':
+      return TaskStatus.IN_PROGRESS;
+    default:
+      return TaskStatus.TODO;
   }
-  return TaskStatus.TODO;
 };
 
 const normalizePriority = (value?: string): Priority => {
   const normalized = (value || '').toUpperCase();
-  if (normalized === 'HIGH') return Priority.HIGH;
-  if (normalized === 'MEDIUM') return Priority.MEDIUM;
-  return Priority.LOW;
+  switch (normalized) {
+    case 'HIGH':
+      return Priority.HIGH;
+    case 'MEDIUM':
+      return Priority.MEDIUM;
+    default:
+      return Priority.LOW;
+  }
 };
 
 const parseDelimitedLine = (line: string, delimiter: string) => {

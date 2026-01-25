@@ -57,23 +57,9 @@ export const applyTaskConstraints = (task: TaskRecord, allTasks: TaskRecord[]) =
   const warnings: string[] = [];
   let nextTask = task;
   let changed = false;
-  let violated = false;  // 新增：标记是否违反了约束
-
-  console.log('[applyTaskConstraints] Input task:', {
-    id: task.id,
-    title: task.title,
-    startDate: task.startDate,
-    dueDate: task.dueDate,
-    predecessors: task.predecessors
-  });
 
   const dependencyResult = resolveDependencyConflicts(nextTask, allTasks);
   if (dependencyResult.changed) {
-    console.log('[applyTaskConstraints] Dependency constraints applied:', {
-      before: { startDate: nextTask.startDate, dueDate: nextTask.dueDate },
-      after: { startDate: dependencyResult.task.startDate, dueDate: dependencyResult.task.dueDate },
-      warnings: dependencyResult.warnings
-    });
     changed = true;
     nextTask = dependencyResult.task;
     warnings.push(...dependencyResult.warnings);
@@ -81,24 +67,10 @@ export const applyTaskConstraints = (task: TaskRecord, allTasks: TaskRecord[]) =
 
   const dateResult = enforceDateOrder(nextTask);
   if (dateResult.changed) {
-    console.log('[applyTaskConstraints] Date order constraints applied:', {
-      before: { startDate: nextTask.startDate, dueDate: nextTask.dueDate },
-      after: { startDate: dateResult.task.startDate, dueDate: dateResult.task.dueDate },
-      warnings: dateResult.warnings
-    });
     changed = true;
     nextTask = dateResult.task;
     warnings.push(...dateResult.warnings);
   }
 
-  console.log('[applyTaskConstraints] Output task:', {
-    id: nextTask.id,
-    title: nextTask.title,
-    startDate: nextTask.startDate,
-    dueDate: nextTask.dueDate,
-    changed,
-    warnings
-  });
-
-  return { task: nextTask, warnings, changed, violated };
+  return { task: nextTask, warnings, changed, violated: false };
 };

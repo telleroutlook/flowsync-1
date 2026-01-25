@@ -207,8 +207,6 @@ const planActions = async (
           explicitFields.push('assignee');
         }
 
-        console.log('[planActions] Task update explicit fields:', { id: existing.id, explicitFields });
-
         // Check if dates were explicitly modified
         const datesModified = explicitFields.includes('startDate') || explicitFields.includes('dueDate');
 
@@ -227,16 +225,9 @@ const planActions = async (
           const dueViolated = explicitFields.includes('dueDate') && constrainedDue !== merged.dueDate;
 
           if (startViolated || dueViolated) {
-            console.log('[planActions] Date modification violates predecessor dependencies:', {
-              id: existing.id,
-              requested: { startDate: merged.startDate, dueDate: merged.dueDate },
-              constrained: { startDate: constrainedStart, dueDate: constrainedDue },
-              violations: { start: startViolated, due: dueViolated }
-            });
-
             // Throw an error to prevent draft creation
             const errorMessage = [
-              `❌ 无法修改任务日期：${startViolated ? '开始日期' : ''}${startViolated && dueViolated ? '和' : ''}${dueViolated ? '截止日期' : ''}违反了前置依赖约束`,
+              `无法修改任务日期：${startViolated ? '开始日期' : ''}${startViolated && dueViolated ? '和' : ''}${dueViolated ? '截止日期' : ''}违反了前置依赖约束`,
               ``,
               `任务 "${existing.title}" 有必须满足的前置依赖。`,
               ``,
@@ -451,22 +442,12 @@ export const applyDraft = async (
         });
       } else if (action.action === 'update' && action.entityId) {
         const before = await getTaskById(db, action.entityId);
-        console.log('[applyDraft] Updating task:', action.entityId, {
-          before: before ? { startDate: before.startDate, dueDate: before.dueDate } : null,
-          after: {
-            startDate: action.after?.startDate,
-            dueDate: action.after?.dueDate,
-            fullAfter: action.after
-          }
-        });
 
         if (!before) {
-          console.error('[applyDraft] Task not found:', action.entityId);
           throw new Error(`Task not found: ${action.entityId}. The task may have been deleted or the draft is outdated.`);
         }
 
         if (!action.after) {
-          console.error('[applyDraft] No after data for task update:', action.entityId);
           throw new Error(`Invalid draft: No update data provided for task ${action.entityId}. This draft may be corrupted.`);
         }
 
@@ -483,7 +464,6 @@ export const applyDraft = async (
           isMilestone: (action.after?.isMilestone as boolean) ?? undefined,
           predecessors: (action.after?.predecessors as string[]) ?? undefined,
         });
-        console.log('[applyDraft] Task updated:', { updated: updated ? { startDate: updated.startDate, dueDate: updated.dueDate } : null });
         if (updated) {
           results.push({ ...action, before: before ?? undefined, after: updated });
           await recordAudit(db, {

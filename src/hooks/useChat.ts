@@ -2,12 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { aiService } from '../../services/aiService';
 import { apiService } from '../../services/apiService';
 import { ChatMessage, ChatAttachment, DraftAction, Project, Task } from '../../types';
-
-// Simple ID generator
-const generateId = () =>
-  (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2, 11);
+import { generateId } from '../utils';
 
 interface UseChatProps {
   activeProjectId: string;
@@ -150,13 +145,6 @@ export const useChat = ({
         }
       );
 
-      console.log('[useChat] AI Response:', {
-        hasText: !!response.text,
-        textLength: response.text?.length,
-        toolCallsCount: response.toolCalls?.length || 0,
-        toolCalls: response.toolCalls,
-      });
-
       let finalText = response.text;
       const toolResults: string[] = [];
       const draftActions: DraftAction[] = [];
@@ -165,17 +153,10 @@ export const useChat = ({
       let retryReason = '';
 
       if (response.toolCalls && response.toolCalls.length > 0) {
-        console.log('[useChat] Processing tool calls:', response.toolCalls);
         pushProcessingStep('执行工具调用');
         for (const call of response.toolCalls) {
           const args = (call.args || {}) as Record<string, unknown>;
-          console.log('[useChat] Processing tool:', call.name, 'args:', args);
           pushProcessingStep(`执行工具: ${call.name}`);
-
-          // Log if AI is trying to update a task without first calling getTask
-          if (call.name === 'updateTask' || call.name === 'deleteTask') {
-            console.warn('[useChat] AI called', call.name, 'without calling getTask first. This may cause incorrect date calculations.');
-          }
           
           if (call.name === 'listProjects') {
             pushProcessingStep('读取项目列表');
@@ -201,11 +182,6 @@ export const useChat = ({
               page: typeof args.page === 'number' ? args.page : undefined,
               pageSize: typeof args.pageSize === 'number' ? args.pageSize : undefined,
             });
-            console.log('[useChat] searchTasks result:', {
-              query: args.q,
-              count: result.total,
-              tasks: result.data.map(t => ({ id: t.id, title: t.title, startDate: t.startDate, dueDate: t.dueDate }))
-            });
             const sample = result.data.slice(0, 5).map(task => {
               const startDateStr = task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : 'N/A';
               const dueDateStr = task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : 'N/A';
@@ -218,11 +194,9 @@ export const useChat = ({
             if (typeof args.id === 'string') {
               pushProcessingStep('读取任务详情');
               const task = await apiService.getTask(args.id);
-              // Include full task data with dates so AI can calculate correctly
               const startDateStr = task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : 'N/A';
               const dueDateStr = task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : 'N/A';
               const taskInfo = `Task: ${task.title} (ID: ${task.id}, Start: ${startDateStr}, Due: ${dueDateStr}, Status: ${task.status})`;
-              console.log('[useChat] getTask result:', taskInfo, 'Raw startDate:', task.startDate, 'Raw dueDate:', task.dueDate);
               toolResults.push(taskInfo);
             }
             continue;
@@ -230,13 +204,11 @@ export const useChat = ({
           if (call.name === 'planChanges') {
             if (Array.isArray(args.actions)) {
               pushProcessingStep('生成草稿计划');
-              // Directly submit draft from planChanges
               const rawActions = Array.isArray(args.actions) ? args.actions : [];
               const actions = rawActions.map((action: any) => {
                 if (!action || typeof action !== 'object') return null;
-                
+
                 const processedAfter = { ...(action.after || {}) };
-                // Auto-fill projectId for task creation actions if not provided
                 if (action.entityType === 'task' && action.action === 'create' && !processedAfter.projectId) {
                   processedAfter.projectId = activeProjectId;
                 }
@@ -248,11 +220,10 @@ export const useChat = ({
                   after: processedAfter,
                 };
               }).filter((a) => a !== null) as DraftAction[];
-              
+
               draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
-              
+
               if (actions.length === 0) {
-                console.warn('[useChat] planChanges called with no actions');
                 shouldRetry = true;
                 retryReason = "The previous `planChanges` call contained no actions. Please verify task IDs and criteria, then ensure you populate the `actions` array correctly.";
                 break;
@@ -270,7 +241,6 @@ export const useChat = ({
             }
             continue;
           }
-          // Legacy direct actions mapping to draftActions
           if (call.name === 'createProject') {
             draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
             draftActions.push({
@@ -368,23 +338,14 @@ export const useChat = ({
         }
 
         if (!shouldRetry) {
-          console.log('[useChat] Draft actions collected:', {
-            count: draftActions.length,
-            actions: draftActions,
-          });
-
           if (draftActions.length > 0) {
-            console.log('[useChat] Submitting draft...');
             pushProcessingStep('提交草稿');
             try {
               const draft = await submitDraft(draftActions, { createdBy: 'agent', autoApply: false, reason: draftReason });
-              console.log('[useChat] Draft created successfully:', draft.id);
               toolResults.push(`Draft ${draft.id} created with ${draftActions.length} action(s).`);
             } catch (draftError) {
-              console.error('[useChat] Failed to create draft:', draftError);
               const errorMessage = draftError instanceof Error ? draftError.message : String(draftError);
               toolResults.push(`Failed to create draft: ${errorMessage}`);
-              // Replace AI's success message with the actual error
               finalText = errorMessage;
             }
           }
@@ -396,13 +357,10 @@ export const useChat = ({
           }
         }
       } else {
-        console.log('[useChat] No tool calls received from AI');
         pushProcessingStep('生成回复');
       }
 
-      // Retry Logic
       if (shouldRetry && attempt < MAX_RETRIES) {
-         console.warn(`[useChat] Retrying... Attempt ${attempt + 1}/${MAX_RETRIES}`);
          const nextHistory = [
              ...initialHistory,
              { role: 'model', parts: [{ text: response.text || "I will plan the changes." }] }
@@ -419,7 +377,6 @@ export const useChat = ({
       }]);
 
     } catch (error) {
-      console.error('[useChat] Error processing message:', error);
       const errorMessage = error instanceof Error ? error.message : "Sorry, something went wrong.";
       setMessages(prev => [...prev, {
         id: generateId(),
@@ -501,7 +458,6 @@ export const useChat = ({
       await processConversationTurn(history, userMsg.text, systemContext, 0);
 
     } catch (error) {
-      console.error('[useChat] Top level error:', error);
       setMessages(prev => [...prev, {
         id: generateId(),
         role: 'model',

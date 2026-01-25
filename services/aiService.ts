@@ -131,10 +131,8 @@ export class AIService {
       return payload.data;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        console.warn('AI API timeout:', error);
         return { text: '请求超时，请稍后重试。' };
       }
-      console.error("AI API Error:", error);
       return { text: "Sorry, I encountered an error processing your request." };
     }
   }

@@ -59,7 +59,7 @@ const resolveDatabaseUrl = () => {
       if (constructed) return constructed;
     }
   } catch (error) {
-    console.error('Failed to parse VCAP_SERVICES:', error);
+    // Silently fail on VCAP_SERVICES parse error
   }
 
   return null;

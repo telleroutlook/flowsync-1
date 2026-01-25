@@ -8,7 +8,7 @@ import type { Bindings } from '../worker/app';
 // 加载 .env 文件，覆盖系统环境变量
 const envResult = config({ override: true });
 if (envResult.error) {
-  console.error('Error loading .env file:', envResult.error);
+  // Silently fail on .env load error
 }
 
 // Initialize PostgreSQL connection
@@ -25,15 +25,13 @@ const bindings: Bindings = {
 const app = createApp(db, bindings);
 
 // Ensure seed data on startup (not on every request)
-ensureSeedData(db).catch(console.error);
+ensureSeedData(db).catch(() => {
+  // Silently fail on seed error
+});
 
 const port = parseInt(process.env.PORT || '8788', 10);
-
-console.log(`Starting server on port ${port}...`);
 
 serve({
   fetch: app.fetch,
   port,
 });
-
-console.log(`Server is running on http://localhost:${port}`);

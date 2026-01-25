@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo } from 'react';
 import { Task, TaskStatus, Priority } from '../types';
+import { getTaskStart, getTaskEnd } from '../src/utils';
 
-const day = 86400000;
+const DAY_MS = 86400000;
 const clampCompletion = (value: number) => Math.min(100, Math.max(0, value));
 
 interface TaskDetailPanelProps {
@@ -25,13 +26,6 @@ const parseDateInput = (value: string) => {
   const [year, month, dayNum] = value.split('-').map(Number);
   if (!year || !month || !dayNum) return undefined;
   return new Date(year, month - 1, dayNum).getTime();
-};
-
-const getTaskStart = (task: Task) => task.startDate ?? task.createdAt;
-const getTaskEnd = (task: Task) => {
-  const start = getTaskStart(task);
-  const end = task.dueDate ?? start + day;
-  return end <= start ? start + day : end;
 };
 
 export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
@@ -235,9 +229,9 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
                   }, getTaskStart(selectedTask));
                   const currentStart = getTaskStart(selectedTask);
                   const currentEnd = getTaskEnd(selectedTask);
-                  const duration = Math.max(day, currentEnd - currentStart);
+                  const duration = Math.max(DAY_MS, currentEnd - currentStart);
                   const nextStart = maxEnd;
-                  const nextEnd = Math.max(nextStart + day, nextStart + duration);
+                  const nextEnd = Math.max(nextStart + DAY_MS, nextStart + duration);
                   onUpdate(selectedTask.id, { startDate: nextStart, dueDate: nextEnd });
                 }}
                 className="w-full rounded-md bg-white border border-rose-200 py-1.5 text-xs font-bold text-rose-600 shadow-sm hover:bg-rose-50 transition-colors"

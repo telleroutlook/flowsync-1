@@ -59,7 +59,6 @@ draftsRoute.post('/', zValidator('json', createDraftSchema), async (c) => {
     });
     return jsonOk(c, result, 201);
   } catch (error) {
-    console.error('[Drafts Route] Failed to create draft:', error);
     return jsonError(c, 'CREATE_FAILED', error instanceof Error ? error.message : 'Failed to create draft.', 400);
   }
 });

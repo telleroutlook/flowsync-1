@@ -33,7 +33,6 @@ export const useProjectData = () => {
       } while (collected.length < total);
       return collected;
     } catch (err) {
-      console.error("Failed to fetch tasks", err);
       throw err;
     }
   }, []);

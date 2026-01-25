@@ -25,7 +25,6 @@ export const createApp = (db: DrizzleDB, bindings: Bindings) => {
   app.route('/api/audit', auditRoute);
 
   app.onError((err, c) => {
-    console.error('Server error:', err);
     return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error.' } }, 500);
   });
 

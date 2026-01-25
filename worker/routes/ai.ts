@@ -554,18 +554,9 @@ const runAIRequest = async (
   const { history, message, systemContext } = input;
 
   assertNotAborted();
-  console.log('[AI Route] Request received:', {
-    requestId,
-    hasHistory: history?.length,
-    messageLength: message?.length,
-    systemContextLength: systemContext?.length,
-  });
-
-  assertNotAborted();
   emit?.('stage', { name: 'received' });
 
   if (!c.env.OPENAI_API_KEY) {
-    console.error('[AI Route] Missing OPENAI_API_KEY', { requestId });
     throw new ApiError('MISSING_API_KEY', 'Missing OPENAI_API_KEY binding.', 500);
   }
 
@@ -573,13 +564,6 @@ const runAIRequest = async (
   const baseUrl = (c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
   const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
   const model = c.env.OPENAI_MODEL || 'gpt-4';
-
-  console.log('[AI Route] Request config:', {
-    requestId,
-    baseUrl,
-    endpoint,
-    model,
-  });
 
   emit?.('stage', { name: 'prepare_request' });
 
@@ -613,7 +597,6 @@ const runAIRequest = async (
   while (currentTurn < MAX_TURNS) {
     assertNotAborted();
     currentTurn++;
-    console.log('[AI Route] Turn', currentTurn, 'of', MAX_TURNS, { requestId });
 
     emit?.('stage', { name: 'upstream_request', turn: currentTurn });
 
@@ -674,13 +657,6 @@ const runAIRequest = async (
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[AI Route] Request failed:', {
-        requestId,
-        status: response.status,
-        errorBody: errorText,
-        attempts,
-        elapsedMs,
-      });
       await recordLog(c.get('db'), 'error', {
         requestId,
         message: 'OpenAI request failed.',
@@ -735,12 +711,6 @@ const runAIRequest = async (
       .map((toolCall) => `${toolCall.function?.name || ''}|${toolCall.function?.arguments || ''}`)
       .join(';');
 
-    console.log('[AI Route] Turn', currentTurn, 'response:', {
-      requestId,
-      hasText: !!modelText,
-      toolCallsCount: toolCallsFromAPI.length,
-    });
-
     if (modelText) {
       finalText = modelText;
       emit?.('assistant_text', { text: modelText });
@@ -761,12 +731,10 @@ const runAIRequest = async (
 
     if (toolCallsFromAPI.length === 0) {
       finalText = modelText;
-      console.log('[AI Route] No more tool calls, ending loop');
       break;
     }
 
     if (lastToolCallSignature && toolCallSignature === lastToolCallSignature) {
-      console.warn('[AI Route] Repeated tool calls detected, stopping loop to avoid infinite repetition');
       break;
     }
     lastToolCallSignature = toolCallSignature;
@@ -777,7 +745,6 @@ const runAIRequest = async (
       const toolArgs = toolCall.function?.arguments || '{}';
 
       totalToolCalls += 1;
-      console.log('[AI Route] Executing tool:', toolName, { requestId });
 
       emit?.('tool_start', { name: toolName || '' });
 
@@ -824,8 +791,6 @@ const runAIRequest = async (
     }
   }
 
-  console.log('[AI Route] Loop completed. Total tool calls:', allFunctionCalls.length, { requestId });
-
   assertNotAborted();
   await recordLog(c.get('db'), 'ai_response', {
     requestId,
@@ -851,13 +816,6 @@ const runAIRequest = async (
 aiRoute.post('/api/ai', zValidator('json', requestSchema), async (c) => {
   const requestId = generateRequestId();
   const input = c.req.valid('json') as unknown as RequestInput;
-
-  console.log('[AI Route] Environment config:', {
-    requestId,
-    hasApiKey: Boolean(c.env.OPENAI_API_KEY),
-    baseUrl: c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-    model: c.env.OPENAI_MODEL || 'gpt-4',
-  });
 
   try {
     const result = await runAIRequest(c, input, requestId);
@@ -902,16 +860,10 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
             };
             controller.enqueue(encoder.encode(`event: ${item.event}\ndata: ${JSON.stringify(payload)}\n\n`));
           }
-        } catch (error) {
-          console.error('[AI Route] Error sending stream event:', error);
+        } catch {
           closed = true;
           runAbortController.abort();
-          // Close controller immediately on error to prevent further attempts
-          try {
-            controller.close();
-          } catch (closeError) {
-            // Controller already closed, ignore
-          }
+          controller.close();
         } finally {
           sending = false;
         }
@@ -925,11 +877,11 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
 
       // Wrap the emit callback to prevent errors from propagating
       const safeEmit: ProgressEmitter = (event, data) => {
-        if (closed || finalizing) return; // Early exit if stream is closed
+        if (closed || finalizing) return;
         try {
           send(event, data);
-        } catch (error) {
-          console.error('[AI Route] Error in emit callback:', error);
+        } catch {
+          // Silently fail on emit error
         }
       };
 
@@ -943,15 +895,9 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
               send('done', { requestId });
               closed = true;
               controller.close();
-            } catch (error) {
-              console.error('[AI Route] Error sending final stream events:', error);
-              // Try to close controller even if sending failed
-              try {
-                closed = true;
-                controller.close();
-              } catch (closeError) {
-                // Controller already closed, ignore
-              }
+            } catch {
+              closed = true;
+              controller.close();
             }
           }
         })
@@ -972,15 +918,9 @@ aiRoute.post('/api/ai/stream', zValidator('json', requestSchema), async (c) => {
               }
               closed = true;
               controller.close();
-            } catch (sendError) {
-              console.error('[AI Route] Error sending error event:', sendError);
-              // Try to close controller even if sending failed
-              try {
-                closed = true;
-                controller.close();
-              } catch (closeError) {
-                // Controller already closed, ignore
-              }
+            } catch {
+              closed = true;
+              controller.close();
             }
           }
         });

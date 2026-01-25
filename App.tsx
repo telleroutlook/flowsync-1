@@ -4,23 +4,18 @@ import { ChatInterface } from './components/ChatInterface';
 import { AuditPanel } from './components/AuditPanel';
 import { TaskDetailPanel } from './components/TaskDetailPanel';
 import { CreateProjectModal } from './components/CreateProjectModal';
-import { Task, DraftAction, ChatMessage, TaskStatus, Priority } from './types';
+import { Task, DraftAction, ChatMessage } from './types';
 import { useProjectData } from './src/hooks/useProjectData';
 import { useDrafts } from './src/hooks/useDrafts';
 import { useAuditLogs } from './src/hooks/useAuditLogs';
 import { useChat } from './src/hooks/useChat';
 import { useExport } from './src/hooks/useExport';
+import { generateId } from './src/utils';
 
 // Lazy Load View Components
 const KanbanBoard = React.lazy(() => import('./components/KanbanBoard').then(module => ({ default: module.KanbanBoard })));
 const ListView = React.lazy(() => import('./components/ListView').then(module => ({ default: module.ListView })));
 const GanttChart = React.lazy(() => import('./components/GanttChart').then(module => ({ default: module.GanttChart })));
-
-// Simple ID generator
-const generateId = () =>
-  (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2, 11);
 
 type ViewMode = 'BOARD' | 'LIST' | 'GANTT';
 
@@ -66,8 +61,8 @@ export default function App() {
       if (saved) {
         try {
           return JSON.parse(saved);
-        } catch (e) {
-          console.error("Failed to parse chat history", e);
+        } catch {
+          localStorage.removeItem('flowsync_chat_history');
         }
       }
     }
