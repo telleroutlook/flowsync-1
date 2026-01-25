@@ -80,8 +80,10 @@ See [manifest.yml](./manifest.yml) for deployment configuration.
 ### Import
 - Formats: JSON, CSV, TSV
 - Strategy: Append (add new tasks) or Merge by ID (overwrite tasks with matching IDs)
-- Required headers for CSV/TSV (case-insensitive):
-  `project,id,title,status,priority,assignee,wbs,startDate,dueDate,completion,isMilestone,predecessors,description,createdAt`
+- Required headers for CSV/TSV (case-insensitive, matches export columns):
+  `rowType,projectId,project,projectDescription,projectIcon,projectCreatedAt,projectUpdatedAt,id,title,status,priority,assignee,wbs,startDate,dueDate,completion,isMilestone,predecessors,description,createdAt,updatedAt`
+- `rowType` supports `project` or `task` so project-only rows can be restored.
+- JSON import expects version 2 files (the current export format).
 
 ## Internationalization (i18n)
 - UI strings live in `src/i18n/translations.ts` (English + Chinese).

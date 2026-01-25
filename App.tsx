@@ -187,7 +187,6 @@ function App() {
     handleExportTasks, handleImportFile
   } = useExport({
     projects,
-    tasks,
     activeProject,
     activeTasks,
     refreshData,

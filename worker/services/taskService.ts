@@ -91,6 +91,7 @@ export const getTaskById = async (
 export const createTask = async (
   db: ReturnType<typeof import('../db').getDb>,
   data: {
+    id?: string;
     projectId: string;
     title: string;
     description?: string;
@@ -104,6 +105,7 @@ export const createTask = async (
     isMilestone?: boolean;
     predecessors?: string[];
     createdAt?: number;
+    updatedAt?: number;
   },
   workspaceId: string
 ): Promise<TaskRecord | null> => {
@@ -116,8 +118,9 @@ export const createTask = async (
 
   const timestamp = now();
   const createdAt = data.createdAt ?? timestamp;
+  const updatedAt = data.updatedAt ?? timestamp;
   const record = {
-    id: generateId(),
+    id: data.id ?? generateId(),
     projectId: data.projectId,
     title: data.title,
     description: data.description ?? null,
@@ -131,7 +134,7 @@ export const createTask = async (
     assignee: data.assignee ?? null,
     isMilestone: data.isMilestone ?? false,
     predecessors: data.predecessors ?? [],
-    updatedAt: timestamp,
+    updatedAt,
   };
   await db.insert(tasks).values(record);
   return toTaskRecord(record);

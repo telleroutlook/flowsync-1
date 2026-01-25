@@ -32,17 +32,19 @@ export const getProjectById = async (
 
 export const createProject = async (
   db: ReturnType<typeof import('../db').getDb>,
-  data: { name: string; description?: string; icon?: string; workspaceId: string }
+  data: { id?: string; name: string; description?: string; icon?: string; createdAt?: number; updatedAt?: number; workspaceId: string }
 ): Promise<ProjectRecord> => {
   const timestamp = now();
+  const createdAt = typeof data.createdAt === 'number' && !Number.isNaN(data.createdAt) ? data.createdAt : timestamp;
+  const updatedAt = typeof data.updatedAt === 'number' && !Number.isNaN(data.updatedAt) ? data.updatedAt : createdAt;
   const record = {
-    id: generateId(),
+    id: data.id ?? generateId(),
     workspaceId: data.workspaceId,
     name: data.name,
     description: data.description ?? null,
     icon: data.icon ?? null,
-    createdAt: timestamp,
-    updatedAt: timestamp,
+    createdAt,
+    updatedAt,
   };
   await db.insert(projects).values(record);
   return record;

@@ -73,7 +73,6 @@ describe('useExport', () => {
     const { result } = renderHook(() =>
       useExport({
         projects: mockProjects,
-        tasks: mockTasks,
         activeProject: mockProjects[0],
         activeTasks: mockTasks,
         refreshData: vi.fn(async () => {}),
@@ -100,7 +99,6 @@ describe('useExport', () => {
     const { result } = renderHook(() =>
       useExport({
         projects: mockProjects,
-        tasks: mockTasks,
         activeProject: mockProjects[0],
         activeTasks: mockTasks,
         refreshData,
@@ -110,8 +108,9 @@ describe('useExport', () => {
     );
 
     const csv = [
-      'project,id,title,status,priority',
-      'Alpha,t2,Imported TODO,TODO,LOW',
+      'rowType,projectId,project,projectDescription,projectIcon,projectCreatedAt,projectUpdatedAt,id,title,status,priority,assignee,wbs,startDate,dueDate,completion,isMilestone,predecessors,description,createdAt,updatedAt',
+      'project,p1,Alpha,,A,2024-01-01T00:00:00.000Z,2024-01-01T00:00:00.000Z,,,,,,,,,,,,,',
+      'task,p1,Alpha,,,,,t2,Imported TODO,TODO,LOW,,,,,,0,false,,,"2024-01-02T00:00:00.000Z",',
     ].join('\n');
 
     const file = { name: 'import.csv', _text: csv } as unknown as File;

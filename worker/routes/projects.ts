@@ -14,9 +14,12 @@ export const projectsRoute = new Hono<{ Variables: Variables }>();
 projectsRoute.use('*', workspaceMiddleware);
 
 const projectInputSchema = z.object({
+  id: z.string().optional(),
   name: z.string().min(1),
   description: z.string().optional(),
   icon: z.string().optional(),
+  createdAt: z.number().optional(),
+  updatedAt: z.number().optional(),
 });
 
 const projectUpdateSchema = z.object({
@@ -45,9 +48,12 @@ projectsRoute.post('/', zValidator('json', projectInputSchema), async (c) => {
   if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
   const data = c.req.valid('json');
   const project = await createProject(c.get('db'), {
+    id: data.id,
     name: data.name,
     description: data.description,
     icon: data.icon,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
     workspaceId: workspace.id,
   });
   await recordAudit(c.get('db'), {

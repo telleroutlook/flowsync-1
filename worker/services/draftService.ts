@@ -58,6 +58,7 @@ const normalizeTaskInput = (
   const status = toTaskStatus(input.status, fallback?.status ?? 'TODO');
   const priority = toPriority(input.priority, fallback?.priority ?? 'MEDIUM');
   const createdAt = (input.createdAt as number | undefined) ?? fallback?.createdAt ?? timestamp;
+  const updatedAt = (input.updatedAt as number | undefined) ?? timestamp;
   const startDate = (input.startDate as number | undefined) ?? fallback?.startDate ?? createdAt;
   const dueDate = (input.dueDate as number | undefined) ?? fallback?.dueDate ?? null;
   const completion = (input.completion as number | undefined) ?? fallback?.completion ?? 0;
@@ -78,7 +79,7 @@ const normalizeTaskInput = (
     assignee: (input.assignee as string | undefined) ?? fallback?.assignee ?? null,
     isMilestone: (input.isMilestone as boolean | undefined) ?? fallback?.isMilestone ?? false,
     predecessors,
-    updatedAt: timestamp,
+    updatedAt,
   };
 };
 
@@ -89,14 +90,16 @@ const normalizeProjectInput = (
 ): ProjectRecord => {
   const timestamp = now();
   const resolvedWorkspaceId = fallback?.workspaceId ?? workspaceId;
+  const createdAt = (input.createdAt as number | undefined) ?? fallback?.createdAt ?? timestamp;
+  const updatedAt = (input.updatedAt as number | undefined) ?? timestamp;
   return {
     id: (input.id as string | undefined) ?? fallback?.id ?? generateId(),
     workspaceId: resolvedWorkspaceId,
     name: (input.name as string | undefined) ?? fallback?.name ?? 'Untitled Project',
     description: (input.description as string | undefined) ?? fallback?.description ?? null,
     icon: (input.icon as string | undefined) ?? fallback?.icon ?? null,
-    createdAt: fallback?.createdAt ?? timestamp,
-    updatedAt: timestamp,
+    createdAt,
+    updatedAt,
   };
 };
 
@@ -466,12 +469,15 @@ export const applyDraft = async (
   const results: DraftAction[] = [];
 
   for (const action of draft.actions) {
-    if (action.entityType === 'project') {
+      if (action.entityType === 'project') {
       if (action.action === 'create' && action.after) {
         const created = await createProject(db, {
+          id: (action.after.id as string) ?? undefined,
           name: (action.after.name as string) ?? 'Untitled Project',
           description: (action.after.description as string) ?? undefined,
           icon: (action.after.icon as string) ?? undefined,
+          createdAt: (action.after.createdAt as number) ?? undefined,
+          updatedAt: (action.after.updatedAt as number) ?? undefined,
           workspaceId,
         });
         results.push({ ...action, entityId: created.id, after: created });
@@ -539,6 +545,7 @@ export const applyDraft = async (
     if (action.entityType === 'task') {
       if (action.action === 'create' && action.after) {
         const created = await createTask(db, {
+          id: (action.after.id as string) ?? undefined,
           projectId: (action.after.projectId as string) ?? '',
           title: (action.after.title as string) ?? 'Untitled Task',
           description: (action.after.description as string) ?? undefined,
@@ -552,6 +559,7 @@ export const applyDraft = async (
           isMilestone: (action.after.isMilestone as boolean) ?? undefined,
           predecessors: (action.after.predecessors as string[]) ?? undefined,
           createdAt: (action.after.createdAt as number) ?? undefined,
+          updatedAt: (action.after.updatedAt as number) ?? undefined,
         }, workspaceId);
         if (!created) {
           throw new Error('Invalid project for task creation.');

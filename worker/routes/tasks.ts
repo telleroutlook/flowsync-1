@@ -19,6 +19,7 @@ const booleanQuery = z.preprocess((value) => {
 }, z.boolean());
 
 const taskInputSchema = z.object({
+  id: z.string().optional(),
   projectId: z.string().min(1),
   title: z.string().min(1),
   description: z.string().optional(),
@@ -31,6 +32,8 @@ const taskInputSchema = z.object({
   assignee: z.string().optional(),
   isMilestone: z.boolean().optional(),
   predecessors: z.array(z.string()).optional(),
+  createdAt: z.number().optional(),
+  updatedAt: z.number().optional(),
 });
 
 const taskUpdateSchema = z.object({
@@ -84,6 +87,7 @@ tasksRoute.post('/', zValidator('json', taskInputSchema), async (c) => {
   if (!workspace) return jsonError(c, 'WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
   const data = c.req.valid('json');
   const task = await createTask(c.get('db'), {
+    id: data.id,
     projectId: data.projectId,
     title: data.title,
     description: data.description,
@@ -96,6 +100,8 @@ tasksRoute.post('/', zValidator('json', taskInputSchema), async (c) => {
     assignee: data.assignee,
     isMilestone: data.isMilestone,
     predecessors: data.predecessors,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
   }, workspace.id);
   if (!task) return jsonError(c, 'INVALID_PROJECT', 'Project not found in workspace.', 404);
   await recordAudit(c.get('db'), {

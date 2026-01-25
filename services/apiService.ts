@@ -79,7 +79,7 @@ export const apiService = {
 
   listProjects: () => fetchJson<Project[]>('/api/projects'),
   getProject: (id: string) => fetchJson<Project>(`/api/projects/${id}`),
-  createProject: (data: { name: string; description?: string; icon?: string }) =>
+  createProject: (data: { id?: string; name: string; description?: string; icon?: string; createdAt?: number; updatedAt?: number }) =>
     fetchJson<Project>('/api/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -115,7 +115,23 @@ export const apiService = {
     );
   },
   getTask: (id: string) => fetchJson<Task>(`/api/tasks/${id}`),
-  createTask: (data: Omit<Task, 'id' | 'createdAt'> & { projectId: string; title: string }) =>
+  createTask: (data: {
+    id?: string;
+    projectId: string;
+    title: string;
+    description?: string;
+    status?: Task['status'];
+    priority?: Task['priority'];
+    wbs?: string;
+    startDate?: number;
+    dueDate?: number;
+    completion?: number;
+    assignee?: string;
+    isMilestone?: boolean;
+    predecessors?: string[];
+    createdAt?: number;
+    updatedAt?: number;
+  }) =>
     fetchJson<Task>('/api/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
