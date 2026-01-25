@@ -82,10 +82,89 @@ const planActions = async (
   const planned: DraftAction[] = [];
   const warnings: string[] = [];
 
-  const projectRows = await db.select().from(projects);
-  const taskRows = await db.select().from(tasks);
-  let projectState = projectRows.map(toProjectRecord);
-  let taskState = taskRows.map(toTaskRecord);
+  // Extract IDs that we need to fetch
+  const projectIdsToFetch = new Set<string>();
+  const taskIdsToFetch = new Set<string>();
+  const projectIdsReferenced = new Set<string>();
+
+  for (const action of actions) {
+    if (action.entityType === 'project') {
+      if (action.action !== 'create') {
+        projectIdsToFetch.add(action.entityId || '');
+      }
+    } else if (action.entityType === 'task') {
+      if (action.action !== 'create') {
+        taskIdsToFetch.add(action.entityId || '');
+      }
+      // Collect project IDs from task actions
+      const projectId = (action.after as Record<string, unknown> | undefined)?.projectId as string | undefined;
+      if (projectId) projectIdsReferenced.add(projectId);
+    }
+  }
+
+  // Fetch only the projects we need
+  let projectState: ProjectRecord[] = [];
+  if (projectIdsToFetch.size > 0 || projectIdsReferenced.size > 0) {
+    const { inArray, or } = await import('drizzle-orm');
+    const conditions = [];
+    if (projectIdsToFetch.size > 0) {
+      conditions.push(inArray(projects.id, Array.from(projectIdsToFetch).filter(Boolean)));
+    }
+    if (projectIdsReferenced.size > 0) {
+      conditions.push(inArray(projects.id, Array.from(projectIdsReferenced).filter(Boolean)));
+    }
+    const whereClause = conditions.length > 1 ? or(...conditions) : conditions[0];
+    const projectRows = whereClause
+      ? await db.select().from(projects).where(whereClause)
+      : await db.select().from(projects);
+    projectState = projectRows.map(toProjectRecord);
+  }
+
+  // For tasks, we need to fetch:
+  // 1. Tasks being modified
+  // 2. Tasks that are predecessors of tasks being modified (for constraint validation)
+  // Optimization: For small drafts, load all. For large drafts, load selectively.
+  const SELECTIVE_LOAD_THRESHOLD = 50;
+  let taskState: TaskRecord[] = [];
+
+  if (taskIdsToFetch.size === 0 && actions.every(a => a.entityType !== 'task' || a.action === 'create')) {
+    // No existing tasks to fetch - only new tasks being created
+    taskState = [];
+  } else if (taskIdsToFetch.size > SELECTIVE_LOAD_THRESHOLD) {
+    // Large draft - fetch all tasks (more efficient than many individual queries)
+    const taskRows = await db.select().from(tasks);
+    taskState = taskRows.map(toTaskRecord);
+  } else {
+    // Small draft - fetch selectively
+    const { inArray, or } = await import('drizzle-orm');
+    const conditions = [];
+
+    // Tasks being directly modified
+    if (taskIdsToFetch.size > 0) {
+      const validIds = Array.from(taskIdsToFetch).filter(Boolean);
+      if (validIds.length > 0) {
+        conditions.push(inArray(tasks.id, validIds));
+      }
+    }
+
+    // Tasks in the same projects (for predecessor constraint validation)
+    if (projectIdsReferenced.size > 0) {
+      const validProjectIds = Array.from(projectIdsReferenced).filter(Boolean);
+      if (validProjectIds.length > 0) {
+        conditions.push(inArray(tasks.projectId, validProjectIds));
+      }
+    }
+
+    let taskRows;
+    if (conditions.length === 0) {
+      taskRows = await db.select().from(tasks);
+    } else if (conditions.length === 1) {
+      taskRows = await db.select().from(tasks).where(conditions[0]);
+    } else {
+      taskRows = await db.select().from(tasks).where(or(...conditions));
+    }
+    taskState = taskRows.map(toTaskRecord);
+  }
 
   for (const action of actions) {
     if (action.entityType === 'project') {

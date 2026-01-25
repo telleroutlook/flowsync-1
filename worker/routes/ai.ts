@@ -1,13 +1,12 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { eq } from 'drizzle-orm';
 import { jsonError, jsonOk } from './helpers';
 import { recordLog } from '../services/logService';
 import { getAuthorizationHeader } from '../utils/bigmodelAuth';
+import { createToolRegistry } from '../services/aiToolRegistry';
 import type { Bindings, Variables } from '../types';
 import type { Context } from 'hono';
-import { projects, tasks } from '../db/schema';
 
 export const aiRoute = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -129,343 +128,15 @@ const fetchWithRetry = async (
   throw { error: lastError, attempts: maxRetries + 1, elapsedMs: totalElapsedMs };
 };
 
-// Helper function to execute read-only tool calls locally
+// Helper function to execute tool calls using the registry
 async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables }>, toolName: string, args: Record<string, unknown>): Promise<string> {
-  const db = c.get('db');
-
-  switch (toolName) {
-    case 'listProjects': {
-      const projectRows = await db
-        .select({ id: projects.id, name: projects.name, description: projects.description })
-        .from(projects);
-      return JSON.stringify({ success: true, data: projectRows });
-    }
-
-    case 'getProject': {
-      const id = typeof args.id === 'string' ? args.id : '';
-      const projectList = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
-      if (projectList.length === 0) return JSON.stringify({ success: false, error: { code: 'NOT_FOUND', message: 'Project not found' } });
-      return JSON.stringify({ success: true, data: projectList[0] });
-    }
-
-    case 'listTasks':
-    case 'searchTasks': {
-      const { and, eq, like, or, sql } = await import('drizzle-orm');
-      const { toTaskRecord } = await import('../services/serializers');
-      const conditions = [];
-
-      if (args.projectId) {
-        conditions.push(eq(tasks.projectId, String(args.projectId)));
-      }
-      if (args.status) {
-        conditions.push(eq(tasks.status, String(args.status)));
-      }
-      if (args.assignee) {
-        conditions.push(eq(tasks.assignee, String(args.assignee)));
-      }
-      if (args.q) {
-        const query = `%${String(args.q)}%`;
-        conditions.push(
-          or(
-            like(tasks.title, query),
-            like(sql`coalesce(${tasks.description}, '')`, query)
-          )
-        );
-      }
-
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-      const page = typeof args.page === 'number' ? args.page : 1;
-      const pageSize = typeof args.pageSize === 'number' ? args.pageSize : 50;
-      const offset = (page - 1) * pageSize;
-
-      const taskList = await db.select().from(tasks).where(whereClause).limit(pageSize).offset(offset);
-      const totalCount = await db.select({ count: tasks.id }).from(tasks).where(whereClause);
-
-      return JSON.stringify({
-        success: true,
-        data: taskList.map(toTaskRecord),
-        total: totalCount.length,
-        page,
-        pageSize
-      });
-    }
-
-    case 'getTask': {
-      const id = typeof args.id === 'string' ? args.id : '';
-      const { eq } = await import('drizzle-orm');
-      const { toTaskRecord } = await import('../services/serializers');
-      const taskList = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
-      if (taskList.length === 0) return JSON.stringify({ success: false, error: { code: 'NOT_FOUND', message: 'Task not found' } });
-      return JSON.stringify({ success: true, data: toTaskRecord(taskList[0]) });
-    }
-
-    case 'createTask':
-    case 'updateTask':
-    case 'deleteTask':
-    case 'createProject':
-    case 'updateProject':
-    case 'deleteProject':
-    case 'planChanges': {
-      // Return detailed summary to help AI generate response text
-      const actions = Array.isArray(args.actions) ? args.actions : [];
-      const summary = actions.map((action: any) => {
-        const type = action.entityType || 'unknown';
-        const op = action.action || 'unknown';
-        const id = action.entityId || 'new';
-        return `${op} ${type}(${id})`;
-      }).join(', ');
-      return JSON.stringify({ success: true, message: `Draft created with ${actions.length} action(s): ${summary}. Awaiting user approval.` });
-    }
-
-    case 'applyChanges': {
-      // Return success to prevent AI from retrying
-      return JSON.stringify({ success: true, message: 'Draft applied successfully.' });
-    }
-
-    default:
-      return `Unknown tool: ${toolName}`;
-  }
+  const registry = createToolRegistry(c);
+  return await registry.execute(toolName, {
+    db: c.get('db'),
+    args,
+    toolName,
+  });
 }
-
-type JsonSchema = Record<string, unknown>;
-
-type OpenAITool = {
-  type: 'function';
-  function: {
-    name: string;
-    description?: string;
-    parameters: JsonSchema;
-  };
-};
-
-type FunctionDeclaration = {
-  name: string;
-  description?: string;
-  parameters: JsonSchema;
-};
-
-const listProjectsTool: FunctionDeclaration = {
-  name: 'listProjects',
-  description: 'List all projects with ids, names, and descriptions.',
-  parameters: { type: 'object', properties: {} },
-};
-
-const getProjectTool: FunctionDeclaration = {
-  name: 'getProject',
-  description: 'Fetch a single project by id.',
-  parameters: {
-    type: 'object',
-    properties: { id: { type: 'string' } },
-    required: ['id'],
-  },
-};
-
-const listTasksTool: FunctionDeclaration = {
-  name: 'listTasks',
-  description: 'List tasks with optional filters and pagination.',
-  parameters: {
-    type: 'object',
-    properties: {
-      projectId: { type: 'string' },
-      status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-      assignee: { type: 'string' },
-      q: { type: 'string' },
-      page: { type: 'number' },
-      pageSize: { type: 'number' },
-    },
-  },
-};
-
-const getTaskTool: FunctionDeclaration = {
-  name: 'getTask',
-  description: 'Fetch a single task by id.',
-  parameters: {
-    type: 'object',
-    properties: { id: { type: 'string' } },
-    required: ['id'],
-  },
-};
-
-const searchTasksTool: FunctionDeclaration = {
-  name: 'searchTasks',
-  description: 'Search tasks by keyword and optional filters.',
-  parameters: {
-    type: 'object',
-    properties: {
-      projectId: { type: 'string' },
-      q: { type: 'string' },
-      status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-      assignee: { type: 'string' },
-    },
-  },
-};
-
-const createProjectTool: FunctionDeclaration = {
-  name: 'createProject',
-  description: 'Create a new project. Creates a draft that requires user approval.',
-  parameters: {
-    type: 'object',
-    properties: {
-      name: { type: 'string' },
-      description: { type: 'string' },
-      icon: { type: 'string' },
-      reason: { type: 'string', description: 'Reason for creating this project (optional)' },
-    },
-    required: ['name'],
-  },
-};
-
-const updateProjectTool: FunctionDeclaration = {
-  name: 'updateProject',
-  description: 'Update an existing project. Creates a draft that requires user approval.',
-  parameters: {
-    type: 'object',
-    properties: {
-      id: { type: 'string' },
-      name: { type: 'string' },
-      description: { type: 'string' },
-      icon: { type: 'string' },
-      reason: { type: 'string', description: 'Reason for updating this project (optional)' },
-    },
-    required: ['id'],
-  },
-};
-
-const deleteProjectTool: FunctionDeclaration = {
-  name: 'deleteProject',
-  description: 'Delete a project. Creates a draft that requires user approval.',
-  parameters: {
-    type: 'object',
-    properties: {
-      id: { type: 'string' },
-      reason: { type: 'string', description: 'Reason for deleting this project (optional)' },
-    },
-    required: ['id'],
-  },
-};
-
-const createTaskTool: FunctionDeclaration = {
-  name: 'createTask',
-  description: 'Create a NEW task. IMPORTANT: Only use this for tasks that DO NOT exist yet. If the user refers to "this task" or wants to modify an existing task, use updateTask instead. You MUST call searchTasks first to verify the task does not exist. Always provide the projectId - use the "Active Project ID" from the system context for new tasks. Only projectId and title are required; other fields can be inferred from context.',
-  parameters: {
-    type: 'object',
-    properties: {
-      projectId: { type: 'string', description: 'The project ID for this task. Use the Active Project ID from the system context.' },
-      title: { type: 'string' },
-      description: { type: 'string' },
-      status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-      priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
-      wbs: { type: 'string' },
-      startDate: { type: 'number', description: 'Task start date as Unix timestamp in milliseconds (e.g., Date.now()). Use the actual current date from the task context for calculations.' },
-      dueDate: { type: 'number', description: 'Task due date as Unix timestamp in milliseconds (e.g., Date.now()). Use the actual current date from the task context for calculations.' },
-      completion: { type: 'number' },
-      assignee: { type: 'string' },
-      isMilestone: { type: 'boolean' },
-      predecessors: { type: 'array', items: { type: 'string' } },
-      reason: { type: 'string', description: 'Reason for creating this task (optional)' },
-    },
-    required: ['projectId', 'title'],
-  },
-};
-
-const updateTaskTool: FunctionDeclaration = {
-  name: 'updateTask',
-  description: 'Update an EXISTING task. Use this when the user refers to "this task", "the task", or wants to modify/set attributes of an existing task. Creates a draft that requires user approval. IMPORTANT: When adjusting dates, ALWAYS read the current task first using getTask to get the existing startDate/dueDate values, then calculate the new dates based on those actual values, not from scratch.',
-  parameters: {
-    type: 'object',
-    properties: {
-      id: { type: 'string' },
-      title: { type: 'string' },
-      description: { type: 'string' },
-      status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-      priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
-      wbs: { type: 'string' },
-      startDate: { type: 'number', description: 'Task start date as Unix timestamp in milliseconds. When updating, base calculations on the existing task.startDate value from getTask result.' },
-      dueDate: { type: 'number', description: 'Task due date as Unix timestamp in milliseconds. When updating, base calculations on the existing task.dueDate value from getTask result.' },
-      completion: { type: 'number' },
-      assignee: { type: 'string' },
-      isMilestone: { type: 'boolean' },
-      predecessors: { type: 'array', items: { type: 'string' } },
-      reason: { type: 'string', description: 'Reason for updating this task (optional)' },
-    },
-    required: ['id'],
-  },
-};
-
-const deleteTaskTool: FunctionDeclaration = {
-  name: 'deleteTask',
-  description: 'Delete a task. Creates a draft that requires user approval.',
-  parameters: {
-    type: 'object',
-    properties: {
-      id: { type: 'string' },
-      reason: { type: 'string', description: 'Reason for deleting this task (optional)' },
-    },
-    required: ['id'],
-  },
-};
-
-const planChangesTool: FunctionDeclaration = {
-  name: 'planChanges',
-  description: 'Create a draft with multiple related actions at once. Use this for making multiple changes together that should be approved as a group. Each action must specify entityType (task/project), action (create/update/delete), and for update/delete include entityId. IMPORTANT: For task creation actions, the "after" object MUST include "projectId" - use the Active Project ID from the system context.',
-  parameters: {
-    type: 'object',
-    properties: {
-      projectId: { type: 'string', description: 'Optional: Default projectId for all task actions. Will be used if individual task actions do not specify projectId in their "after" object.' },
-      reason: { type: 'string', description: 'Reason for making these changes' },
-      actions: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            entityType: { type: 'string', enum: ['task', 'project'] },
-            action: { type: 'string', enum: ['create', 'update', 'delete'] },
-            entityId: { type: 'string', description: 'Required for update and delete actions' },
-            after: { type: 'object', description: 'The new state. Required for create and update actions. For task creation, MUST include projectId.' },
-          },
-          required: ['entityType', 'action'],
-        },
-      },
-    },
-    required: ['actions'],
-  },
-};
-
-const applyChangesTool: FunctionDeclaration = {
-  name: 'applyChanges',
-  description: 'Apply a previously created draft by draftId.',
-  parameters: {
-    type: 'object',
-    properties: {
-      draftId: { type: 'string' },
-      actor: { type: 'string', enum: ['user', 'agent', 'system'] },
-    },
-    required: ['draftId'],
-  },
-};
-
-const tools: OpenAITool[] = [
-  listProjectsTool,
-  getProjectTool,
-  listTasksTool,
-  getTaskTool,
-  searchTasksTool,
-  createProjectTool,
-  updateProjectTool,
-  deleteProjectTool,
-  createTaskTool,
-  updateTaskTool,
-  deleteTaskTool,
-  planChangesTool,
-  applyChangesTool,
-].map((tool) => ({
-  type: 'function',
-  function: {
-    name: tool.name,
-    description: tool.description,
-    parameters: tool.parameters,
-  },
-}));
 
 const historySchema = z.array(
   z.object({
@@ -552,6 +223,10 @@ const runAIRequest = async (
     }
   };
   const { history, message, systemContext } = input;
+
+  // Create tool registry and get OpenAI-compatible tools
+  const toolRegistry = createToolRegistry(c);
+  const tools = toolRegistry.getOpenAITools();
 
   assertNotAborted();
   emit?.('stage', { name: 'received' });

@@ -3,6 +3,7 @@ import { aiService } from '../../services/aiService';
 import { apiService } from '../../services/apiService';
 import { ChatMessage, ChatAttachment, DraftAction, Project, Task } from '../../types';
 import { generateId } from '../utils';
+import { processToolCalls, type ApiClient, type ProcessingStep } from './ai';
 
 interface UseChatProps {
   activeProjectId: string;
@@ -18,18 +19,18 @@ interface UseChatProps {
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
 }
 
-type ProcessingStep = {
-  label: string;
-  elapsedMs?: number;
-};
-
-type AiMessagePart = {
-  text: string;
-};
-
 type AiHistoryItem = {
   role: 'user' | 'model';
-  parts: AiMessagePart[];
+  parts: { text: string }[];
+};
+
+// Stage name mapping for UI display
+const STAGE_LABELS: Record<string, string> = {
+  received: '请求已接收',
+  prepare_request: '整理上下文',
+  upstream_request: '调用 AI 模型',
+  upstream_response: '解析 AI 响应',
+  done: '完成',
 };
 
 export const useChat = ({
@@ -81,6 +82,41 @@ export const useChat = ({
     });
   }, []);
 
+  // Build system context for the AI
+  const buildSystemContext = useCallback((): string => {
+    const maxContextTasks = 30;
+    const limitedTasks = activeTasks.slice(0, maxContextTasks);
+    const taskIdMap = limitedTasks.map(task => ({ id: task.id, title: task.title }));
+    const wbsIdMap = limitedTasks
+      .filter(task => task.wbs)
+      .map(task => ({ id: task.id, wbs: task.wbs || '' }));
+
+    const shouldIncludeFullMappings = activeTasks.length > maxContextTasks;
+    const mappingJson = shouldIncludeFullMappings
+      ? JSON.stringify({ limit: maxContextTasks, total: activeTasks.length, taskIdMap, wbsIdMap })
+      : JSON.stringify({ total: activeTasks.length, taskIdMap });
+
+    const formatDate = (ts: number | null | undefined) => {
+      if (!ts) return 'N/A';
+      return new Date(ts).toISOString().split('T')[0];
+    };
+
+    const selectedTaskInfo = selectedTask
+      ? `User is currently inspecting task: ${selectedTask.title} (ID: ${selectedTask.id}, Status: ${selectedTask.status}, Start: ${formatDate(selectedTask.startDate)}, Due: ${formatDate(selectedTask.dueDate)}).`
+      : '';
+
+    return `Active Project: ${activeProject.name || 'None'}.
+Active Project ID: ${activeProject.id || 'N/A'}.
+${selectedTaskInfo}
+Available Projects: ${projects.map(p => `${p.name} (${p.id})`).join(', ')}.
+${
+  shouldIncludeFullMappings
+    ? `Task IDs in Active Project (JSON): ${mappingJson}.`
+    : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
+}`;
+  }, [activeProject, activeTasks, selectedTask, projects]);
+
+  // Process a single conversation turn with the AI
   const processConversationTurn = useCallback(async (
     initialHistory: AiHistoryItem[],
     userMessage: string,
@@ -88,8 +124,7 @@ export const useChat = ({
     attempt: number = 0
   ) => {
     const MAX_RETRIES = 3;
-    
-    // Call AI Service (streaming for faster feedback)
+
     if (attempt === 0) {
       pushProcessingStep('调用 AI 模型');
       setThinkingPreview('正在处理请求...');
@@ -108,12 +143,14 @@ export const useChat = ({
     };
 
     try {
+      // Call AI Service with streaming for faster feedback
       const response = await aiService.sendMessageStream(
         initialHistory,
         userMessage,
         systemContext,
         (event, data) => {
           const elapsedMs = typeof data.elapsedMs === 'number' ? data.elapsedMs : undefined;
+
           if (event === 'assistant_text' && typeof data.text === 'string') {
             updateThinkingPreview(data.text);
             pushProcessingStep('生成回复', elapsedMs);
@@ -128,14 +165,7 @@ export const useChat = ({
             return;
           }
           if (event === 'stage' && typeof data.name === 'string') {
-            const stageMap: Record<string, string> = {
-              received: '请求已接收',
-              prepare_request: '整理上下文',
-              upstream_request: '调用 AI 模型',
-              upstream_response: '解析 AI 响应',
-              done: '完成',
-            };
-            const label = stageMap[data.name];
+            const label = STAGE_LABELS[data.name];
             if (label) pushProcessingStep(label, elapsedMs);
             return;
           }
@@ -146,238 +176,79 @@ export const useChat = ({
       );
 
       let finalText = response.text;
-      const toolResults: string[] = [];
-      const draftActions: DraftAction[] = [];
-      let draftReason: string | undefined;
-      let shouldRetry = false;
-      let retryReason = '';
 
+      // Process tool calls if any
       if (response.toolCalls && response.toolCalls.length > 0) {
         pushProcessingStep('执行工具调用');
-        for (const call of response.toolCalls) {
-          const args = (call.args || {}) as Record<string, unknown>;
-          pushProcessingStep(`执行工具: ${call.name}`);
-          
-          if (call.name === 'listProjects') {
-            pushProcessingStep('读取项目列表');
-            const list = await apiService.listProjects();
-            toolResults.push(`Projects (${list.length}): ${list.map(p => `${p.name} (${p.id})`).join(', ')}`);
-            continue;
-          }
-          if (call.name === 'getProject') {
-            if (typeof args.id === 'string') {
-              pushProcessingStep('读取项目详情');
-              const project = await apiService.getProject(args.id);
-              toolResults.push(`Project: ${project.name} (${project.id})`);
-            }
-            continue;
-          }
-          if (call.name === 'listTasks' || call.name === 'searchTasks') {
-            pushProcessingStep('读取任务列表');
-            const result = await apiService.listTasks({
-              projectId: typeof args.projectId === 'string' ? args.projectId : undefined,
-              status: typeof args.status === 'string' ? args.status : undefined,
-              assignee: typeof args.assignee === 'string' ? args.assignee : undefined,
-              q: typeof args.q === 'string' ? args.q : undefined,
-              page: typeof args.page === 'number' ? args.page : undefined,
-              pageSize: typeof args.pageSize === 'number' ? args.pageSize : undefined,
-            });
-            const sample = result.data.slice(0, 5).map(task => {
-              const startDateStr = task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : 'N/A';
-              const dueDateStr = task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : 'N/A';
-              return `${task.title} (${startDateStr} - ${dueDateStr})`;
-            }).join(', ');
-            toolResults.push(`Tasks (${result.total}): ${sample}${result.total > 5 ? '…' : ''}`);
-            continue;
-          }
-          if (call.name === 'getTask') {
-            if (typeof args.id === 'string') {
-              pushProcessingStep('读取任务详情');
-              const task = await apiService.getTask(args.id);
-              const startDateStr = task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : 'N/A';
-              const dueDateStr = task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : 'N/A';
-              const taskInfo = `Task: ${task.title} (ID: ${task.id}, Start: ${startDateStr}, Due: ${dueDateStr}, Status: ${task.status})`;
-              toolResults.push(taskInfo);
-            }
-            continue;
-          }
-          if (call.name === 'planChanges') {
-            if (Array.isArray(args.actions)) {
-              pushProcessingStep('生成草稿计划');
-              const rawActions = Array.isArray(args.actions) ? args.actions : [];
-              const actions = rawActions.map((action: any) => {
-                if (!action || typeof action !== 'object') return null;
 
-                const processedAfter = { ...(action.after || {}) };
-                if (action.entityType === 'task' && action.action === 'create' && !processedAfter.projectId) {
-                  processedAfter.projectId = activeProjectId;
-                }
-                return {
-                  id: action.id || generateId(),
-                  entityType: action.entityType,
-                  action: action.action,
-                  entityId: action.entityId,
-                  after: processedAfter,
-                };
-              }).filter((a) => a !== null) as DraftAction[];
+        // Create API client context for tool handlers
+        const apiClient: ApiClient = {
+          listProjects: () => apiService.listProjects(),
+          getProject: (id: string) => apiService.getProject(id),
+          listTasks: (params) => apiService.listTasks(params),
+          getTask: (id: string) => apiService.getTask(id),
+          createDraft: (data) => apiService.createDraft(data),
+          applyDraft: (id, actor) => apiService.applyDraft(id, actor),
+        };
 
-              draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
+        // Execute all tool calls using the centralized handler
+        const result = await processToolCalls(
+          response.toolCalls.map(call => ({ name: call.name, args: (call.args || {}) as Record<string, unknown> })),
+          {
+            api: apiClient,
+            activeProjectId,
+            generateId,
+            pushProcessingStep,
+          }
+        );
 
-              if (actions.length === 0) {
-                shouldRetry = true;
-                retryReason = "The previous `planChanges` call contained no actions. Please verify task IDs and criteria, then ensure you populate the `actions` array correctly.";
-                break;
-              } else {
-                await submitDraft(actions, { createdBy: 'agent', autoApply: false, reason: draftReason });
-              }
-            }
-            continue;
-          }
-          if (call.name === 'applyChanges') {
-            if (typeof args.draftId === 'string') {
-              pushProcessingStep('应用草稿');
-              await handleApplyDraft(args.draftId);
-              toolResults.push(`Applied draft ${args.draftId}.`);
-            }
-            continue;
-          }
-          if (call.name === 'createProject') {
-            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
-            draftActions.push({
-              id: generateId(),
-              entityType: 'project',
-              action: 'create',
-              after: {
-                name: args.name,
-                description: args.description,
-                icon: args.icon,
-              },
+        // Handle retry logic for invalid responses
+        if (result.shouldRetry && attempt < MAX_RETRIES) {
+          const nextHistory = [
+            ...initialHistory,
+            { role: 'model', parts: [{ text: response.text || 'I will plan the changes.' }] }
+          ];
+          await processConversationTurn(nextHistory, `System Alert: ${result.retryReason}`, systemContext, attempt + 1);
+          return;
+        }
+
+        // Submit draft if there are actions to apply
+        if (result.draftActions.length > 0) {
+          pushProcessingStep('提交草稿');
+          try {
+            const draft = await submitDraft(result.draftActions, {
+              createdBy: 'agent',
+              autoApply: false,
+              reason: result.draftReason,
             });
-            continue;
-          }
-          if (call.name === 'updateProject') {
-            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
-            draftActions.push({
-              id: generateId(),
-              entityType: 'project',
-              action: 'update',
-              entityId: args.id as string | undefined,
-              after: {
-                name: args.name,
-                description: args.description,
-                icon: args.icon,
-              },
-            });
-            continue;
-          }
-          if (call.name === 'deleteProject') {
-            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
-            draftActions.push({
-              id: generateId(),
-              entityType: 'project',
-              action: 'delete',
-              entityId: args.id as string | undefined,
-            });
-            continue;
-          }
-          if (call.name === 'createTask') {
-            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
-            draftActions.push({
-              id: generateId(),
-              entityType: 'task',
-              action: 'create',
-              after: {
-                projectId: args.projectId || activeProjectId,
-                title: args.title,
-                description: args.description,
-                status: args.status,
-                priority: args.priority,
-                wbs: args.wbs,
-                startDate: args.startDate,
-                dueDate: args.dueDate,
-                completion: args.completion,
-                assignee: args.assignee,
-                isMilestone: args.isMilestone,
-                predecessors: args.predecessors,
-              },
-            });
-            continue;
-          }
-          if (call.name === 'updateTask') {
-            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
-            draftActions.push({
-              id: generateId(),
-              entityType: 'task',
-              action: 'update',
-              entityId: args.id as string | undefined,
-              after: {
-                title: args.title,
-                description: args.description,
-                status: args.status,
-                priority: args.priority,
-                wbs: args.wbs,
-                startDate: args.startDate,
-                dueDate: args.dueDate,
-                completion: args.completion,
-                assignee: args.assignee,
-                isMilestone: args.isMilestone,
-                predecessors: args.predecessors,
-              },
-            });
-            continue;
-          }
-          if (call.name === 'deleteTask') {
-            draftReason = typeof args.reason === 'string' ? args.reason : draftReason;
-            draftActions.push({
-              id: generateId(),
-              entityType: 'task',
-              action: 'delete',
-              entityId: args.id as string | undefined,
-            });
+            result.outputs.push(`Draft ${draft.id} created with ${result.draftActions.length} action(s).`);
+          } catch (draftError) {
+            const errorMessage = draftError instanceof Error ? draftError.message : String(draftError);
+            result.outputs.push(`Failed to create draft: ${errorMessage}`);
+            finalText = errorMessage;
           }
         }
 
-        if (!shouldRetry) {
-          if (draftActions.length > 0) {
-            pushProcessingStep('提交草稿');
-            try {
-              const draft = await submitDraft(draftActions, { createdBy: 'agent', autoApply: false, reason: draftReason });
-              toolResults.push(`Draft ${draft.id} created with ${draftActions.length} action(s).`);
-            } catch (draftError) {
-              const errorMessage = draftError instanceof Error ? draftError.message : String(draftError);
-              toolResults.push(`Failed to create draft: ${errorMessage}`);
-              finalText = errorMessage;
-            }
-          }
-
-          if (toolResults.length > 0) {
-            pushProcessingStep('汇总工具结果');
-            appendSystemMessage(toolResults.join(' | '));
-            if (!finalText) finalText = 'Draft created. Review pending changes before applying.';
-          }
+        // Display tool results
+        if (result.outputs.length > 0) {
+          pushProcessingStep('汇总工具结果');
+          appendSystemMessage(result.outputs.join(' | '));
+          if (!finalText) finalText = 'Draft created. Review pending changes before applying.';
         }
       } else {
         pushProcessingStep('生成回复');
       }
 
-      if (shouldRetry && attempt < MAX_RETRIES) {
-         const nextHistory = [
-             ...initialHistory,
-             { role: 'model', parts: [{ text: response.text || "I will plan the changes." }] }
-         ];
-         await processConversationTurn(nextHistory, `System Alert: ${retryReason}`, systemContext, attempt + 1);
-         return;
-      }
-
+      // Add final AI message to chat
       setMessages(prev => [...prev, {
         id: generateId(),
         role: 'model',
-        text: finalText || (shouldRetry ? "Failed to generate a valid plan after retries." : "Processed."),
+        text: finalText || 'Processed.',
         timestamp: Date.now()
       }]);
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Sorry, something went wrong.";
+      const errorMessage = error instanceof Error ? error.message : 'Sorry, something went wrong.';
       setMessages(prev => [...prev, {
         id: generateId(),
         role: 'model',
@@ -385,14 +256,16 @@ export const useChat = ({
         timestamp: Date.now()
       }]);
     }
-  }, [activeProjectId, aiService, apiService, submitDraft, handleApplyDraft, appendSystemMessage, pushProcessingStep, setMessages, setThinkingPreview]);
+  }, [activeProjectId, submitDraft, appendSystemMessage, pushProcessingStep, setMessages, setThinkingPreview]);
 
   const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (isProcessing) return;
+
     const cleanedInput = inputText.trim();
     const hasAttachments = pendingAttachments.length > 0;
     if (!cleanedInput && !hasAttachments) return;
+
     const outgoingText = cleanedInput || 'Sent attachment(s).';
 
     const userMsg: ChatMessage = {
@@ -412,56 +285,20 @@ export const useChat = ({
 
     try {
       pushProcessingStep('整理上下文');
+
       const history = messages.slice(-10).map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.text }]
       }));
 
-      const maxContextTasks = 30;
-      const limitedTasks = activeTasks.slice(0, maxContextTasks);
-      const taskIdMap = limitedTasks.map(task => ({
-        id: task.id,
-        title: task.title,
-      }));
-      const wbsIdMap = limitedTasks
-        .filter(task => task.wbs)
-        .map(task => ({
-          id: task.id,
-          wbs: task.wbs || '',
-        }));
-      const shouldIncludeFullMappings = activeTasks.length > maxContextTasks;
-      const mappingJson = shouldIncludeFullMappings
-        ? JSON.stringify({
-            limit: maxContextTasks,
-            total: activeTasks.length,
-            taskIdMap,
-            wbsIdMap,
-          })
-        : JSON.stringify({
-            total: activeTasks.length,
-            taskIdMap,
-          });
-      const systemContext = `Active Project: ${activeProject.name || 'None'}.
-                             Active Project ID: ${activeProject.id || 'N/A'}.
-                             ${selectedTask ? (() => {
-                               const startDateStr = selectedTask.startDate ? new Date(selectedTask.startDate).toISOString().split('T')[0] : 'N/A';
-                               const dueDateStr = selectedTask.dueDate ? new Date(selectedTask.dueDate).toISOString().split('T')[0] : 'N/A';
-                               return `User is currently inspecting task: ${selectedTask.title} (ID: ${selectedTask.id}, Status: ${selectedTask.status}, Start: ${startDateStr}, Due: ${dueDateStr}).`;
-                             })() : ''}
-                             Available Projects: ${projects.map(p => `${p.name} (${p.id})`).join(', ')}.
-                             ${
-                               shouldIncludeFullMappings
-                                 ? `Task IDs in Active Project (JSON): ${mappingJson}.`
-                                 : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
-                             }`;
-
+      const systemContext = buildSystemContext();
       await processConversationTurn(history, userMsg.text, systemContext, 0);
 
-    } catch (error) {
+    } catch {
       setMessages(prev => [...prev, {
         id: generateId(),
         role: 'model',
-        text: "Sorry, something went wrong.",
+        text: 'Sorry, something went wrong.',
         timestamp: Date.now()
       }]);
     } finally {
@@ -474,12 +311,9 @@ export const useChat = ({
     inputText,
     pendingAttachments,
     messages,
-    activeTasks,
-    activeProject,
-    selectedTask,
-    projects,
     pushProcessingStep,
-    processConversationTurn 
+    processConversationTurn,
+    buildSystemContext
   ]);
 
   return {
