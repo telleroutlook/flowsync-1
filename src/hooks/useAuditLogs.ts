@@ -41,7 +41,7 @@ export const useAuditLogs = ({ activeProjectId, refreshData, appendSystemMessage
       setAuditError(null);
       const from = auditFilters.from ? new Date(`${auditFilters.from}T00:00:00`).getTime() : undefined;
       const to = auditFilters.to ? new Date(`${auditFilters.to}T23:59:59`).getTime() : undefined;
-      
+
       const result = await apiService.listAuditLogs({
         projectId: targetProjectId,
         page: pageOverride ?? auditPage,
@@ -53,7 +53,7 @@ export const useAuditLogs = ({ activeProjectId, refreshData, appendSystemMessage
         from,
         to,
       });
-      
+
       setAuditLogs(result.data);
       setAuditTotal(result.total);
     } catch (error) {
@@ -61,7 +61,7 @@ export const useAuditLogs = ({ activeProjectId, refreshData, appendSystemMessage
     } finally {
       setIsAuditLoading(false);
     }
-  }, [activeProjectId, auditPage, auditPageSize, auditFilters, t]);
+  }, [activeProjectId, auditPage, auditPageSize, auditFilters]);
 
   const handleRollbackAudit = useCallback(async (auditId: string) => {
     if (rollbackingAuditId) return;

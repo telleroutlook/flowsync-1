@@ -58,11 +58,13 @@ export const useWorkspaces = (user: User | null) => {
 
   useEffect(() => {
     refreshWorkspaces();
-  }, [refreshWorkspaces, user?.id]);
+  }, [user?.id]); // refreshWorkspaces is stable, user?.id changes when user logs in/out
 
   useEffect(() => {
     const current = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
-    if (!user || !current || current.membership?.role !== 'admin' || current.membership.status !== 'active') {
+    const userId = user?.id;
+    const membership = current?.membership;
+    if (!userId || !current || membership?.role !== 'admin' || membership?.status !== 'active') {
       setPendingRequests([]);
       setMembers([]);
       return;
@@ -74,7 +76,7 @@ export const useWorkspaces = (user: User | null) => {
       setPendingRequests(requests);
       setMembers(memberList);
     });
-  }, [activeWorkspaceId, user, workspaces]);
+  }, [activeWorkspaceId, user?.id, workspaces]);
 
   const selectWorkspace = useCallback((id: string) => {
     setActiveWorkspaceId(id);

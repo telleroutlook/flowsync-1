@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, memo, useCallback } from 'react';
 import { useI18n } from '../src/i18n';
 import type { WorkspaceJoinRequest, WorkspaceMember, WorkspaceWithMembership } from '../types';
 
@@ -16,7 +16,7 @@ interface WorkspaceModalProps {
   onRemoveMember: (workspaceId: string, userId: string) => Promise<unknown> | void;
 }
 
-export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
+const WorkspaceModal = ({
   isOpen,
   onClose,
   workspaces,
@@ -339,3 +339,5 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     </div>
   );
 };
+
+export default memo(WorkspaceModal);

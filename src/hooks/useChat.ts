@@ -82,41 +82,47 @@ export const useChat = ({
     });
   }, []);
 
-  // Build system context for the AI - memoized to avoid recalculating on every render
-  const systemContext = useMemo(() => {
-    const maxContextTasks = 30;
-    const limitedTasks = activeTasks.slice(0, maxContextTasks);
-    const taskIdMap = limitedTasks.map(task => ({ id: task.id, title: task.title }));
-    const wbsIdMap = limitedTasks
-      .filter(task => task.wbs)
-      .map(task => ({ id: task.id, wbs: task.wbs || '' }));
+  // Build system context for the AI - memoized with stable dependencies
+  const projectId = activeProject.id;
+  const projectName = activeProject.name;
+  const activeTaskCount = activeTasks.length;
+  const taskIdsAndTitles = useMemo(
+    () => activeTasks.slice(0, 30).map(task => ({ id: task.id, title: task.title })),
+    [activeTasks]
+  );
+  const selectedTaskId = selectedTask?.id;
+  const selectedTaskTitle = selectedTask?.title;
+  const selectedTaskStatus = selectedTask?.status;
+  const selectedTaskStart = selectedTask?.startDate;
+  const selectedTaskDue = selectedTask?.dueDate;
+  const projectList = useMemo(
+    () => projects.map(p => `${p.name} (${p.id})`).join(', '),
+    [projects]
+  );
 
-    const shouldIncludeFullMappings = activeTasks.length > maxContextTasks;
-    const mappingJson = shouldIncludeFullMappings
-      ? JSON.stringify({ limit: maxContextTasks, total: activeTasks.length, taskIdMap, wbsIdMap })
-      : JSON.stringify({ total: activeTasks.length, taskIdMap });
+  const systemContext = useMemo(() => {
+    const taskIdMap = taskIdsAndTitles;
+    const mappingJson = JSON.stringify({
+      limit: 30,
+      total: activeTaskCount,
+      taskIdMap
+    });
 
     const formatDate = (ts: number | null | undefined) => {
       if (!ts) return 'N/A';
       return new Date(ts).toISOString().split('T')[0];
     };
 
-    const selectedTaskInfo = selectedTask
-      ? `User is currently inspecting task: ${selectedTask.title} (ID: ${selectedTask.id}, Status: ${selectedTask.status}, Start: ${formatDate(selectedTask.startDate)}, Due: ${formatDate(selectedTask.dueDate)}).`
+    const selectedTaskInfo = selectedTaskId
+      ? `User is currently inspecting task: ${selectedTaskTitle} (ID: ${selectedTaskId}, Status: ${selectedTaskStatus}, Start: ${formatDate(selectedTaskStart)}, Due: ${formatDate(selectedTaskDue)}).`
       : '';
 
-    const projectsList = projects.map(p => `${p.name} (${p.id})`).join(', ');
-
-    return `Active Project: ${activeProject.name || 'None'}.
-Active Project ID: ${activeProject.id || 'N/A'}.
+    return `Active Project: ${projectName || 'None'}.
+Active Project ID: ${projectId || 'N/A'}.
 ${selectedTaskInfo}
-Available Projects: ${projectsList}.
-${
-  shouldIncludeFullMappings
-    ? `Task IDs in Active Project (JSON): ${mappingJson}.`
-    : `Task IDs in Active Project (compact JSON): ${mappingJson}.`
-}`;
-  }, [activeProject, activeTasks, selectedTask, projects]);
+Available Projects: ${projectList}.
+Task IDs in Active Project (JSON): ${mappingJson}.`;
+  }, [projectId, projectName, activeTaskCount, taskIdsAndTitles, selectedTaskId, selectedTaskTitle, selectedTaskStatus, selectedTaskStart, selectedTaskDue, projectList]);
 
   // Process a single conversation turn with the AI
   const processConversationTurn = useCallback(async (

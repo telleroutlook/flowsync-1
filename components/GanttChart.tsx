@@ -371,14 +371,14 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
     return links;
   }, [taskEntries, taskMap, taskById, t]);
 
-  const updateDependencyTooltip = (event: React.MouseEvent<SVGPathElement>, text: string) => {
+  const updateDependencyTooltip = useCallback((event: React.MouseEvent<SVGPathElement>, text: string) => {
     const timeline = timelineRef.current;
     if (!timeline) return;
     const rect = timeline.getBoundingClientRect();
     const x = event.clientX - rect.left + timeline.scrollLeft;
     const y = event.clientY - rect.top + timeline.scrollTop;
     setDependencyTooltip({ text, x, y });
-  };
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-white border border-slate-200 rounded-xl overflow-hidden relative shadow-sm">

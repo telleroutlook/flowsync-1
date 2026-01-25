@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, Suspense, useCallback, mem
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { WorkspacePanel } from './components/WorkspacePanel';
 import { LoginModal } from './components/LoginModal';
-import { WorkspaceModal } from './components/WorkspaceModal';
+import WorkspaceModal from './components/WorkspaceModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { ChatInterface } from './components/ChatInterface';
 import { AuditPanel } from './components/AuditPanel';
@@ -37,7 +37,7 @@ const LoadingSpinner = memo(({ message }: { message: string }) => (
 ));
 LoadingSpinner.displayName = 'LoadingSpinner';
 
-export default function App() {
+function App() {
   const { t } = useI18n();
 
   // UI State
@@ -653,3 +653,5 @@ export default function App() {
     </div>
   );
 }
+
+export default memo(App);

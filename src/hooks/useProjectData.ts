@@ -12,7 +12,6 @@ export const useProjectData = (workspaceId: string) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const storageKey = workspaceId ? `flowsync:activeProjectId:${workspaceId}` : 'flowsync:activeProjectId';
 
   // Track if component is mounted to avoid state updates after unmount
   const isMountedRef = useRef(true);
@@ -57,6 +56,7 @@ export const useProjectData = (workspaceId: string) => {
 
       setProjects(projectList);
 
+      const storageKey = workspaceId ? `flowsync:activeProjectId:${workspaceId}` : 'flowsync:activeProjectId';
       const stored = window.localStorage.getItem(storageKey);
       const candidate = stored && projectList.find(project => project.id === stored) ? stored : activeProjectIdRef.current;
       const finalId = candidate && projectList.find(project => project.id === candidate)
@@ -78,11 +78,12 @@ export const useProjectData = (workspaceId: string) => {
         setIsLoading(false);
       }
     }
-  }, [fetchAllTasks, t, storageKey]);
+  }, [fetchAllTasks, t, workspaceId]);
 
   const handleSelectProject = useCallback(async (id: string) => {
     setActiveProjectId(id);
     activeProjectIdRef.current = id;
+    const storageKey = workspaceId ? `flowsync:activeProjectId:${workspaceId}` : 'flowsync:activeProjectId';
     window.localStorage.setItem(storageKey, id);
     try {
       setIsLoading(true);
@@ -97,7 +98,7 @@ export const useProjectData = (workspaceId: string) => {
         setIsLoading(false);
       }
     }
-  }, [fetchAllTasks, t, storageKey]);
+  }, [fetchAllTasks, t, workspaceId]);
 
   // Initial load
   useEffect(() => {
@@ -112,9 +113,10 @@ export const useProjectData = (workspaceId: string) => {
   // Persist active project selection
   useEffect(() => {
     if (activeProjectId) {
+      const storageKey = workspaceId ? `flowsync:activeProjectId:${workspaceId}` : 'flowsync:activeProjectId';
       window.localStorage.setItem(storageKey, activeProjectId);
     }
-  }, [activeProjectId, storageKey]);
+  }, [activeProjectId, workspaceId]);
 
   return {
     projects,

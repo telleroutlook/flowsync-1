@@ -89,6 +89,11 @@ const auditBadgeClass = (action: string) => {
   }
 };
 
+const updateFilter = (
+  setFilters: AuditPanelProps['setFilters'],
+  key: keyof AuditPanelProps['filters']
+) => (event: React.ChangeEvent<HTMLSelectElement>) => setFilters(prev => ({ ...prev, [key]: event.target.value }));
+
 export const AuditPanel = memo<AuditPanelProps>(({
   isOpen,
   isLoading,
@@ -128,6 +133,11 @@ export const AuditPanel = memo<AuditPanelProps>(({
     return diffAuditRecords(selectedAudit.before ?? null, selectedAudit.after ?? null);
   }, [selectedAudit]);
 
+  // Memoize filter updaters to avoid recreating on every render
+  const updateActorFilter = useCallback(updateFilter(setFilters, 'actor'), [setFilters]);
+  const updateActionFilter = useCallback(updateFilter(setFilters, 'action'), [setFilters]);
+  const updateEntityFilter = useCallback(updateFilter(setFilters, 'entityType'), [setFilters]);
+
   if (!isOpen) return null;
 
   return (
@@ -157,7 +167,7 @@ export const AuditPanel = memo<AuditPanelProps>(({
           />
           <select
             value={filters.actor}
-            onChange={(event) => setFilters(prev => ({ ...prev, actor: event.target.value }))}
+            onChange={updateActorFilter}
             className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-600 focus:border-indigo-400 outline-none"
           >
             <option value="all">{t('audit.actors.all')}</option>
@@ -167,7 +177,7 @@ export const AuditPanel = memo<AuditPanelProps>(({
           </select>
           <select
             value={filters.action}
-            onChange={(event) => setFilters(prev => ({ ...prev, action: event.target.value }))}
+            onChange={updateActionFilter}
             className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-600 focus:border-indigo-400 outline-none"
           >
             <option value="all">{t('audit.actions.all')}</option>
@@ -178,7 +188,7 @@ export const AuditPanel = memo<AuditPanelProps>(({
           </select>
           <select
             value={filters.entityType}
-            onChange={(event) => setFilters(prev => ({ ...prev, entityType: event.target.value }))}
+            onChange={updateEntityFilter}
             className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-600 focus:border-indigo-400 outline-none"
           >
             <option value="all">{t('audit.entities.all')}</option>
