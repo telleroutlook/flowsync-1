@@ -26,12 +26,11 @@ type AiHistoryItem = {
 
 // Stage name mapping for UI display
 const STAGE_LABELS: Record<string, string> = {
-  received: '请求已接收',
-  prepare_request: '整理上下文',
-  upstream_request: '调用 AI 模型',
-  upstream_response: '解析 AI 响应',
-  done: '完成',
-};
+      received: 'Request Received',
+      prepare_request: 'Preparing Context',
+      upstream_request: 'Calling AI Model',
+      upstream_response: 'Parsing Response',
+      done: 'Done',};
 
 export const useChat = ({
   activeProjectId,
@@ -125,13 +124,16 @@ ${
   ) => {
     const MAX_RETRIES = 3;
 
-    if (attempt === 0) {
-      pushProcessingStep('调用 AI 模型');
-      setThinkingPreview('正在处理请求...');
-    } else {
-      pushProcessingStep(`自动重试 (${attempt}/${MAX_RETRIES})`);
-      setThinkingPreview(`正在尝试修正结果 (${attempt}/${MAX_RETRIES})...`);
-    }
+      pushProcessingStep('Calling AI Model');
+      setThinkingPreview('Processing request...');
+      
+      if (attempt > MAX_RETRIES) {
+        throw new Error('Max retries exceeded');
+      }
+      if (attempt > 0) {
+        pushProcessingStep(`Auto Retry (${attempt}/${MAX_RETRIES})`);
+        setThinkingPreview(`Attempting to fix results (${attempt}/${MAX_RETRIES})...`);
+      }
 
     const updateThinkingPreview = (text: string) => {
       const trimmed = text.trim();
@@ -153,7 +155,7 @@ ${
 
           if (event === 'assistant_text' && typeof data.text === 'string') {
             updateThinkingPreview(data.text);
-            pushProcessingStep('生成回复', elapsedMs);
+            pushProcessingStep('Generating Response', elapsedMs);
             return;
           }
           if (event === 'result' && typeof data.text === 'string') {
@@ -161,7 +163,7 @@ ${
             return;
           }
           if (event === 'tool_start' && typeof data.name === 'string') {
-            pushProcessingStep(`执行工具: ${data.name}`, elapsedMs);
+            pushProcessingStep(`Executing Tool: ${data.name}`, elapsedMs);
             return;
           }
           if (event === 'stage' && typeof data.name === 'string') {
@@ -170,7 +172,7 @@ ${
             return;
           }
           if (event === 'retry') {
-            pushProcessingStep('请求重试', elapsedMs);
+            pushProcessingStep('Retrying Request', elapsedMs);
           }
         }
       );
@@ -179,8 +181,7 @@ ${
 
       // Process tool calls if any
       if (response.toolCalls && response.toolCalls.length > 0) {
-        pushProcessingStep('执行工具调用');
-
+                    pushProcessingStep('Executing Tool Call');
         // Create API client context for tool handlers
         const apiClient: ApiClient = {
           listProjects: () => apiService.listProjects(),
@@ -214,7 +215,7 @@ ${
 
         // Submit draft if there are actions to apply
         if (result.draftActions.length > 0) {
-          pushProcessingStep('提交草稿');
+          pushProcessingStep('Submitting Draft');
           try {
             const draft = await submitDraft(result.draftActions, {
               createdBy: 'agent',
@@ -231,12 +232,19 @@ ${
 
         // Display tool results
         if (result.outputs.length > 0) {
-          pushProcessingStep('汇总工具结果');
+      pushProcessingStep('Aggregating Tool Results');
+      
+      // const summaryRequest: RequestInput = {
+      //   history: [...messages, ...newMessages],
+      //   message: 'The tool has been executed. Please verify the results and provide feedback or next steps based on the tool\'s output.',
+      // };
+      
+      pushProcessingStep('Generating Response');
           appendSystemMessage(result.outputs.join(' | '));
           if (!finalText) finalText = 'Draft created. Review pending changes before applying.';
         }
       } else {
-        pushProcessingStep('生成回复');
+        pushProcessingStep('Generating Response');
       }
 
       // Add final AI message to chat
@@ -284,7 +292,7 @@ ${
     setThinkingPreview('');
 
     try {
-      pushProcessingStep('整理上下文');
+      pushProcessingStep('Preparing Context');
 
       const history: AiHistoryItem[] = messages.slice(-10).map(m => ({
         role: m.role === 'user' ? 'user' : 'model',

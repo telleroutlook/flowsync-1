@@ -131,7 +131,7 @@ export class AIService {
       return payload.data;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        return { text: '请求超时，请稍后重试。' };
+        return { text: 'Request timed out, please try again later.' };
       }
       return { text: "Sorry, I encountered an error processing your request." };
     }

@@ -5,7 +5,7 @@ import { getDb } from '../worker/db';
 import { ensureSeedData } from '../worker/services/seedService';
 import type { Bindings } from '../worker/app';
 
-// 加载 .env 文件，覆盖系统环境变量
+// Load .env file, overriding system environment variables
 const envResult = config({ override: true });
 if (envResult.error) {
   // Silently fail on .env load error

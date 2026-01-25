@@ -1,8 +1,8 @@
 /**
- * 智谱AI (BigModel) JWT 认证
+ * BigModel (Zhipu AI) JWT Authentication
  *
- * 智谱AI的 API key 格式: id.secret
- * 需要使用 JWT 签名生成临时 token
+ * Zhipu AI API key format: id.secret
+ * Requires JWT signature to generate temporary token
  */
 
 import { createHmac } from 'crypto';
@@ -13,7 +13,7 @@ export interface BigModelApiKey {
 }
 
 /**
- * 解析智谱AI API key
+ * Parse Zhipu AI API key
  */
 export function parseBigModelApiKey(apiKey: string): BigModelApiKey | null {
   const parts = apiKey.split('.');
@@ -24,10 +24,10 @@ export function parseBigModelApiKey(apiKey: string): BigModelApiKey | null {
 }
 
 /**
- * 生成智谱AI JWT token
+ * Generate Zhipu AI JWT token
  *
- * @param apiKey - 智谱AI API key (格式: id.secret)
- * @param expSeconds - 过期时间（秒），默认3600秒（1小时）
+ * @param apiKey - Zhipu AI API key (format: id.secret)
+ * @param expSeconds - Expiration time (seconds), default 3600 seconds (1 hour)
  */
 export function generateBigModelToken(apiKey: string, expSeconds: number = 3600): string {
   const parsed = parseBigModelApiKey(apiKey);
@@ -77,14 +77,14 @@ export function generateBigModelToken(apiKey: string, expSeconds: number = 3600)
 }
 
 /**
- * 判断是否使用智谱AI API
+ * Check if using Zhipu AI API
  */
 export function isBigModelApi(baseUrl: string): boolean {
   return baseUrl.includes('bigmodel.cn');
 }
 
 /**
- * 获取认证头
+ * Get authorization header
  */
 export function getAuthorizationHeader(apiKey: string, baseUrl: string): string {
   if (isBigModelApi(baseUrl)) {

@@ -306,14 +306,11 @@ const planActions = async (
           if (startViolated || dueViolated) {
             // Throw an error to prevent draft creation
             const errorMessage = [
-              `无法修改任务日期：${startViolated ? '开始日期' : ''}${startViolated && dueViolated ? '和' : ''}${dueViolated ? '截止日期' : ''}违反了前置依赖约束`,
-              ``,
-              `任务 "${existing.title}" 有必须满足的前置依赖。`,
-              ``,
-              `请求的日期：${merged.startDate ? new Date(merged.startDate).toISOString().split('T')[0] : 'N/A'} - ${merged.dueDate ? new Date(merged.dueDate).toISOString().split('T')[0] : 'N/A'}`,
-              `依赖要求的日期：${constrainedStart ? new Date(constrainedStart).toISOString().split('T')[0] : 'N/A'} - ${constrainedDue ? new Date(constrainedDue).toISOString().split('T')[0] : 'N/A'}`,
-              ``,
-              `请先修改前置任务，或移除依赖关系。`
+      `Cannot modify task dates: ${startViolated ? 'Start Date' : ''}${startViolated && dueViolated ? ' and ' : ''}${dueViolated ? 'Due Date' : ''} violate predecessor constraints`,
+      `Task "${existing.title}" has mandatory predecessors.`,
+      `Requested dates: ${merged.startDate ? new Date(merged.startDate).toISOString().split('T')[0] : 'N/A'} - ${merged.dueDate ? new Date(merged.dueDate).toISOString().split('T')[0] : 'N/A'}`,
+      `Constraint dates: ${constrainedStart ? new Date(constrainedStart).toISOString().split('T')[0] : 'N/A'} - ${constrainedDue ? new Date(constrainedDue).toISOString().split('T')[0] : 'N/A'}`,
+      `Please modify the predecessor task or remove the dependency.`
             ].join('\n');
 
             throw new Error(errorMessage);

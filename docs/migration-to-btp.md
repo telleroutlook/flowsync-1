@@ -2,79 +2,79 @@
 
 > **Status**: Completed on 2026-01-23. The codebase has been fully migrated to Node.js/PostgreSQL. This document is preserved for historical context.
 
-## 1. 现状快照 (Current Code Snapshot)
+## 1. Current Code Snapshot
 
-与当前仓库结构一致的关键点：
+Key points consistent with the current repository structure:
 
-- **后端入口**: `worker/index.ts`
-  - Hono app 直接在该文件创建
-  - `Bindings` 包含 `DB: D1Database` 与 `OPENAI_*`
-  - `app.use('*')` 中 `getDb(c.env.DB)` + `ensureSeedData(db)`
-- **数据库层**:
-  - `worker/db/index.ts` 使用 `drizzle-orm/d1`
-  - `worker/db/schema.ts` 使用 `sqliteTable`，时间戳存 `integer` (ms)，布尔存 `0/1`
-  - `predecessors`、`actions`、`before/after`、`payload` 等为 **JSON 字符串**
-- **序列化逻辑**:
-  - `worker/services/serializers.ts` 假设 `isMilestone` 为 `0/1`
-  - `worker/services/utils.ts` 提供 `toSqlBoolean`
-- **脚本**:
-  - `package.json` 仅有 `dev:worker` / `deploy` (Wrangler)
-  - 无 Node server build / start
+- **Backend Entry**: `worker/index.ts`
+  - Hono app created directly in this file
+  - `Bindings` includes `DB: D1Database` and `OPENAI_*`
+  - `app.use('*')` calls `getDb(c.env.DB)` + `ensureSeedData(db)`
+- **Database Layer**:
+  - `worker/db/index.ts` uses `drizzle-orm/d1`
+  - `worker/db/schema.ts` uses `sqliteTable`, timestamps stored as `integer` (ms), booleans as `0/1`
+  - `predecessors`, `actions`, `before/after`, `payload` etc. are **JSON strings**
+- **Serialization Logic**:
+  - `worker/services/serializers.ts` assumes `isMilestone` is `0/1`
+  - `worker/services/utils.ts` provides `toSqlBoolean`
+- **Scripts**:
+  - `package.json` only has `dev:worker` / `deploy` (Wrangler)
+  - No Node server build / start
 
-这意味着迁移必须显式处理：DB 类型、JSON 字段、入口启动方式。
+This means migration must explicitly handle: DB types, JSON fields, and entry point startup.
 
 ---
 
-## 2. 迁移目标与决策 (Best General Path)
+## 2. Migration Goals & Decisions (Best General Path)
 
-### 选择的通用路线
-- **时间戳保持 epoch ms**
-  - Postgres 使用 `bigint`（`mode: 'number'`）
-  - 维持前后端与服务逻辑一致，避免全链路日期转换
-- **布尔字段改为 `boolean`**
-  - 彻底移除 `toSqlBoolean`
-- **结构化字段统一改为 `jsonb`**
+### Selected General Route
+- **Timestamps remain epoch ms**
+  - Postgres uses `bigint` (`mode: 'number'`)
+  - Maintain consistency between frontend/backend and service logic to avoid full-link date conversion
+- **Boolean fields changed to `boolean`**
+  - Completely remove `toSqlBoolean`
+- **Structured fields unified to `jsonb`**
   - `tasks.predecessors`
   - `drafts.actions`
   - `audit_logs.before / audit_logs.after`
   - `observability_logs.payload`
 
-> 这条路线在功能上最稳健、最通用：对现有业务逻辑影响最小，同时充分利用 Postgres 的 JSON 能力。
+> This route is the most robust and general functionally: minimal impact on existing business logic while fully utilizing Postgres JSON capabilities.
 
 ---
 
-## 3. 代码改动清单（按文件）
+## 3. Code Changes List (By File)
 
-### A. Hono 入口抽离
-**目标**: 同时支持 Worker 与 Node 两个入口。
+### A. Extract Hono App
+**Goal**: Support both Worker and Node entry points.
 
-建议结构：
+Suggested Structure:
 ```
-worker/app.ts        # 仅创建 app，不依赖 D1
-worker/index.ts      # Cloudflare entry (D1 绑定)
+worker/app.ts        # Create app only, no D1 dependency
+worker/index.ts      # Cloudflare entry (D1 binding)
 src/server.ts        # Node entry (BTP)
 ```
 
-- `worker/app.ts`: 只创建并导出 `app`
-- `worker/index.ts`: 保留 `getDb(c.env.DB)` + `ensureSeedData`
+- `worker/app.ts`: Only create and export `app`
+- `worker/index.ts`: Keep `getDb(c.env.DB)` + `ensureSeedData`
 - `src/server.ts`:
-  - 使用 `process.env.DATABASE_URL` 创建 db
+  - Use `process.env.DATABASE_URL` to create db
   - `c.set('db', db)`
-  - 注入 `c.env = process.env`，确保 `worker/routes/ai.ts` 的 `c.env.OPENAI_*` 可用
+  - Inject `c.env = process.env` to ensure `worker/routes/ai.ts` `c.env.OPENAI_*` works
 
-**建议**：`ensureSeedData` 不要每个请求运行。可在 `server.ts` 启动时执行一次（或加全局 guard）。
+**Suggestion**: `ensureSeedData` should not run on every request. Execute once at `server.ts` startup (or add global guard).
 
 ---
 
-### B. 数据库层
+### B. Database Layer
 
 #### `worker/db/schema.ts`
-- 使用 `pgTable` 替代 `sqliteTable`
-- 时间戳字段改为 `bigint('xxx', { mode: 'number' })`
-- `isMilestone` 改为 `boolean`
-- JSON 字段改为 `jsonb`
+- Use `pgTable` instead of `sqliteTable`
+- Timestamp fields changed to `bigint('xxx', { mode: 'number' })`
+- `isMilestone` changed to `boolean`
+- JSON fields changed to `jsonb`
 
-涉及字段：
+Fields involved:
 - `projects.createdAt / updatedAt`
 - `tasks.createdAt / startDate / dueDate / updatedAt`
 - `drafts.createdAt`
@@ -86,50 +86,50 @@ src/server.ts        # Node entry (BTP)
 - `observabilityLogs.payload`
 
 #### `worker/db/index.ts`
-- 切换为 `drizzle-orm/node-postgres`
-- `Pool` 从 `process.env.DATABASE_URL` 获取
+- Switch to `drizzle-orm/node-postgres`
+- `Pool` gets from `process.env.DATABASE_URL`
 
 ---
 
-### C. 业务服务与序列化
+### C. Business Services & Serialization
 
-涉及文件与修改点：
+Files and modification points:
 - `worker/services/utils.ts`
-  - 删除 `toSqlBoolean`
+  - Delete `toSqlBoolean`
 - `worker/services/serializers.ts`
-  - `isMilestone` 直接读取 `boolean`
-  - `predecessors` 直接读取 `string[]`
+  - `isMilestone` read directly as `boolean`
+  - `predecessors` read directly as `string[]`
 - `worker/services/taskService.ts`
-  - `isMilestone` 直接保存 `boolean`
-  - `predecessors` 直接保存 `string[]`
+  - `isMilestone` saved directly as `boolean`
+  - `predecessors` saved directly as `string[]`
 - `worker/services/draftService.ts`
-  - `actions` 字段直接存取对象数组（不再 `JSON.stringify/parse`）
+  - `actions` field directly accesses object array (no more `JSON.stringify/parse`)
 - `worker/services/auditService.ts`
-  - `before/after` 改为 jsonb，读写直接传对象
-  - `rollback` 中 `isMilestone` 不再转 `0/1`
+  - `before/after` changed to jsonb, read/write pass objects directly
+  - `rollback` `isMilestone` no longer converts to `0/1`
 - `worker/services/logService.ts`
-  - `payload` 改为 jsonb
-- 测试文件同步更新：
+  - `payload` changed to jsonb
+- Test files update synchronously:
   - `worker/services/utils.test.ts`
   - `worker/services/serializers.test.ts`
   - `worker/services/constraintService.test.ts`
 
 ---
 
-## 4. Drizzle 配置与迁移文件
+## 4. Drizzle Config & Migration Files
 
-当前 `drizzle.config.ts` 为 D1（sqlite + d1-http）。迁移到 Postgres 后：
+Current `drizzle.config.ts` is for D1 (sqlite + d1-http). After migrating to Postgres:
 
 - `dialect: 'postgresql'`
 - `dbCredentials.connectionString = process.env.DATABASE_URL`
-- **建议新建迁移目录**（如 `migrations/pg`）
-- **建议新增独立 config**（如 `drizzle.config.pg.ts`），避免影响现有 D1 流程
+- **Suggest new migration directory** (e.g. `migrations/pg`)
+- **Suggest new independent config** (e.g. `drizzle.config.pg.ts`) to avoid affecting existing D1 flow
 
 ---
 
-## 5. 构建与启动脚本（按现有 package.json 调整）
+## 5. Build & Start Scripts (Adjust based on existing package.json)
 
-建议新增：
+Suggest adding:
 
 ```json
 "scripts": {
@@ -142,11 +142,11 @@ src/server.ts        # Node entry (BTP)
 }
 ```
 
-同时新增 `tsconfig.server.json`，将后端输出到 `dist-server/`，避免与 Vite 的 `dist/` 冲突。
+Also add `tsconfig.server.json`, outputting backend to `dist-server/` to avoid conflict with Vite's `dist/`.
 
 ---
 
-## 6. BTP 部署配置 (`manifest.yml`)
+## 6. BTP Deployment Config (`manifest.yml`)
 
 ```yaml
 ---
@@ -163,46 +163,46 @@ applications:
       NODE_ENV: production
 ```
 
-**数据库连接**:
-- BTP 会注入 `VCAP_SERVICES`
-- 可用 `cf-env` 解析，或通过 User-Provided Service 直接设置 `DATABASE_URL`
+**Database Connection**:
+- BTP will inject `VCAP_SERVICES`
+- Can use `cf-env` to parse, or set `DATABASE_URL` directly via User-Provided Service
 
 ---
 
-## 7. 数据迁移步骤（通用路线）
+## 7. Data Migration Steps (General Route)
 
-1. **导出 D1 数据**（JSON/CSV 均可）
-2. **转换结构**：
-   - JSON 字段从字符串 -> JSON 对象
-   - `isMilestone` 从 `0/1` -> `true/false`
-3. **导入 Postgres**：
-   - `predecessors/actions/before/after/payload` 以 jsonb 方式写入
-4. **校验**：
-   - 行数对齐
-   - 关键字段 diff
-
----
-
-## 8. 迁移执行步骤（结合当前代码）
-
-1. **抽离 Hono app**: 新增 `worker/app.ts`，拆分入口
-2. **引入 Node entry**: 新增 `src/server.ts`，注入 `c.env` + `db`
-3. **Schema 调整**: `worker/db/schema.ts` -> Postgres 类型 + jsonb
-4. **服务逻辑修正**: 去掉 `toSqlBoolean`，JSON 字段改为对象
-5. **Drizzle 配置更新**: 新增 Postgres migration
-6. **本地验证**: `npm run dev:server`
-7. **数据迁移**: D1 -> Postgres
-8. **BTP 部署**: `cf push`
+1. **Export D1 Data** (JSON/CSV)
+2. **Transform Structure**:
+   - JSON fields from string -> JSON object
+   - `isMilestone` from `0/1` -> `true/false`
+3. **Import to Postgres**:
+   - `predecessors/actions/before/after/payload` write as jsonb
+4. **Validation**:
+   - Row count alignment
+   - Key fields diff
 
 ---
 
-## 9. 验证与回滚
+## 8. Migration Execution Steps (Combined with Current Code)
 
-### 验证
-- `vitest` (已有 `worker/services` 测试可复用)
-- API 冒烟测试：`/api/projects`、`/api/tasks`、`/api/drafts`
-- 数据一致性：行数、关键字段 diff
+1. **Extract Hono App**: New `worker/app.ts`, split entry
+2. **Introduce Node Entry**: New `src/server.ts`, inject `c.env` + `db`
+3. **Schema Adjustment**: `worker/db/schema.ts` -> Postgres types + jsonb
+4. **Service Logic Correction**: Remove `toSqlBoolean`, JSON fields to object
+5. **Drizzle Config Update**: New Postgres migration
+6. **Local Verification**: `npm run dev:server`
+7. **Data Migration**: D1 -> Postgres
+8. **BTP Deployment**: `cf push`
 
-### 回滚
-- 保留 Cloudflare Workers 部署作为回退
-- BTP 部署失败时切回旧入口即可恢复服务
+---
+
+## 9. Verification & Rollback
+
+### Verification
+- `vitest` (Existing `worker/services` tests reusable)
+- API Smoke Test: `/api/projects`, `/api/tasks`, `/api/drafts`
+- Data Consistency: Row counts, key fields diff
+
+### Rollback
+- Retain Cloudflare Workers deployment as fallback
+- If BTP deployment fails, switch back to old entry to restore service

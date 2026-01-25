@@ -7,8 +7,7 @@ async function testAITools() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       history: [],
-      message: '创建一个名为"测试安全审查"的任务',
-      systemContext: 'Active Project: Test Project (test-id). Active Project ID: test-id.'
+                message: 'Create a task named "Security Audit"',      systemContext: 'Active Project: Test Project (test-id). Active Project ID: test-id.'
     }),
   });
 

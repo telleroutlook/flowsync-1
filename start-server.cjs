@@ -1,8 +1,8 @@
-// 加载 .env 文件并启动服务器
+// Load .env file and start server
 const { config } = require('dotenv');
 const { resolve } = require('path');
 
-// 加载 .env 文件
+// Load .env file
 const result = config({ path: resolve(__dirname, '.env') });
 
 if (result.error) {
@@ -17,7 +17,7 @@ console.log('  OPENAI_BASE_URL:', process.env.OPENAI_BASE_URL);
 console.log('  OPENAI_MODEL:', process.env.OPENAI_MODEL);
 console.log('');
 
-// 启动服务器
+// Start server
 require('child_process').spawn('npm', ['run', 'dev:server'], {
   stdio: 'inherit',
   shell: true,

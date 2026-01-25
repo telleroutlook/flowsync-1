@@ -173,10 +173,10 @@ ${systemContext || ''}
 
 CRITICAL - Task Creation vs Update:
 - BEFORE creating any task, ALWAYS call searchTasks with the task title to check if it already exists
-- If the user says "这个任务" (this task), "该任务" (the task), "为...设定" (set for...), or similar wording, they are referring to an EXISTING task
+- If the user says "this task", "the task", "set for...", or similar wording, they are referring to an EXISTING task
 - For existing tasks: use updateTask with the task id
 - For truly new tasks: use createTask
-- Example: "请为这个新的任务，设定合理的期间及其他数据" → this means UPDATE an existing task, NOT create a new one
+- Example: "Please set reasonable duration and other data for this new task" → this means UPDATE an existing task, NOT create a new one
 
 IMPORTANT - How to make changes:
 - NEVER call createTask without first checking if the task exists

@@ -1,14 +1,14 @@
-// 测试智谱AI API连接
-// 使用方法: node test-api.js YOUR_API_KEY
+// Test Zhipu AI API connection
+// Usage: node test-api.js YOUR_API_KEY
 
 const crypto = require('crypto');
 
 const API_KEY = process.argv[2] || process.env.OPENAI_API_KEY;
 
 if (!API_KEY) {
-  console.error('请提供 API Key:');
+  console.error('Please provide API Key:');
   console.error('  node test-api.js YOUR_API_KEY');
-  console.error('  或设置环境变量 OPENAI_API_KEY');
+  console.error('  or set environment variable OPENAI_API_KEY');
   process.exit(1);
 }
 
@@ -17,7 +17,7 @@ const ENDPOINT = `${BASE_URL}/chat/completions`;
 const MODEL = 'GLM-4.7';
 
 console.log('='.repeat(60));
-console.log('测试智谱AI API (带 JWT 认证)');
+console.log('Test Zhipu AI API (with JWT Auth)');
 console.log('='.repeat(60));
 console.log('Base URL:', BASE_URL);
 console.log('Endpoint:', ENDPOINT);
@@ -25,7 +25,7 @@ console.log('Model:', MODEL);
 console.log('API Key:', API_KEY.substring(0, 20) + '...');
 console.log('='.repeat(60));
 
-// 生成 JWT token for 智谱AI
+// Generate JWT token for Zhipu AI
 function generateBigModelToken(apiKey, expSeconds = 3600) {
   const parts = apiKey.split('.');
   if (parts.length !== 2) {
@@ -71,18 +71,18 @@ function generateBigModelToken(apiKey, expSeconds = 3600) {
 }
 
 const jwtToken = generateBigModelToken(API_KEY);
-console.log('\n生成的 JWT Token:', jwtToken.substring(0, 50) + '...');
+console.log('\nGenerated JWT Token:', jwtToken.substring(0, 50) + '...');
 
 const testPayload = {
   model: MODEL,
   messages: [
     { role: 'system', content: 'You are a helpful assistant.' },
-    { role: 'user', content: '你好' }
+    { role: 'user', content: 'Hello' }
   ],
   temperature: 0.5,
 };
 
-console.log('\n发送请求...');
+console.log('\nSending Request...');
 console.log('Method: POST');
 console.log('Headers:');
 console.log('  Content-Type: application/json');
@@ -99,7 +99,7 @@ fetch(ENDPOINT, {
 })
   .then(async (response) => {
     console.log('\n' + '='.repeat(60));
-    console.log('收到响应');
+    console.log('Response Received');
     console.log('='.repeat(60));
     console.log('Status:', response.status);
     console.log('Status Text:', response.statusText);
@@ -118,19 +118,19 @@ fetch(ENDPOINT, {
       console.log(JSON.stringify(json, null, 2));
 
       if (json.error) {
-        console.log('\n❌ 请求失败');
-        console.log('错误代码:', json.error.code);
-        console.log('错误信息:', json.error.message);
+        console.log('\n❌ Request Failed');
+        console.log('Error Code:', json.error.code);
+        console.log('Error Message:', json.error.message);
       } else if (json.choices && json.choices[0]?.message?.content) {
-        console.log('\n✅ 请求成功');
-        console.log('\nAI 回复:', json.choices[0].message.content);
+        console.log('\n✅ Request Success');
+        console.log('\nAI Reply:', json.choices[0].message.content);
       } else {
-        console.log('\n✅ 请求成功 (无内容)');
+        console.log('\n✅ Request Success (No Content)');
       }
     } catch (e) {
       console.log(text);
     }
   })
   .catch((error) => {
-    console.error('\n❌ 请求异常:', error.message);
+    console.error('\n❌ Request Exception:', error.message);
   });
