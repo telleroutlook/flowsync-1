@@ -13,11 +13,22 @@
         theme: {
           extend: {
             colors: {
-              background: '#f8fafc', // slate-50
-              surface: '#ffffff', // white
-              primary: '#4f46e5', // indigo-600 (darker for contrast)
-              secondary: '#3b82f6', // blue-500
-              accent: '#8b5cf6', // violet-500
+              background: '#F5F6F7', // Fiori Horizon App Background
+              surface: '#FFFFFF', // Fiori Card/Header Background
+              primary: '#0070F2', // SAP Blue (Information/Action)
+              secondary: '#556B82', // Fiori Secondary Text/Label
+              accent: '#5D36FF', // Joule Purple / Indication 7
+              'text-primary': '#131E29', // Fiori Primary Text
+              'text-secondary': '#556B82', // Fiori Secondary Text
+              'border-subtle': '#D9D9D9', // Fiori Container Borders
+              'joule-start': '#5d36ff', // Joule Gradient Start
+              'joule-end': '#a100c2', // Joule Gradient End
+              'success': '#256F3A', // Fiori Positive
+              'critical': '#E76500', // Fiori Critical
+              'negative': '#AA0808', // Fiori Negative
+            },
+            fontFamily: {
+              sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
             },
             animation: {
               'fade-in': 'fadeIn 0.3s ease-out',
@@ -40,24 +51,24 @@
     </script>
     <style>
       body {
-        background-color: #f8fafc;
-        color: #0f172a;
+        background-color: #F5F6F7;
+        color: #131E29;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       }
-      /* Custom Scrollbar - Light Theme */
+      /* SAP Fiori Scrollbar */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f5f9; 
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; 
+        background: #758CA4; 
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; 
+        background: #556B82; 
       }
     </style>
     

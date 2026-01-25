@@ -255,10 +255,10 @@ export default function App() {
   const filteredAuditLogs = useMemo(() => auditLogs, [auditLogs]);
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 overflow-hidden text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="flex h-screen w-full bg-background overflow-hidden text-text-primary font-sans selection:bg-primary/20 selection:text-primary">
       
       {/* 1. Project Sidebar (Left) */}
-      <div className={`${isSidebarOpen ? 'w-[260px]' : 'w-0'} transition-all duration-300 overflow-hidden border-r border-slate-200 bg-white relative z-20 flex-shrink-0`}>
+      <div className={`${isSidebarOpen ? 'w-[260px]' : 'w-0'} transition-all duration-300 overflow-hidden border-r border-border-subtle bg-surface relative z-20 flex-shrink-0`}>
         <ProjectSidebar 
           projects={projects}
           activeProjectId={activeProjectId}
@@ -270,13 +270,13 @@ export default function App() {
       </div>
 
       {/* 2. Workspace (Middle) */}
-      <div className="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col h-full bg-background relative overflow-hidden min-w-0">
         {/* Header */}
-        <div className="h-12 border-b border-slate-200 flex items-center justify-between px-4 bg-white/80 backdrop-blur-md z-20 sticky top-0 shrink-0">
+        <div className="h-12 border-b border-border-subtle flex items-center justify-between px-4 bg-surface/80 backdrop-blur-md z-20 sticky top-0 shrink-0">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsSidebarOpen(prev => !prev)}
-              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+              className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-background rounded-lg transition-colors"
               title={isSidebarOpen ? "Close Sidebar" : "Open Sidebar"}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -285,24 +285,24 @@ export default function App() {
             </button>
 
             <div className="flex flex-col">
-              <h2 className="text-sm font-bold text-slate-800 leading-tight truncate max-w-[200px]">{activeProject.name}</h2>
+              <h2 className="text-sm font-bold text-text-primary leading-tight truncate max-w-[200px]">{activeProject.name}</h2>
               {activeProject.description && (
-                 <p className="text-[10px] font-medium text-slate-500 truncate max-w-[200px]">{activeProject.description}</p>
+                 <p className="text-[10px] font-medium text-text-secondary truncate max-w-[200px]">{activeProject.description}</p>
               )}
             </div>
             
-            <div className="h-4 w-px bg-slate-300 mx-2"></div>
+            <div className="h-4 w-px bg-border-subtle mx-2"></div>
 
             {/* View Switcher */}
-            <div className="flex p-0.5 bg-slate-100/80 rounded-lg border border-slate-200/60 backdrop-blur-sm">
+            <div className="flex p-0.5 bg-background rounded-lg border border-border-subtle backdrop-blur-sm">
                {['BOARD', 'LIST', 'GANTT'].map((mode) => (
                  <button 
                    key={mode}
                    onClick={() => setViewMode(mode as ViewMode)}
                    className={`px-3 py-1 rounded-md text-[10px] font-bold tracking-wide transition-all ${ 
                      viewMode === mode 
-                       ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5' 
-                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                       ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5' 
+                       : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
                    }`}
                  >
                    {mode}
@@ -312,7 +312,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-             <div className="flex items-center gap-1.5 bg-white p-0.5 rounded-lg border border-slate-200 shadow-sm">
+             <div className="flex items-center gap-1.5 bg-surface p-0.5 rounded-lg border border-border-subtle shadow-sm">
                <input
                  ref={importInputRef}
                  type="file"
@@ -327,16 +327,16 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => importInputRef.current?.click()}
-                className="flex items-center gap-1.5 rounded px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
+                className="flex items-center gap-1.5 rounded px-2 py-1 text-[10px] font-semibold text-text-secondary hover:bg-background hover:text-primary transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                 <span>Import</span>
               </button>
-              <div className="w-px h-3 bg-slate-200"></div>
+              <div className="w-px h-3 bg-border-subtle"></div>
               <select
                 value={importStrategy}
                 onChange={(event) => recordImportPreference(event.target.value as any)}
-                className="bg-transparent text-[10px] font-medium text-slate-500 outline-none cursor-pointer hover:text-indigo-600 border-none py-0 focus:ring-0"
+                className="bg-transparent text-[10px] font-medium text-text-secondary outline-none cursor-pointer hover:text-primary border-none py-0 focus:ring-0"
                 aria-label="Import strategy"
               >
                 <option value="append">Append</option>
@@ -350,12 +350,12 @@ export default function App() {
                 onClick={() => setIsAuditOpen(prev => !prev)}
                 className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold shadow-sm transition-all ${ 
                   isAuditOpen
-                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+                    ? 'border-primary/20 bg-primary/10 text-primary'
+                    : 'border-border-subtle bg-surface text-text-secondary hover:border-primary/30 hover:text-primary'
                 }`}
               >
                 <span>Audit</span>
-                <span className="rounded-full bg-indigo-100 px-1.5 py-0 text-[9px] font-bold text-indigo-700 min-w-[16px] text-center">
+                <span className="rounded-full bg-primary/10 px-1.5 py-0 text-[9px] font-bold text-primary min-w-[16px] text-center">
                   {filteredAuditLogs.length}
                 </span>
               </button>
@@ -368,7 +368,7 @@ export default function App() {
                   event.stopPropagation();
                   setIsExportOpen(prev => !prev);
                  }}
-                 className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm hover:border-indigo-200 hover:text-indigo-600 transition-all"
+                 className="flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface px-2 py-1 text-[10px] font-semibold text-text-secondary shadow-sm hover:border-primary/30 hover:text-primary transition-all"
                >
                  <span>Export</span>
                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -378,17 +378,17 @@ export default function App() {
                {isExportOpen && (
                  <div
                    onClick={(event) => event.stopPropagation()}
-                   className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-100 bg-white shadow-xl shadow-slate-200/50 z-50 p-2 animate-fade-in"
+                   className="absolute right-0 mt-2 w-64 rounded-xl border border-border-subtle bg-surface shadow-xl shadow-black/5 z-50 p-2 animate-fade-in"
                  >
-                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Export Scope</div>
-                   <div className="flex gap-1 p-1 bg-slate-50 rounded-lg mb-2">
+                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">Export Scope</div>
+                   <div className="flex gap-1 p-1 bg-background rounded-lg mb-2">
                      <button
                        type="button"
                        onClick={() => setExportScope('active')}
                        className={`flex-1 rounded-md px-2 py-1.5 text-[10px] font-bold transition-all ${ 
                          exportScope === 'active'
-                           ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5'
-                           : 'text-slate-500 hover:text-slate-700'
+                           ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5'
+                           : 'text-text-secondary hover:text-text-primary'
                        }`}
                      >
                        Current Project
@@ -398,15 +398,15 @@ export default function App() {
                        onClick={() => setExportScope('all')}
                        className={`flex-1 rounded-md px-2 py-1.5 text-[10px] font-bold transition-all ${ 
                          exportScope === 'all'
-                           ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5'
-                           : 'text-slate-500 hover:text-slate-700'
+                           ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5'
+                           : 'text-text-secondary hover:text-text-primary'
                        }`}
                      >
                        All Projects
                      </button>
                    </div>
                    
-                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Format</div>
+                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">Format</div>
                    <div className="grid grid-cols-1 gap-0.5">
                      {([
                        { id: 'csv', label: 'CSV', desc: 'Spreadsheet compatible' },
@@ -422,14 +422,14 @@ export default function App() {
                            setIsExportOpen(false);
                          }}
                          className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${ 
-                           lastExportFormat === item.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50' 
+                           lastExportFormat === item.id ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-background' 
                          }`}
                        >
                          <div className="flex flex-col items-start">
                             <span className="font-semibold">{item.label}</span>
                             <span className="text-[9px] opacity-70 group-hover:opacity-100">{item.desc}</span>
                          </div>
-                         {lastExportFormat === item.id && <span className="text-indigo-500">✓</span>}
+                         {lastExportFormat === item.id && <span className="text-primary">✓</span>}
                        </button>
                      ))}
                    </div>
@@ -437,14 +437,14 @@ export default function App() {
                )}
              </div>
 
-            <div className="h-6 w-px bg-slate-200 mx-1"></div>
+            <div className="h-6 w-px bg-border-subtle mx-1"></div>
 
              <button 
                 onClick={() => setIsChatOpen(prev => !prev)}
                 className={`p-1.5 rounded-lg transition-colors ${
                   isChatOpen 
-                    ? 'text-indigo-600 bg-indigo-50' 
-                    : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-100'
+                    ? 'text-primary bg-primary/10' 
+                    : 'text-text-secondary hover:text-primary hover:bg-background'
                 }`}
                 title="Toggle AI Chat"
              >
