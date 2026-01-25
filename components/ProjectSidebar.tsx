@@ -42,7 +42,7 @@ export const ProjectSidebar = memo<ProjectSidebarProps>(({
         </div>
       )}
       <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">{t('app.sidebar.projects')}</h3>
+        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-1">{t('app.sidebar.projects')}</h3>
         <div className="flex items-center gap-1">
           <button
             onClick={onCreateProject}
@@ -88,15 +88,15 @@ export const ProjectSidebar = memo<ProjectSidebarProps>(({
               }}
             >
               <div className="flex items-center gap-2 overflow-hidden">
-                <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-xs shadow-sm transition-transform group-hover:scale-105 ${
+                <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-sm shadow-sm transition-transform group-hover:scale-105 ${
                   isActive ? 'bg-white text-indigo-600 ring-1 ring-indigo-100' : 'bg-slate-100 text-slate-500'
                 }`} aria-hidden="true">
                   {project.icon || project.name.charAt(0).toUpperCase()}
                 </span>
                 <div className="flex flex-col min-w-0">
-                   <span className="truncate text-xs font-medium leading-tight">{project.name}</span>
+                   <span className="truncate text-sm font-medium leading-tight">{project.name}</span>
                    {project.description && (
-                     <span className="truncate text-[10px] text-slate-400 leading-tight mt-0.5">{project.description}</span>
+                     <span className="truncate text-xs text-slate-400 leading-tight mt-0.5">{project.description}</span>
                    )}
                 </div>
               </div>
@@ -119,7 +119,7 @@ export const ProjectSidebar = memo<ProjectSidebarProps>(({
          <div className="bg-white rounded-lg p-2 border border-slate-200 shadow-sm">
             <div className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-0.5 text-sm" aria-hidden="true">💡</span>
-                <p className="text-xs text-slate-500 leading-snug">
+                <p className="text-sm text-slate-500 leading-snug">
                    {t('app.sidebar.tip')}
                 </p>
             </div>
