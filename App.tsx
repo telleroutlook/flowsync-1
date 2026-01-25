@@ -529,50 +529,53 @@ export default function App() {
         />
 
         {/* View Area */}
-        <div className="p-4 flex-1 overflow-hidden relative z-10 custom-scrollbar">
+        <div className="p-4 flex-1 overflow-hidden relative z-10 custom-scrollbar flex gap-4">
           {isLoadingData ? (
             <LoadingSpinner message={t('app.loading.project_data')} />
           ) : (
-            <Suspense fallback={<LoadingSpinner message={t('app.loading.view')} />}>
-              {viewMode === 'BOARD' && (
-                <KanbanBoard
-                  tasks={activeTasks}
-                  selectedTaskId={selectedTaskId}
-                  onSelectTask={(id) => setSelectedTaskId(id)}
-                />
-              )}
-              {viewMode === 'LIST' && (
-                <ListView
-                  tasks={activeTasks}
-                  selectedTaskId={selectedTaskId}
-                  onSelectTask={(id) => setSelectedTaskId(id)}
-                />
-              )}
-              {viewMode === 'GANTT' && (
-                <div className="flex h-full gap-4">
-                  <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <GanttChart
+            <>
+              <div className="flex-1 min-w-0 h-full overflow-hidden relative">
+                <Suspense fallback={<LoadingSpinner message={t('app.loading.view')} />}>
+                  {viewMode === 'BOARD' && (
+                    <KanbanBoard
                       tasks={activeTasks}
                       selectedTaskId={selectedTaskId}
                       onSelectTask={(id) => setSelectedTaskId(id)}
-                      onUpdateTaskDates={(id, startDate, dueDate) => {
-                        queueTaskUpdate(id, { startDate, dueDate });
-                      }}
                     />
-                  </div>
-                  <div className={`transition-all duration-300 ${selectedTask ? 'w-[300px] opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-10 pointer-events-none'}`}>
-                     {selectedTask && (
-                       <TaskDetailPanel
-                         selectedTask={selectedTask}
-                         onClose={() => setSelectedTaskId(null)}
-                         onUpdate={queueTaskUpdate}
-                         tasks={tasks}
-                       />
-                     )}
-                  </div>
-                </div>
-              )}
-            </Suspense>
+                  )}
+                  {viewMode === 'LIST' && (
+                    <ListView
+                      tasks={activeTasks}
+                      selectedTaskId={selectedTaskId}
+                      onSelectTask={(id) => setSelectedTaskId(id)}
+                    />
+                  )}
+                  {viewMode === 'GANTT' && (
+                    <div className="flex-1 h-full min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      <GanttChart
+                        tasks={activeTasks}
+                        selectedTaskId={selectedTaskId}
+                        onSelectTask={(id) => setSelectedTaskId(id)}
+                        onUpdateTaskDates={(id, startDate, dueDate) => {
+                          queueTaskUpdate(id, { startDate, dueDate });
+                        }}
+                      />
+                    </div>
+                  )}
+                </Suspense>
+              </div>
+
+              <div className={`transition-all duration-300 ${selectedTask ? 'w-[300px] opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-10 pointer-events-none'}`}>
+                {selectedTask && (
+                  <TaskDetailPanel
+                    selectedTask={selectedTask}
+                    onClose={() => setSelectedTaskId(null)}
+                    onUpdate={queueTaskUpdate}
+                    tasks={tasks}
+                  />
+                )}
+              </div>
+            </>
           )}
         </div>
         

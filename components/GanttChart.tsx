@@ -383,7 +383,11 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                {t('gantt.task_name')}
              </div>
              {taskEntries.map(task => (
-               <div key={task.id} className="h-11 px-4 border-b border-slate-50 flex flex-col justify-center hover:bg-slate-50">
+               <div 
+                 key={task.id} 
+                 className="h-11 px-4 border-b border-slate-50 flex flex-col justify-center hover:bg-slate-50 cursor-pointer transition-colors hover:text-primary"
+                 onClick={() => onSelectTask?.(task.id)}
+               >
                  <div className="text-sm font-medium text-slate-700 truncate">{task.title}</div>
                  <div className="text-xs text-slate-400 truncate">{task.assignee || t('gantt.unassigned')}</div>
                </div>
