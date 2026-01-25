@@ -133,6 +133,13 @@ const fetchWithRetry = async (
 // Helper function to execute tool calls using the registry
 async function executeTool(c: Context<{ Bindings: Bindings; Variables: Variables }>, toolName: string, args: Record<string, unknown>): Promise<string> {
   const registry = createToolRegistry(c);
+  const tool = registry.get(toolName);
+  if (!tool) {
+    return `Unknown tool: ${toolName}`;
+  }
+  if (tool.category === 'action') {
+    return 'Error: Tool not permitted in this session.';
+  }
   return await registry.execute(toolName, {
     db: c.get('db'),
     args,
@@ -187,6 +194,7 @@ IMPORTANT - How to make changes:
 - Use createTask/updateTask/deleteTask for single changes, use planChanges for multiple related changes
 - All changes create drafts that require user approval
 - When creating tasks, ALWAYS include the projectId. Use the "Active Project ID" from the system context for new tasks.
+- Drafts are applied only after explicit user approval. Do NOT call applyChanges.
 
 CRITICAL - Date Calculations:
 - ALL dates (startDate, dueDate) are Unix timestamps in MILLISECONDS
@@ -228,7 +236,7 @@ const runAIRequest = async (
 
   // Create tool registry and get OpenAI-compatible tools
   const toolRegistry = createToolRegistry(c);
-  const tools = toolRegistry.getOpenAITools();
+  const tools = toolRegistry.getOpenAITools({ categories: ['read', 'write'] });
 
   assertNotAborted();
   emit?.('stage', { name: 'received' });

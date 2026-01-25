@@ -12,6 +12,11 @@ tasksRoute.use('*', workspaceMiddleware);
 
 const statusEnum = z.enum(['TODO', 'IN_PROGRESS', 'DONE']);
 const priorityEnum = z.enum(['LOW', 'MEDIUM', 'HIGH']);
+const booleanQuery = z.preprocess((value) => {
+  if (value === 'true' || value === true) return true;
+  if (value === 'false' || value === false) return false;
+  return value;
+}, z.boolean());
 
 const taskInputSchema = z.object({
   projectId: z.string().min(1),
@@ -45,8 +50,14 @@ const taskUpdateSchema = z.object({
 const listQuerySchema = z.object({
   projectId: z.string().optional(),
   status: statusEnum.optional(),
+  priority: priorityEnum.optional(),
   assignee: z.string().optional(),
+  isMilestone: booleanQuery.optional(),
   q: z.string().optional(),
+  startDateFrom: z.coerce.number().optional(),
+  startDateTo: z.coerce.number().optional(),
+  dueDateFrom: z.coerce.number().optional(),
+  dueDateTo: z.coerce.number().optional(),
   page: z.coerce.number().optional(),
   pageSize: z.coerce.number().optional(),
 });

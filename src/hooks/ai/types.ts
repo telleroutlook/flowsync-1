@@ -10,8 +10,14 @@ export interface ApiClient {
   listTasks(params: {
     projectId?: string;
     status?: string;
+    priority?: string;
     assignee?: string;
+    isMilestone?: boolean;
     q?: string;
+    startDateFrom?: number;
+    startDateTo?: number;
+    dueDateFrom?: number;
+    dueDateTo?: number;
     page?: number;
     pageSize?: number;
   }): Promise<{ data: Task[]; total: number; page: number; pageSize: number }>;

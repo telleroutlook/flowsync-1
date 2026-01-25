@@ -59,8 +59,14 @@ const toolHandlers: Record<string, ToolHandlerFunction> = {
     const result = await api.listTasks({
       projectId: typeof args.projectId === 'string' ? args.projectId : undefined,
       status: typeof args.status === 'string' ? args.status : undefined,
+      priority: typeof args.priority === 'string' ? args.priority : undefined,
       assignee: typeof args.assignee === 'string' ? args.assignee : undefined,
+      isMilestone: typeof args.isMilestone === 'boolean' ? args.isMilestone : undefined,
       q: typeof args.q === 'string' ? args.q : undefined,
+      startDateFrom: typeof args.startDateFrom === 'number' ? args.startDateFrom : undefined,
+      startDateTo: typeof args.startDateTo === 'number' ? args.startDateTo : undefined,
+      dueDateFrom: typeof args.dueDateFrom === 'number' ? args.dueDateFrom : undefined,
+      dueDateTo: typeof args.dueDateTo === 'number' ? args.dueDateTo : undefined,
       page: typeof args.page === 'number' ? args.page : undefined,
       pageSize: typeof args.pageSize === 'number' ? args.pageSize : undefined,
     });

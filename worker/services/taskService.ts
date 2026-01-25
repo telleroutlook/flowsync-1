@@ -1,4 +1,4 @@
-import { and, eq, like, sql } from 'drizzle-orm';
+import { and, eq, gte, like, lte, or, sql } from 'drizzle-orm';
 import type { SQLWrapper } from 'drizzle-orm';
 import { projects, tasks } from '../db/schema';
 import { toTaskRecord } from './serializers';
@@ -8,8 +8,14 @@ import type { Priority, TaskRecord, TaskStatus } from './types';
 export type TaskFilters = {
   projectId?: string;
   status?: TaskStatus;
+  priority?: Priority;
   assignee?: string;
+  isMilestone?: boolean;
   q?: string;
+  startDateFrom?: number;
+  startDateTo?: number;
+  dueDateFrom?: number;
+  dueDateTo?: number;
   page?: number;
   pageSize?: number;
 };
@@ -18,8 +24,22 @@ const buildWhere = (filters: TaskFilters) => {
   const clauses: SQLWrapper[] = [];
   if (filters.projectId) clauses.push(eq(tasks.projectId, filters.projectId));
   if (filters.status) clauses.push(eq(tasks.status, filters.status));
+  if (filters.priority) clauses.push(eq(tasks.priority, filters.priority));
   if (filters.assignee) clauses.push(eq(tasks.assignee, filters.assignee));
-  if (filters.q) clauses.push(like(tasks.title, `%${filters.q}%`));
+  if (filters.isMilestone !== undefined) clauses.push(eq(tasks.isMilestone, filters.isMilestone));
+  if (filters.startDateFrom !== undefined) clauses.push(gte(tasks.startDate, filters.startDateFrom));
+  if (filters.startDateTo !== undefined) clauses.push(lte(tasks.startDate, filters.startDateTo));
+  if (filters.dueDateFrom !== undefined) clauses.push(gte(tasks.dueDate, filters.dueDateFrom));
+  if (filters.dueDateTo !== undefined) clauses.push(lte(tasks.dueDate, filters.dueDateTo));
+  if (filters.q) {
+    const query = `%${filters.q}%`;
+    clauses.push(
+      or(
+        like(tasks.title, query),
+        like(sql`coalesce(${tasks.description}, '')`, query)
+      )
+    );
+  }
   if (clauses.length === 0) return undefined;
   return and(...clauses);
 };

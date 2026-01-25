@@ -23,14 +23,18 @@ export type ToolParameterSchema = {
   required?: string[];
   items?: JsonSchema;
   enum?: string[];
+  minimum?: number;
+  maximum?: number;
 };
+
+export type ToolCategory = 'read' | 'write' | 'action';
 
 export type ToolDefinition = {
   name: string;
   description: string;
   parameters: ToolParameterSchema;
   handler: ToolHandler;
-  category?: 'read' | 'write' | 'action';
+  category?: ToolCategory;
 };
 
 export type ToolHandler = (
@@ -65,27 +69,60 @@ const commonSchemas = {
     description: 'Reason for this change (optional)',
   },
   pagination: {
-    page: { type: 'number', description: 'Page number (1-indexed)' },
-    pageSize: { type: 'number', description: 'Items per page' },
+    page: { type: 'number', description: 'Page number (1-indexed)', minimum: 1 },
+    pageSize: { type: 'number', description: 'Items per page', minimum: 1, maximum: 100 },
+  },
+  taskTitle: {
+    type: 'string',
+    description: 'Task title',
   },
   taskFields: {
-    title: { type: 'string' },
     description: { type: 'string' },
-    status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-    priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+    status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'], description: 'Task status' },
+    priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'], description: 'Task priority' },
     wbs: { type: 'string' },
     startDate: {
       type: 'number',
       description: 'Task start date as Unix timestamp in milliseconds',
+      minimum: 0,
     },
     dueDate: {
       type: 'number',
       description: 'Task due date as Unix timestamp in milliseconds',
+      minimum: 0,
     },
-    completion: { type: 'number' },
+    completion: { type: 'number', minimum: 0, maximum: 100 },
     assignee: { type: 'string' },
     isMilestone: { type: 'boolean' },
     predecessors: { type: 'array', items: { type: 'string' } },
+  },
+  taskFilterFields: {
+    projectId: { type: 'string', description: 'Filter by project ID' },
+    status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'], description: 'Filter by status' },
+    priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'], description: 'Filter by priority' },
+    assignee: { type: 'string', description: 'Filter by assignee' },
+    isMilestone: { type: 'boolean', description: 'Filter by milestone tasks' },
+    startDateFrom: {
+      type: 'number',
+      description: 'Filter tasks with startDate >= this Unix ms timestamp',
+      minimum: 0,
+    },
+    startDateTo: {
+      type: 'number',
+      description: 'Filter tasks with startDate <= this Unix ms timestamp',
+      minimum: 0,
+    },
+    dueDateFrom: {
+      type: 'number',
+      description: 'Filter tasks with dueDate >= this Unix ms timestamp',
+      minimum: 0,
+    },
+    dueDateTo: {
+      type: 'number',
+      description: 'Filter tasks with dueDate <= this Unix ms timestamp',
+      minimum: 0,
+    },
+    q: { type: 'string', description: 'Search query for title/description' },
   },
   projectFields: {
     name: { type: 'string' },
@@ -97,6 +134,150 @@ const commonSchemas = {
 // ============================================================================
 // Tool Registry Class
 // ============================================================================
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const normalizeValue = (schema: JsonSchema | undefined, value: unknown): unknown => {
+  if (!schema || !isPlainObject(schema)) return value;
+  const schemaType = typeof schema.type === 'string' ? schema.type : undefined;
+
+  if (schemaType === 'number' && typeof value === 'string') {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+
+  if (schemaType === 'boolean' && typeof value === 'string') {
+    if (value.toLowerCase() === 'true') return true;
+    if (value.toLowerCase() === 'false') return false;
+  }
+
+  if (schemaType === 'array' && Array.isArray(value)) {
+    const itemSchema = isPlainObject(schema.items) ? schema.items : undefined;
+    if (itemSchema) {
+      return value.map((item) => normalizeValue(itemSchema, item));
+    }
+  }
+
+  if (schemaType === 'object' && isPlainObject(value)) {
+    const propertiesSchema = isPlainObject(schema.properties) ? schema.properties : undefined;
+    if (!propertiesSchema) return value;
+    const normalized: Record<string, unknown> = { ...value };
+    for (const [key, propSchema] of Object.entries(propertiesSchema)) {
+      if (key in normalized) {
+        const schemaForProp = isPlainObject(propSchema) ? propSchema : undefined;
+        normalized[key] = normalizeValue(schemaForProp, normalized[key]);
+      }
+    }
+    return normalized;
+  }
+
+  return value;
+};
+
+const normalizeArgs = (schema: ToolParameterSchema, args: Record<string, unknown>): Record<string, unknown> => {
+  if (schema.type !== 'object') return args;
+  if (!isPlainObject(args)) return args;
+  if (!isPlainObject(schema.properties)) return args;
+  const normalized: Record<string, unknown> = { ...args };
+  for (const [key, propSchema] of Object.entries(schema.properties)) {
+    if (key in normalized) {
+      const schemaForProp = isPlainObject(propSchema) ? propSchema : undefined;
+      normalized[key] = normalizeValue(schemaForProp, normalized[key]);
+    }
+  }
+  return normalized;
+};
+
+const validateValueType = (schema: JsonSchema | undefined, value: unknown): boolean => {
+  if (!schema || !isPlainObject(schema)) return true;
+  const schemaType = typeof schema.type === 'string' ? schema.type : undefined;
+  if (!schemaType) return true;
+
+  if (schemaType === 'string') return typeof value === 'string';
+  if (schemaType === 'number') return typeof value === 'number' && !Number.isNaN(value);
+  if (schemaType === 'boolean') return typeof value === 'boolean';
+  if (schemaType === 'array') {
+    if (!Array.isArray(value)) return false;
+    const itemSchema = isPlainObject(schema.items) ? schema.items : undefined;
+    if (itemSchema) {
+      return value.every((item) => validateValueType(itemSchema, item));
+    }
+    return true;
+  }
+  if (schemaType === 'object') return isPlainObject(value);
+  return true;
+};
+
+const validateArgs = (schema: ToolParameterSchema, args: Record<string, unknown>) => {
+  if (schema.type !== 'object') {
+    return { ok: true as const };
+  }
+  if (!isPlainObject(args)) {
+    return { ok: false as const, error: 'Arguments must be an object.' };
+  }
+
+  const required = schema.required || [];
+  for (const key of required) {
+    if (!Object.prototype.hasOwnProperty.call(args, key)) {
+      return { ok: false as const, error: `Missing required argument: ${key}` };
+    }
+  }
+
+  if (isPlainObject(schema.properties)) {
+    for (const [key, propertySchema] of Object.entries(schema.properties)) {
+      if (!Object.prototype.hasOwnProperty.call(args, key)) continue;
+      const value = args[key];
+      const schemaForProp = isPlainObject(propertySchema) ? propertySchema : undefined;
+      if (!validateValueType(schemaForProp, value)) {
+        return { ok: false as const, error: `Invalid type for argument "${key}".` };
+      }
+      if (schemaForProp && Array.isArray(schemaForProp.enum)) {
+        if (!schemaForProp.enum.includes(value)) {
+          return { ok: false as const, error: `Invalid value for argument "${key}".` };
+        }
+      }
+      if (
+        schemaForProp &&
+        typeof value === 'number' &&
+        typeof schemaForProp.minimum === 'number' &&
+        value < schemaForProp.minimum
+      ) {
+        return { ok: false as const, error: `Value for argument "${key}" is below minimum.` };
+      }
+      if (
+        schemaForProp &&
+        typeof value === 'number' &&
+        typeof schemaForProp.maximum === 'number' &&
+        value > schemaForProp.maximum
+      ) {
+        return { ok: false as const, error: `Value for argument "${key}" exceeds maximum.` };
+      }
+    }
+  }
+
+  if (typeof args.startDate === 'number' && typeof args.dueDate === 'number' && args.dueDate < args.startDate) {
+    return { ok: false as const, error: 'dueDate must be greater than or equal to startDate.' };
+  }
+
+  if (
+    typeof args.startDateFrom === 'number' &&
+    typeof args.startDateTo === 'number' &&
+    args.startDateTo < args.startDateFrom
+  ) {
+    return { ok: false as const, error: 'startDateTo must be greater than or equal to startDateFrom.' };
+  }
+
+  if (
+    typeof args.dueDateFrom === 'number' &&
+    typeof args.dueDateTo === 'number' &&
+    args.dueDateTo < args.dueDateFrom
+  ) {
+    return { ok: false as const, error: 'dueDateTo must be greater than or equal to dueDateFrom.' };
+  }
+
+  return { ok: true as const };
+};
 
 class AIToolRegistry {
   private tools = new Map<string, ToolDefinition>();
@@ -133,8 +314,12 @@ class AIToolRegistry {
     return this.toolsByCategory.get(category) || [];
   }
 
-  getOpenAITools(): Array<{ type: 'function'; function: { name: string; description?: string; parameters: JsonSchema } }> {
-    return this.getAll().map((tool) => ({
+  getOpenAITools(options?: { categories?: ToolCategory[] }): Array<{ type: 'function'; function: { name: string; description?: string; parameters: JsonSchema } }> {
+    const categories = options?.categories;
+    const toolList = categories
+      ? this.getAll().filter((tool) => categories.includes(tool.category || 'action'))
+      : this.getAll();
+    return toolList.map((tool) => ({
       type: 'function' as const,
       function: {
         name: tool.name,
@@ -144,16 +329,18 @@ class AIToolRegistry {
     }));
   }
 
-  async execute(
-    toolName: string,
-    context: ToolHandlerContext
-  ): Promise<string> {
+  async execute(toolName: string, context: ToolHandlerContext): Promise<string> {
     const tool = this.get(toolName);
     if (!tool) {
       return `Unknown tool: ${toolName}`;
     }
     try {
-      return await tool.handler(context);
+      const normalizedArgs = normalizeArgs(tool.parameters, context.args);
+      const validation = validateArgs(tool.parameters, normalizedArgs);
+      if (!validation.ok) {
+        return `Error: ${validation.error}`;
+      }
+      return await tool.handler({ ...context, args: normalizedArgs });
     } catch (error) {
       return `Error: ${error instanceof Error ? error.message : String(error)}`;
     }
@@ -213,17 +400,14 @@ function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variable
       parameters: {
         type: 'object',
         properties: {
-          ...commonSchemas.taskFields,
+          ...commonSchemas.taskFilterFields,
           ...commonSchemas.pagination,
-          projectId: commonSchemas.projectId,
-          assignee: { type: 'string' },
-          q: { type: 'string', description: 'Search query for title/description' },
         },
       },
       category: 'read',
       handler: async ({ db, args }) => {
         const { tasks, projects } = await import('../db/schema');
-        const { and, eq, like, or, sql } = await import('drizzle-orm');
+        const { and, eq, gte, lte, like, or, sql } = await import('drizzle-orm');
         const { toTaskRecord } = await import('../services/serializers');
 
         const conditions = [];
@@ -233,8 +417,26 @@ function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variable
         if (args.status) {
           conditions.push(eq(tasks.status, String(args.status)));
         }
+        if (args.priority) {
+          conditions.push(eq(tasks.priority, String(args.priority)));
+        }
         if (args.assignee) {
           conditions.push(eq(tasks.assignee, String(args.assignee)));
+        }
+        if (typeof args.isMilestone === 'boolean') {
+          conditions.push(eq(tasks.isMilestone, args.isMilestone));
+        }
+        if (typeof args.startDateFrom === 'number') {
+          conditions.push(gte(tasks.startDate, args.startDateFrom));
+        }
+        if (typeof args.startDateTo === 'number') {
+          conditions.push(lte(tasks.startDate, args.startDateTo));
+        }
+        if (typeof args.dueDateFrom === 'number') {
+          conditions.push(gte(tasks.dueDate, args.dueDateFrom));
+        }
+        if (typeof args.dueDateTo === 'number') {
+          conditions.push(lte(tasks.dueDate, args.dueDateTo));
         }
         if (args.q) {
           const query = `%${String(args.q)}%`;
@@ -249,8 +451,8 @@ function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variable
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
         const workspaceClause = eq(projects.workspaceId, workspaceId);
         const combinedClause = whereClause ? and(whereClause, workspaceClause) : workspaceClause;
-        const page = typeof args.page === 'number' ? args.page : 1;
-        const pageSize = typeof args.pageSize === 'number' ? args.pageSize : 50;
+        const page = typeof args.page === 'number' ? Math.max(1, args.page) : 1;
+        const pageSize = typeof args.pageSize === 'number' ? Math.min(100, Math.max(1, args.pageSize)) : 50;
         const offset = (page - 1) * pageSize;
 
         const taskList = await db
@@ -282,17 +484,15 @@ function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variable
       parameters: {
         type: 'object',
         properties: {
-          projectId: commonSchemas.projectId,
-          q: { type: 'string', description: 'Search query for title/description' },
-          status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] },
-          assignee: { type: 'string' },
+          ...commonSchemas.taskFilterFields,
+          ...commonSchemas.pagination,
         },
       },
       category: 'read',
       handler: async ({ db, args }) => {
         // searchTasks is an alias to listTasks with different default behavior
         const { tasks, projects } = await import('../db/schema');
-        const { and, eq, like, or, sql } = await import('drizzle-orm');
+        const { and, eq, gte, lte, like, or, sql } = await import('drizzle-orm');
         const { toTaskRecord } = await import('../services/serializers');
 
         const conditions = [];
@@ -302,8 +502,26 @@ function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variable
         if (args.status) {
           conditions.push(eq(tasks.status, String(args.status)));
         }
+        if (args.priority) {
+          conditions.push(eq(tasks.priority, String(args.priority)));
+        }
         if (args.assignee) {
           conditions.push(eq(tasks.assignee, String(args.assignee)));
+        }
+        if (typeof args.isMilestone === 'boolean') {
+          conditions.push(eq(tasks.isMilestone, args.isMilestone));
+        }
+        if (typeof args.startDateFrom === 'number') {
+          conditions.push(gte(tasks.startDate, args.startDateFrom));
+        }
+        if (typeof args.startDateTo === 'number') {
+          conditions.push(lte(tasks.startDate, args.startDateTo));
+        }
+        if (typeof args.dueDateFrom === 'number') {
+          conditions.push(gte(tasks.dueDate, args.dueDateFrom));
+        }
+        if (typeof args.dueDateTo === 'number') {
+          conditions.push(lte(tasks.dueDate, args.dueDateTo));
         }
         if (args.q) {
           const query = `%${String(args.q)}%`;
@@ -318,8 +536,8 @@ function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variable
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
         const workspaceClause = eq(projects.workspaceId, workspaceId);
         const combinedClause = whereClause ? and(whereClause, workspaceClause) : workspaceClause;
-        const page = typeof args.page === 'number' ? args.page : 1;
-        const pageSize = typeof args.pageSize === 'number' ? args.pageSize : 50;
+        const page = typeof args.page === 'number' ? Math.max(1, args.page) : 1;
+        const pageSize = typeof args.pageSize === 'number' ? Math.min(100, Math.max(1, args.pageSize)) : 50;
         const offset = (page - 1) * pageSize;
 
         const taskList = await db
@@ -471,7 +689,7 @@ function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variable
             ...commonSchemas.projectId,
             description: 'The project ID for this task. Use the Active Project ID from the system context.',
           },
-          title: { type: 'string' },
+          title: commonSchemas.taskTitle,
           ...commonSchemas.taskFields,
           reason: commonSchemas.reason,
         },
@@ -512,6 +730,7 @@ function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variable
         type: 'object',
         properties: {
           id: commonSchemas.entityId,
+          title: commonSchemas.taskTitle,
           ...commonSchemas.taskFields,
           reason: commonSchemas.reason,
         },
@@ -603,11 +822,11 @@ function createDefaultTools(c: Context<{ Bindings: Bindings; Variables: Variable
       },
       category: 'write',
       handler: async ({ args }) => {
-        const actions = Array.isArray(args.actions) ? args.actions : [];
-        const summary = actions.map((action: any) => {
-          const type = action.entityType || 'unknown';
-          const op = action.action || 'unknown';
-          const id = action.entityId || 'new';
+        const actions = Array.isArray(args.actions) ? (args.actions as Array<Record<string, unknown>>) : [];
+        const summary = actions.map((action) => {
+          const type = typeof action.entityType === 'string' ? action.entityType : 'unknown';
+          const op = typeof action.action === 'string' ? action.action : 'unknown';
+          const id = typeof action.entityId === 'string' ? action.entityId : 'new';
           return `${op} ${type}(${id})`;
         }).join(', ');
         return JSON.stringify({
