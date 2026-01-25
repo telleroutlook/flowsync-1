@@ -113,7 +113,7 @@ export const TaskDetailPanel = React.memo<TaskDetailPanelProps>(({
 
         {/* Dates */}
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-semibold text-slate-400 uppercase">Start Date</label>
               <input

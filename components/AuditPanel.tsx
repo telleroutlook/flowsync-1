@@ -181,13 +181,13 @@ export const AuditPanel = React.memo<AuditPanelProps>(({
             type="date"
             value={filters.from}
             onChange={(event) => setFilters(prev => ({ ...prev, from: event.target.value }))}
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
+            className="w-[130px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
           />
           <input
             type="date"
             value={filters.to}
             onChange={(event) => setFilters(prev => ({ ...prev, to: event.target.value }))}
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
+            className="w-[130px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-indigo-400 outline-none"
           />
           <button
             type="button"
