@@ -70,7 +70,7 @@ export default function App() {
     return [{
       id: 'welcome',
       role: 'model',
-      text: "Hello! I'm FlowSync. I've loaded your Construction Project WBS. I can help manage schedules, WBS codes, and assignees.",
+      text: "Hello! I'm FlowSync. I'm ready to help you manage your projects, tasks, and schedules. How can I assist you today?",
       timestamp: Date.now(),
     }];
   });
@@ -93,7 +93,7 @@ export default function App() {
     const initialMsg: ChatMessage = {
       id: 'welcome',
       role: 'model',
-      text: "Hello! I'm FlowSync. I've loaded your Construction Project WBS. I can help manage schedules, WBS codes, and assignees.",
+      text: "Hello! I'm FlowSync. I'm ready to help you manage your projects, tasks, and schedules. How can I assist you today?",
       timestamp: Date.now(),
     };
     setMessages([initialMsg]);
