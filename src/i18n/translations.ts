@@ -17,7 +17,8 @@ const en = {
   'app.sidebar.collapse': 'Collapse Sidebar',
   'app.sidebar.delete': 'Delete Project',
   'app.sidebar.delete_confirm': 'Delete project "{name}"?',
-  'app.sidebar.tip': 'Try asking FlowSync to "Create a Marketing project".',
+  'app.sidebar.tip': 'Have suggestions? Send us feedback.',
+  'app.sidebar.tip.subject': 'Suggestions for FlowSync',
 
   'app.view.board': 'Board',
   'app.view.list': 'List',
@@ -316,7 +317,8 @@ const zh: Record<keyof typeof en, string> = {
   'app.sidebar.collapse': '收起侧边栏',
   'app.sidebar.delete': '删除项目',
   'app.sidebar.delete_confirm': '删除项目“{name}”吗？',
-  'app.sidebar.tip': '试试让 FlowSync “创建一个营销项目”。',
+  'app.sidebar.tip': '有任何建议？欢迎反馈。',
+  'app.sidebar.tip.subject': '关于FlowSync的建议',
 
   'app.view.board': '看板',
   'app.view.list': '列表',

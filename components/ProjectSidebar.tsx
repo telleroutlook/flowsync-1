@@ -123,14 +123,15 @@ export const ProjectSidebar = memo<ProjectSidebarProps>(({
       </div>
 
       <div className="p-3 border-t border-border-subtle bg-surface/30">
-         <div className="bg-surface rounded-lg p-3 border border-border-subtle shadow-sm">
-            <div className="flex items-start gap-2">
-                <Lightbulb className="w-4 h-4 text-accent mt-0.5" />
-                <p className="text-xs text-text-secondary leading-snug">
-                   {t('app.sidebar.tip')}
-                </p>
-            </div>
-         </div>
+         <a 
+           href={`mailto:teller.lin@sap.com?subject=${encodeURIComponent(t('app.sidebar.tip.subject'))}`}
+           className="bg-surface rounded-lg p-3 border border-border-subtle shadow-sm flex items-start gap-2 hover:bg-surface-active transition-colors cursor-pointer group/tip"
+         >
+            <Lightbulb className="w-4 h-4 text-accent mt-0.5 group-hover/tip:scale-110 transition-transform" />
+            <p className="text-xs text-text-secondary leading-snug group-hover/tip:text-text-primary transition-colors">
+               {t('app.sidebar.tip')}
+            </p>
+         </a>
       </div>
     </div>
   );
