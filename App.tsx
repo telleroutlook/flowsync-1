@@ -365,7 +365,7 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-background overflow-hidden text-text-primary font-sans selection:bg-primary/20 selection:text-primary">
+    <div className="flex h-screen h-[100dvh] w-full bg-background overflow-hidden text-text-primary font-sans selection:bg-primary/20 selection:text-primary">
       
       {/* 1. Project Sidebar (Left) */}
       <div className={cn(

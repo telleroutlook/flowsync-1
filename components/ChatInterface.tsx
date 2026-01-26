@@ -104,9 +104,14 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
   return (
     <motion.div
       initial={false}
-      animate={{ width: isChatOpen ? 360 : 0, opacity: isChatOpen ? 1 : 0 }}
+      animate={{ 
+        width: isChatOpen ? 360 : 0, 
+        opacity: isChatOpen ? 1 : 0,
+        marginRight: isChatOpen ? 16 : 0,
+        marginLeft: isChatOpen ? 8 : 0
+      }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="flex flex-col border-l border-border-subtle bg-surface relative z-20 shrink-0 shadow-[-4px_0_24px_-12px_rgba(0,0,0,0.1)] h-full overflow-hidden"
+      className="flex flex-col border border-border-subtle bg-surface relative z-20 shrink-0 shadow-[-4px_0_24px_-12px_rgba(0,0,0,0.1)] h-[calc(100vh-2rem)] my-4 rounded-2xl overflow-hidden"
     >
       {/* Header */}
       <div className="h-14 px-4 border-b border-border-subtle flex items-center justify-between bg-surface/95 backdrop-blur-md sticky top-0 z-10 shrink-0">
@@ -196,7 +201,7 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
       {/* Messages Area */}
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-background scroll-smooth"
+        className="flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar bg-background scroll-smooth"
       >
         {messages.map((msg) => (
           <ChatBubble key={msg.id} message={msg} />
