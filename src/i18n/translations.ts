@@ -8,6 +8,7 @@ const en = {
 
   'common.na': 'N/A',
   'common.close': 'Close',
+  'common.optional': 'Optional',
 
   'app.sidebar.open': 'Open Sidebar',
   'app.sidebar.close': 'Close Sidebar',
@@ -52,7 +53,11 @@ const en = {
   'workspace.members': 'Members',
   'workspace.remove': 'Remove',
   'workspace.remove_confirm': 'Remove member "{name}"?',
+  'workspace.create_new': 'Create New Workspace',
+  'workspace.create_desc': 'Create a workspace to organize your projects and team.',
   'workspace.create': 'Create Workspace',
+  'workspace.name': 'Workspace Name',
+  'workspace.description': 'Description',
   'workspace.name_placeholder': 'Workspace name',
   'workspace.description_placeholder': 'Description (optional)',
 
@@ -61,6 +66,10 @@ const en = {
   'profile.guest_hint': 'Guest preferences are saved on this device.',
 
   'auth.login': 'Login',
+  'auth.login_welcome': 'Welcome back',
+  'auth.login_desc': 'Enter your credentials to access your account',
+  'auth.create_account': 'Create account',
+  'auth.register_desc': 'Sign up to get started with FlowSync',
   'auth.register': 'Register',
   'auth.logout': 'Logout',
   'auth.username': 'Username',
@@ -69,8 +78,13 @@ const en = {
   'auth.password_placeholder': 'Enter password',
   'auth.switch_to_register': 'Create an account',
   'auth.switch_to_login': 'Have an account? Login',
+  'auth.no_account': "Don't have an account?",
+  'auth.have_account': 'Already have an account?',
+  'auth.register_now': 'Register now',
+  'auth.login_now': 'Login now',
   'auth.password_hint': 'Min 6 characters',
   'auth.signed_in_as': 'Signed in as {name}',
+  'auth.signed_in': 'Signed In',
   'auth.guest': 'Guest',
 
   'app.error.load_data': 'Failed to load data: {error}',
@@ -293,6 +307,7 @@ const zh: Record<keyof typeof en, string> = {
 
   'common.na': '无',
   'common.close': '关闭',
+  'common.optional': '可选',
 
   'app.sidebar.open': '打开侧边栏',
   'app.sidebar.close': '关闭侧边栏',
@@ -337,7 +352,11 @@ const zh: Record<keyof typeof en, string> = {
   'workspace.members': '成员',
   'workspace.remove': '移除',
   'workspace.remove_confirm': '确定移除成员“{name}”吗？',
+  'workspace.create_new': '创建新工作区',
+  'workspace.create_desc': '创建一个工作区来组织您的项目和团队。',
   'workspace.create': '创建工作区',
+  'workspace.name': '工作区名称',
+  'workspace.description': '描述',
   'workspace.name_placeholder': '工作区名称',
   'workspace.description_placeholder': '描述（可选）',
 
@@ -346,6 +365,10 @@ const zh: Record<keyof typeof en, string> = {
   'profile.guest_hint': '访客设置将保存在当前设备。',
 
   'auth.login': '登录',
+  'auth.login_welcome': '欢迎回来',
+  'auth.login_desc': '请输入您的凭据以访问您的帐户',
+  'auth.create_account': '创建账户',
+  'auth.register_desc': '注册以开始使用 FlowSync',
   'auth.register': '注册',
   'auth.logout': '退出',
   'auth.username': '用户名',
@@ -354,8 +377,13 @@ const zh: Record<keyof typeof en, string> = {
   'auth.password_placeholder': '输入密码',
   'auth.switch_to_register': '创建账号',
   'auth.switch_to_login': '已有账号？登录',
+  'auth.no_account': '还没有账号？',
+  'auth.have_account': '已有账号？',
+  'auth.register_now': '立即注册',
+  'auth.login_now': '立即登录',
   'auth.password_hint': '至少 6 位',
   'auth.signed_in_as': '已登录：{name}',
+  'auth.signed_in': '已登录',
   'auth.guest': '游客',
 
   'app.error.load_data': '数据加载失败：{error}',
