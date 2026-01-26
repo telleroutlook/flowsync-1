@@ -33,14 +33,36 @@ interface AuditPanelProps {
   error: string | null;
 }
 
-const formatAuditTimestamp = (timestamp: number, locale: string) =>
-  new Date(timestamp).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
+const MIN_TIMESTAMP_MS = Date.parse('2000-01-01T00:00:00.000Z');
+const MAX_TIMESTAMP_MS = Date.parse('2100-01-01T00:00:00.000Z');
 
-const formatAuditValue = (value: unknown) => {
+const isLikelyTimestamp = (value: number): boolean =>
+  Number.isFinite(value) && value >= MIN_TIMESTAMP_MS && value <= MAX_TIMESTAMP_MS;
+
+const formatDateOnly = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return String(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatAuditTimestamp = (timestamp: number) => formatDateOnly(timestamp);
+
+const normalizeAuditValue = (value: unknown): string => {
+  if (value === undefined) return 'undefined';
+  if (value === null) return 'null';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
+};
+
+const formatAuditDisplayValue = (value: unknown): string => {
   if (value === undefined) return 'undefined';
   if (value === null) return 'null';
   if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'number') return isLikelyTimestamp(value) ? formatDateOnly(value) : String(value);
+  if (typeof value === 'boolean') return String(value);
   return JSON.stringify(value);
 };
 
@@ -66,10 +88,14 @@ const diffAuditRecords = (before: Record<string, unknown> | null | undefined, af
       return;
     }
 
-    const aVal = formatAuditValue(a);
-    const bVal = formatAuditValue(b);
-    if (aVal !== bVal) {
-      entries.push({ path: path || 'root', before: aVal, after: bVal });
+    const aCompare = normalizeAuditValue(a);
+    const bCompare = normalizeAuditValue(b);
+    if (aCompare !== bCompare) {
+      entries.push({
+        path: path || 'root',
+        before: formatAuditDisplayValue(a),
+        after: formatAuditDisplayValue(b),
+      });
     }
   };
 
@@ -108,7 +134,7 @@ export const AuditPanel = memo<AuditPanelProps>(({
   setPageSize,
   error,
 }) => {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [selectedAudit, setSelectedAudit] = useState<AuditLog | null>(null);
   const [isAuditDetailOpen, setIsAuditDetailOpen] = useState(false);
   const [showAuditRaw, setShowAuditRaw] = useState(false);
@@ -239,7 +265,7 @@ export const AuditPanel = memo<AuditPanelProps>(({
                   <span className="text-text-secondary">·</span>
                   <span className="text-text-secondary">{getActorLabel(log.actor, t)}</span>
                   <span className="text-text-secondary">·</span>
-                  <span className="text-xs text-text-secondary">{formatAuditTimestamp(log.timestamp, locale)}</span>
+                  <span className="text-xs text-text-secondary">{formatAuditTimestamp(log.timestamp)}</span>
                 </div>
               </div>
               <button
@@ -322,7 +348,7 @@ export const AuditPanel = memo<AuditPanelProps>(({
                   {getActionLabel(selectedAudit.action, t)}
                 </span>
                 <span>{getActorLabel(selectedAudit.actor, t)}</span>
-                <span>· {formatAuditTimestamp(selectedAudit.timestamp, locale)}</span>
+                <span>· {formatAuditTimestamp(selectedAudit.timestamp)}</span>
                 {selectedAudit.reason && <span>· {selectedAudit.reason}</span>}
               </div>
               <div className="rounded-xl border border-border-subtle bg-background p-3">
