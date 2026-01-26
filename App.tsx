@@ -374,8 +374,8 @@ function App() {
       
       {/* 1. Project Sidebar (Left) */}
       <div className={cn(
-        "transition-all duration-300 overflow-hidden border-r border-border-subtle bg-surface relative z-20 flex-shrink-0",
-        isSidebarOpen ? "w-[260px]" : "w-0"
+        "transition-all duration-300 overflow-hidden bg-surface relative z-20 flex-shrink-0",
+        isSidebarOpen ? "w-[260px] border-r border-border-subtle" : "w-0 border-none"
       )}>
         <ProjectSidebar 
           topSlot={(
