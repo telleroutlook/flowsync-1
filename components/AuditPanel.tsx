@@ -47,18 +47,22 @@ const formatAuditValue = (value: unknown) => {
 const diffAuditRecords = (before: Record<string, unknown> | null | undefined, after: Record<string, unknown> | null | undefined) => {
   const entries: { path: string; before: string; after: string }[] = [];
   const visited = new Set<string>();
-  const walk = (path: string, a: unknown, b: unknown) => {
+
+  const walk = (path: string, a: unknown, b: unknown): void => {
     const key = `${path}:${typeof a}:${typeof b}`;
     if (visited.has(key)) return;
     visited.add(key);
 
     const aIsObject = a && typeof a === 'object' && !Array.isArray(a);
     const bIsObject = b && typeof b === 'object' && !Array.isArray(b);
+
     if (aIsObject || bIsObject) {
       const aObj = (aIsObject ? (a as Record<string, unknown>) : {}) as Record<string, unknown>;
       const bObj = (bIsObject ? (b as Record<string, unknown>) : {}) as Record<string, unknown>;
       const keys = new Set([...Object.keys(aObj), ...Object.keys(bObj)]);
-      keys.forEach((k) => walk(path ? `${path}.${k}` : k, aObj[k], bObj[k]));
+      for (const k of keys) {
+        walk(path ? `${path}.${k}` : k, aObj[k], bObj[k]);
+      }
       return;
     }
 
@@ -73,19 +77,16 @@ const diffAuditRecords = (before: Record<string, unknown> | null | undefined, af
   return entries;
 };
 
-const auditBadgeClass = (action: string) => {
-  switch (action) {
-    case 'create':
-      return 'bg-success/10 text-success border-success/20';
-    case 'update':
-      return 'bg-primary/10 text-primary border-primary/20';
-    case 'delete':
-      return 'bg-negative/10 text-negative border-negative/20';
-    case 'rollback':
-      return 'bg-secondary/10 text-text-secondary border-border-subtle';
-    default:
-      return 'bg-secondary/10 text-text-secondary border-border-subtle';
-  }
+// Use record lookup instead of switch for better performance
+const AUDIT_BADGE_CLASSES: Record<string, string> = {
+  create: 'bg-success/10 text-success border-success/20',
+  update: 'bg-primary/10 text-primary border-primary/20',
+  delete: 'bg-negative/10 text-negative border-negative/20',
+  rollback: 'bg-secondary/10 text-text-secondary border-border-subtle',
+};
+
+const auditBadgeClass = (action: string): string => {
+  return AUDIT_BADGE_CLASSES[action] || 'bg-secondary/10 text-text-secondary border-border-subtle';
 };
 
 const updateFilter = (

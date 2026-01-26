@@ -26,25 +26,24 @@ type TaskEntry = Task & { startMs: number; endMs: number };
 
 const DAY_MS = 86400000;
 
+// Move outside component to avoid recreation
 const VIEW_SETTINGS: Record<ViewMode, { pxPerDay: number; tickLabelFormat: Intl.DateTimeFormatOptions }> = {
   Day: { pxPerDay: 60, tickLabelFormat: { day: 'numeric', month: 'short' } },
   Week: { pxPerDay: 30, tickLabelFormat: { day: 'numeric', month: 'short' } },
   Month: { pxPerDay: 10, tickLabelFormat: { month: 'long', year: 'numeric' } },
   Year: { pxPerDay: 1.5, tickLabelFormat: { year: 'numeric' } },
+} as const;
+
+// Move outside component and use record lookup for better performance
+const TASK_COLOR_CLASSES: Record<Priority, string> = {
+  [Priority.LOW]: 'bg-success',
+  [Priority.MEDIUM]: 'bg-warning',
+  [Priority.HIGH]: 'bg-negative',
 };
 
-const getTaskColorClass = (priority: Priority, isMilestone?: boolean) => {
+const getTaskColorClass = (priority: Priority, isMilestone?: boolean): string => {
   if (isMilestone) return 'border-accent';
-  switch (priority) {
-    case Priority.HIGH:
-      return 'bg-negative';
-    case Priority.MEDIUM:
-      return 'bg-warning';
-    case Priority.LOW:
-      return 'bg-success';
-    default:
-      return 'bg-primary';
-  }
+  return TASK_COLOR_CLASSES[priority] || 'bg-primary';
 };
 
 const ROW_HEIGHT = 44;
@@ -127,72 +126,67 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
     const pxPerMsValue = settings.pxPerDay / DAY_MS;
     const totalW = (eMs - sMs) * pxPerMsValue;
 
-    // Generate Grid Lines (Ticks)
+    // Generate Grid Lines (Ticks) - optimized to reduce iterations
     const lines: Array<{ time: number; label: string; x: number; isMajor: boolean }> = [];
     const cursor = new Date(sMs);
-    
-    while (cursor.getTime() <= eMs) {
-      const time = cursor.getTime();
-      const x = (time - sMs) * pxPerMsValue;
-      let label = '';
-      let isMajor = false;
-      let nextStep: () => void;
 
-      switch (viewMode) {
-        case 'Day':
-          label = cursor.toLocaleDateString(locale, settings.tickLabelFormat);
-          isMajor = cursor.getDay() === 1; // Highlight Mondays
-          nextStep = () => cursor.setDate(cursor.getDate() + 1);
-          break;
-        case 'Week':
-           // Label Mondays
-          if (cursor.getDay() === 1) {
-             label = cursor.toLocaleDateString(locale, settings.tickLabelFormat);
-             isMajor = true;
-          } else {
-             label = ''; // Only label weeks
-             isMajor = false;
-          }
-           if (cursor.getDay() === 1) {
-             lines.push({ time, label, x, isMajor: true });
-           }
-           nextStep = () => cursor.setDate(cursor.getDate() + 1);
-           break;
-        case 'Month':
-          // Major lines at month start
-          if (cursor.getDate() === 1) {
-             label = cursor.toLocaleDateString(locale, { month: 'short' }); // Jun
-             isMajor = true;
-             lines.push({ time, label, x, isMajor: true });
-          }
-          nextStep = () => cursor.setDate(cursor.getDate() + 1);
-          break;
-        case 'Year':
-          // Major lines at Year start, minor at Month start
-          if (cursor.getMonth() === 0 && cursor.getDate() === 1) {
-             label = cursor.getFullYear().toString();
-             isMajor = true;
-             lines.push({ time, label, x, isMajor });
-          } else if (cursor.getDate() === 1) {
-             // Month markers
-             label = cursor.toLocaleDateString(locale, { month: 'narrow' });
-             isMajor = false;
-             lines.push({ time, label, x, isMajor });
-          }
-          nextStep = () => cursor.setDate(cursor.getDate() + 1);
-          break;
-        default:
-          nextStep = () => cursor.setDate(cursor.getDate() + 1);
+    // Use different iteration strategies based on view mode for efficiency
+    if (viewMode === 'Day') {
+      while (cursor.getTime() <= eMs) {
+        const time = cursor.getTime();
+        const x = (time - sMs) * pxPerMsValue;
+        lines.push({
+          time,
+          label: cursor.toLocaleDateString(locale, settings.tickLabelFormat),
+          x,
+          isMajor: cursor.getDay() === 1
+        });
+        cursor.setDate(cursor.getDate() + 1);
       }
-
-      if (viewMode === 'Day') {
-        lines.push({ time, label, x, isMajor });
-        nextStep();
-      } else {
-        if (lines[lines.length - 1]?.time !== time) {
-           // If we didn't push inside switch (e.g. Week view non-Monday), don't push
-        }
-        nextStep();
+    } else if (viewMode === 'Week') {
+      // Only iterate Mondays for week view
+      cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7));
+      while (cursor.getTime() <= eMs) {
+        const time = cursor.getTime();
+        const x = (time - sMs) * pxPerMsValue;
+        lines.push({
+          time,
+          label: cursor.toLocaleDateString(locale, settings.tickLabelFormat),
+          x,
+          isMajor: true
+        });
+        cursor.setDate(cursor.getDate() + 7);
+      }
+    } else if (viewMode === 'Month') {
+      // Only iterate month starts
+      cursor.setDate(1);
+      while (cursor.getTime() <= eMs) {
+        const time = cursor.getTime();
+        const x = (time - sMs) * pxPerMsValue;
+        lines.push({
+          time,
+          label: cursor.toLocaleDateString(locale, { month: 'short' }),
+          x,
+          isMajor: true
+        });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+    } else if (viewMode === 'Year') {
+      // Iterate months for year view
+      cursor.setDate(1);
+      while (cursor.getTime() <= eMs) {
+        const time = cursor.getTime();
+        const x = (time - sMs) * pxPerMsValue;
+        const isYearStart = cursor.getMonth() === 0;
+        lines.push({
+          time,
+          label: isYearStart
+            ? cursor.getFullYear().toString()
+            : cursor.toLocaleDateString(locale, { month: 'narrow' }),
+          x,
+          isMajor: isYearStart
+        });
+        cursor.setMonth(cursor.getMonth() + 1);
       }
     }
 

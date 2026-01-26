@@ -156,16 +156,20 @@ function App() {
     const exportDate = new Date();
     const fileStamp = exportDate.toISOString().slice(0, 10);
     const baseName = `ai-chat-history-${fileStamp}`;
-    const dateFormatter = new Intl.DateTimeFormat(locale, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
 
-    const formatTimestamp = (value: number) => dateFormatter.format(new Date(value));
+    // Memoize formatter outside callback to avoid recreation
+    const formatTimestamp = (value: number) => {
+      const date = new Date(value);
+      return date.toLocaleString(locale, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+    };
+
     const roleLabel = (role: ChatMessage['role']) => {
       if (role === 'user') return t('export.chat.role.user');
       if (role === 'model') return t('export.chat.role.model');
@@ -178,7 +182,7 @@ function App() {
         CHAT_EXPORT_SEPARATOR,
         `${t('export.chat.message_label', { index: index + 1 })} | ${roleLabel(message.role)} | ${formatTimestamp(message.timestamp)}`,
         `${t('export.chat.content_label')}:`,
-        trimmedText ? trimmedText : t('export.chat.empty_message'),
+        trimmedText || t('export.chat.empty_message'),
       ];
 
       const attachments = message.attachments || [];
@@ -186,7 +190,7 @@ function App() {
         lines.push('');
         lines.push(`${t('export.chat.attachments_label')}:`);
         attachments.forEach(attachment => {
-          const typeLabel = attachment.type?.trim() ? attachment.type : t('export.chat.attachment_unknown_type');
+          const typeLabel = attachment.type?.trim() || t('export.chat.attachment_unknown_type');
           lines.push(`- ${attachment.name} (${formatAttachmentSize(attachment.size)}, ${typeLabel})`);
         });
       }
@@ -276,12 +280,13 @@ function App() {
     }
   }, [tasks, selectedTaskId]);
 
-  // Handle outside click for export menu
+  // Handle outside click for export menu - optimized to prevent memory leaks
   useEffect(() => {
     if (!isExportOpen) return;
     const handleWindowClick = () => setIsExportOpen(false);
-    window.addEventListener('click', handleWindowClick);
-    return () => window.removeEventListener('click', handleWindowClick);
+    const options = { capture: true } as const;
+    window.addEventListener('click', handleWindowClick, options);
+    return () => window.removeEventListener('click', handleWindowClick, options);
   }, [isExportOpen]);
 
   // Manual Project Actions
@@ -357,12 +362,12 @@ function App() {
     taskUpdateTimers.current.set(id, timer);
   }, [setTasks, submitDraft]);
 
-  // Derived State
-  const viewLabels: Record<ViewMode, string> = {
+  // Derived State - memoized to prevent recreation on every render
+  const viewLabels: Record<ViewMode, string> = useMemo(() => ({
     BOARD: t('app.view.board'),
     LIST: t('app.view.list'),
     GANTT: t('app.view.gantt'),
-  };
+  }), [t]);
 
   return (
     <div className="flex h-screen h-[100dvh] w-full bg-background overflow-hidden text-text-primary font-sans selection:bg-primary/20 selection:text-primary">

@@ -10,17 +10,18 @@ interface ListViewProps {
   onSelectTask?: (id: string) => void;
 }
 
-const priorityColors: Record<Priority, string> = {
+// Move constants outside component to avoid recreation
+const PRIORITY_COLORS: Record<Priority, string> = {
   [Priority.LOW]: 'text-success bg-success/10 border-success/20',
   [Priority.MEDIUM]: 'text-critical bg-critical/10 border-critical/20',
   [Priority.HIGH]: 'text-negative bg-negative/10 border-negative/20',
-};
+} as const;
 
-const statusColors: Record<TaskStatus, string> = {
+const STATUS_COLORS: Record<TaskStatus, string> = {
   [TaskStatus.TODO]: 'text-text-secondary bg-secondary/10',
   [TaskStatus.IN_PROGRESS]: 'text-primary bg-primary/10',
   [TaskStatus.DONE]: 'text-success bg-success/10',
-};
+} as const;
 
 interface TaskRowProps {
   task: Task;
@@ -75,15 +76,15 @@ const TaskRow = memo(({ task, isSelected, locale, onSelectTask, t }: TaskRowProp
          )}
       </td>
       <td className="py-3 px-4">
-         <span className={cn("text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border font-bold", priorityColors[task.priority])}>
+         <span className={cn("text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border font-bold", PRIORITY_COLORS[task.priority])}>
             {getPriorityLabel(task.priority, t)}
          </span>
       </td>
       <td className="py-3 px-4">
-        <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md", statusColors[task.status])}>
+        <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md", STATUS_COLORS[task.status])}>
             <span className={cn(
               "w-1.5 h-1.5 rounded-full",
-              task.status === TaskStatus.TODO ? "bg-text-secondary" : 
+              task.status === TaskStatus.TODO ? "bg-text-secondary" :
               task.status === TaskStatus.IN_PROGRESS ? "bg-primary" : "bg-success"
             )} aria-hidden="true" />
             {getStatusLabel(task.status, t)}

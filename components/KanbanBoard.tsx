@@ -11,11 +11,12 @@ interface KanbanBoardProps {
   onSelectTask?: (id: string) => void;
 }
 
-const priorityColors: Record<Priority, string> = {
+// Move constants outside component to avoid recreation
+const PRIORITY_COLORS: Record<Priority, string> = {
   [Priority.LOW]: 'bg-success/10 text-success border-success/20 ring-success/30',
   [Priority.MEDIUM]: 'bg-warning/10 text-warning border-warning/20 ring-warning/30',
   [Priority.HIGH]: 'bg-negative/10 text-negative border-negative/20 ring-negative/30',
-};
+} as const;
 
 interface TaskCardProps {
   task: Task;
@@ -70,7 +71,7 @@ const TaskCard: React.FC<TaskCardProps> = memo(({ task, isSelected, onSelect }) 
         </div>
         <span className={cn(
           "shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase tracking-wider ring-1 ring-inset",
-          priorityColors[task.priority]
+          PRIORITY_COLORS[task.priority]
         )}>
           {getPriorityShortLabel(task.priority, t)}
         </span>
