@@ -40,7 +40,7 @@ export const ProjectSidebar = memo<ProjectSidebarProps>(({
           {topSlot}
         </div>
       )}
-      <div className="p-3 border-b border-border-subtle flex items-center justify-between bg-surface/50 backdrop-blur-sm sticky top-0 z-10">
+      <div className="p-3 border-b border-border-subtle flex items-center justify-between bg-surface/50 backdrop-blur-sm z-10">
         <h3 className="text-xs font-bold text-text-secondary uppercase tracking-widest pl-1">{t('app.sidebar.projects')}</h3>
         <div className="flex items-center gap-1">
           <Button
@@ -55,7 +55,10 @@ export const ProjectSidebar = memo<ProjectSidebarProps>(({
           <Button
             variant="ghost"
             size="icon"
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
             className="h-8 w-8 text-text-secondary hover:text-text-primary"
             title={t('app.sidebar.collapse')}
           >

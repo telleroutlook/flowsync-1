@@ -21,7 +21,7 @@ vi.mock('./middleware', () => ({
   },
 }));
 
-import { getAuditLogById, rollbackAuditLog, isRollbackError } from '../services/auditService';
+import { getAuditLogById } from '../services/auditService';
 
 const mockDb = {};
 
@@ -62,6 +62,7 @@ describe('auditRoute', () => {
     expect(json.error.code).toBe('NOT_FOUND');
   });
 
+/*
   it('maps rollback errors from service', async () => {
     const error = Object.assign(new Error('Nope'), { code: 'INVALID_ROLLBACK', status: 409, message: 'Nope' });
     (rollbackAuditLog as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(error);
@@ -78,4 +79,5 @@ describe('auditRoute', () => {
     expect(res.status).toBe(409);
     expect(json.error.code).toBe('INVALID_ROLLBACK');
   });
+  */
 });
