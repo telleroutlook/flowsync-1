@@ -7,7 +7,7 @@ interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
   animation?: 'pulse' | 'none';
 }
 
-const baseClasses = 'bg-slate-200 rounded';
+const baseClasses = 'bg-secondary/20 rounded';
 
 const variantClasses = {
   text: 'rounded-sm h-4',
@@ -43,7 +43,7 @@ Skeleton.displayName = 'Skeleton';
 
 // Predefined skeleton components for common patterns
 export const TaskCardSkeleton = memo(() => (
-  <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm">
+  <div className="bg-surface p-4 rounded-xl border border-border-subtle/60 shadow-sm">
     <div className="flex justify-between items-start mb-3">
       <div className="flex-1">
         <Skeleton width="60%" height={16} className="mb-2" />
@@ -55,7 +55,7 @@ export const TaskCardSkeleton = memo(() => (
       <Skeleton width="100%" height={12} />
       <Skeleton width="80%" height={12} />
     </div>
-    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+    <div className="flex justify-between items-center pt-2 border-t border-border-subtle/30">
       <Skeleton variant="circular" width={20} height={20} />
       <Skeleton width={60} height={12} />
     </div>
@@ -66,7 +66,7 @@ TaskCardSkeleton.displayName = 'TaskCardSkeleton';
 export const TableRowSkeleton = memo(({ rows = 5 }: { rows?: number }) => (
   <>
     {Array.from({ length: rows }).map((_, i) => (
-      <tr key={i} className="border-b border-slate-100">
+      <tr key={i} className="border-b border-border-subtle/30">
         <td className="py-3 px-3"><Skeleton width={40} height={16} /></td>
         <td className="py-3 px-3"><Skeleton width="70%" height={16} /></td>
         <td className="py-3 px-3"><Skeleton width={50} height={16} /></td>
@@ -84,7 +84,7 @@ export const GanttBarSkeleton = memo(({ count = 5 }: { count?: number }) => (
     {Array.from({ length: count }).map((_, i) => (
       <div
         key={i}
-        className="h-11 border-b border-slate-50 flex items-center px-4"
+        className="h-11 border-b border-border-subtle/10 flex items-center px-4"
         style={{ animationDelay: `${i * 50}ms` }}
       >
         <Skeleton width="60%" height={16} />

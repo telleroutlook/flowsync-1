@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect, useId, memo, useCallback } from 'react';
 import { Task, Priority } from '../types';
 import { useI18n } from '../src/i18n';
+import { cn } from '../src/utils/cn';
 
 interface GanttChartProps {
   tasks: Task[];
@@ -43,17 +44,17 @@ const VIEW_SETTINGS: Record<ViewMode, { pxPerDay: number; tickLabelFormat: Intl.
   Year: { pxPerDay: 1.5, tickLabelFormat: { year: 'numeric' } },
 };
 
-const getTaskColor = (priority: Priority, isMilestone?: boolean) => {
-  if (isMilestone) return '#8b5cf6';
+const getTaskColorClass = (priority: Priority, isMilestone?: boolean) => {
+  if (isMilestone) return 'border-accent';
   switch (priority) {
     case Priority.HIGH:
-      return '#ef4444';
+      return 'bg-negative';
     case Priority.MEDIUM:
-      return '#eab308';
+      return 'bg-warning';
     case Priority.LOW:
-      return '#22c55e';
+      return 'bg-success';
     default:
-      return '#6366f1';
+      return 'bg-primary';
   }
 };
 
@@ -68,6 +69,7 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
   onUpdateTaskDates,
 }) => {
   const { t, locale } = useI18n();
+  // ... (keeping state and other hooks same)
   const [viewMode, setViewMode] = useState<ViewMode>('Month');
   const [showList, setShowList] = useState(true);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -165,15 +167,6 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
              label = ''; // Only label weeks
              isMajor = false;
           }
-           // Use daily ticks for grid but only label weeks? Or just weekly ticks?
-           // Let's do weekly ticks for the main grid lines
-           if (cursor.getDay() !== 1 && lines.length === 0) {
-              // Align first tick to next Monday if we started mid-week (though we aligned startMs already)
-              // Actually, let's just step by day to draw day-grid if needed, OR step by week.
-              // For 'Week' view, usually we want vertical lines every week.
-           }
-           // Simplification: Loop by day, but only add line if Monday
-           // OR Loop by Week. Let's Loop by Week for cleaner grid in Week View.
            if (cursor.getDay() === 1) {
              lines.push({ time, label, x, isMajor: true });
            }
@@ -210,10 +203,6 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
         lines.push({ time, label, x, isMajor });
         nextStep();
       } else {
-        // Execute the step logic defined in switch
-        // For Week/Month/Year we are iterating days to find boundaries
-        // Optimization: For Month view, we can jump? No, months length vary.
-        // But iterating days for 5 years is ~1800 iterations, totally fine.
         if (lines[lines.length - 1]?.time !== time) {
            // If we didn't push inside switch (e.g. Week view non-Monday), don't push
         }
@@ -307,7 +296,7 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
     };
   }, []);
 
-  if (tasks.length === 0) return <div className="p-8 text-center text-slate-500">{t('gantt.no_tasks')}</div>;
+  if (tasks.length === 0) return <div className="p-8 text-center text-text-secondary">{t('gantt.no_tasks')}</div>;
 
   // Compute task coordinates with drag state applied - memoized for performance
   const taskCoords = useMemo(() => {
@@ -381,12 +370,12 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
   }, []);
 
   return (
-    <div className="flex flex-col h-full bg-white border border-slate-200 rounded-xl overflow-hidden relative shadow-sm">
+    <div className="flex flex-col h-full bg-surface border border-border-subtle rounded-xl overflow-hidden relative shadow-sm">
       {/* Controls */}
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200 shrink-0 z-20">
+      <div className="flex items-center justify-between px-4 py-2 bg-background border-b border-border-subtle shrink-0 z-20">
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer font-medium select-none">
-            <input type="checkbox" checked={showList} onChange={() => setShowList(!showList)} className="rounded border-slate-300" />
+          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer font-medium select-none">
+            <input type="checkbox" checked={showList} onChange={() => setShowList(!showList)} className="rounded border-border-subtle text-primary focus:ring-primary" />
             {t('gantt.show_list')}
           </label>
         </div>
@@ -395,9 +384,12 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
              <button
                key={m}
                onClick={() => setViewMode(m)}
-               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                 viewMode === m ? 'bg-white text-primary shadow border border-slate-200' : 'text-slate-500 hover:bg-white hover:text-slate-700'
-               }`}
+               className={cn(
+                 "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                 viewMode === m 
+                   ? "bg-surface text-primary shadow border border-border-subtle" 
+                   : "text-text-secondary hover:bg-surface hover:text-text-primary"
+               )}
                aria-label={`${viewModeLabels[m]} view`}
                aria-pressed={viewMode === m}
              >
@@ -410,33 +402,36 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
       <div className="flex-1 flex overflow-hidden relative">
         {/* Left List */}
         {showList && (
-          <div ref={listRef} className="w-64 shrink-0 border-r border-slate-200 bg-white overflow-y-auto overflow-x-hidden z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
-             <div className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200 h-10 flex items-center px-4 text-xs font-semibold text-slate-500">
+          <div ref={listRef} className="w-64 shrink-0 border-r border-border-subtle bg-surface overflow-y-auto overflow-x-hidden z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+             <div className="sticky top-0 z-20 bg-background border-b border-border-subtle h-10 flex items-center px-4 text-xs font-semibold text-text-secondary">
                {t('gantt.task_name')}
              </div>
              {taskEntries.map(task => (
                <div 
                  key={task.id} 
-                 className="h-11 px-4 border-b border-slate-50 flex flex-col justify-center hover:bg-slate-50 cursor-pointer transition-colors hover:text-primary"
+                 className="h-11 px-4 border-b border-border-subtle/50 flex flex-col justify-center hover:bg-background cursor-pointer transition-colors hover:text-primary"
                  onClick={() => onSelectTask?.(task.id)}
                >
-                 <div className="text-sm font-medium text-slate-700 truncate">{task.title}</div>
-                 <div className="text-xs text-slate-400 truncate">{task.assignee || t('gantt.unassigned')}</div>
+                 <div className="text-sm font-medium text-text-primary truncate">{task.title}</div>
+                 <div className="text-xs text-text-secondary truncate">{task.assignee || t('gantt.unassigned')}</div>
                </div>
              ))}
           </div>
         )}
 
         {/* Timeline Area */}
-        <div ref={timelineRef} className="flex-1 overflow-auto bg-slate-50/30 relative">
+        <div ref={timelineRef} className="flex-1 overflow-auto bg-background/30 relative">
           <div style={{ width: Math.max(totalWidth, 100) + 'px', height: '100%', position: 'relative' }}>
             
             {/* Grid Header */}
-            <div className="sticky top-0 z-10 bg-white border-b border-slate-200 h-10 select-none shadow-sm">
+            <div className="sticky top-0 z-10 bg-surface border-b border-border-subtle h-10 select-none shadow-sm">
                {gridLines.map(line => (
                  <div
                    key={line.time}
-                   className={`absolute top-0 bottom-0 border-l border-slate-100 pl-2 pt-2.5 text-xs font-medium text-slate-500 truncate ${line.isMajor ? 'border-slate-300' : ''}`}
+                   className={cn(
+                     "absolute top-0 bottom-0 border-l border-border-subtle/50 pl-2 pt-2.5 text-xs font-medium text-text-secondary truncate",
+                     line.isMajor && "border-border-subtle"
+                   )}
                    style={{ left: line.x, width: 200 }} // width just for overflow text
                  >
                    {line.label}
@@ -449,7 +444,10 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                {gridLines.map(line => (
                  <div
                    key={line.time}
-                   className={`absolute top-0 bottom-0 border-l ${line.isMajor ? 'border-slate-200' : 'border-slate-100'}`}
+                   className={cn(
+                     "absolute top-0 bottom-0 border-l",
+                     line.isMajor ? "border-border-subtle" : "border-border-subtle/50"
+                   )}
                    style={{ left: line.x }}
                  />
                ))}
@@ -457,10 +455,10 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                {/* Today Marker */}
                {Date.now() >= startMs && Date.now() <= endMs && (
                  <div 
-                   className="absolute top-0 bottom-0 w-px bg-red-400 z-0"
+                   className="absolute top-0 bottom-0 w-px bg-critical z-0"
                    style={{ left: getX(Date.now()) }}
                  >
-                   <div className="bg-red-400 text-white text-xs px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">{t('gantt.today')}</div>
+                   <div className="bg-critical text-critical-foreground text-xs px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">{t('gantt.today')}</div>
                  </div>
                )}
             </div>
@@ -471,18 +469,17 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                <svg className="absolute inset-0 w-full h-full overflow-visible">
                  <defs>
                     <marker id={`arrow-head-${arrowId}`} markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
-                      <path d="M0,0 L6,3 L0,6 Z" fill="#94a3b8" />
+                      <path d="M0,0 L6,3 L0,6 Z" className="fill-secondary" />
                     </marker>
                  </defs>
                  {dependencyLinks.map(link => (
                    <path
                      key={link.key}
                      d={link.d}
-                     stroke="#cbd5e1"
                      strokeWidth="1.5"
                      fill="none"
                      markerEnd={`url(#arrow-head-${arrowId})`}
-                     className="transition-colors hover:stroke-indigo-400"
+                     className="stroke-secondary transition-colors hover:stroke-primary"
                      style={{ pointerEvents: 'stroke' }}
                      onMouseEnter={(event) => updateDependencyTooltip(event, link.label)}
                      onMouseMove={(event) => updateDependencyTooltip(event, link.label)}
@@ -493,7 +490,7 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
 
                {dependencyTooltip && (
                  <div
-                   className="absolute z-20 rounded-md bg-slate-900 text-white text-[10px] px-2 py-1 shadow-md pointer-events-none"
+                   className="absolute z-20 rounded-md bg-text-primary text-surface text-[10px] px-2 py-1 shadow-md pointer-events-none"
                    style={{ left: dependencyTooltip.x + 8, top: dependencyTooltip.y + 8 }}
                  >
                    {dependencyTooltip.text}
@@ -502,7 +499,7 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
 
                {/* Task Bars */}
                {taskCoords.map((t) => {
-                 const color = getTaskColor(t.original.priority, t.original.isMilestone);
+                 const colorClass = getTaskColorClass(t.original.priority, t.original.isMilestone);
                  const isSelected = selectedTaskId === t.id;
                  const isDragging = dragState?.id === t.id;
 
@@ -514,7 +511,6 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                        left: t.x,
                        top: t.top,
                        width: t.w,
-                       backgroundColor: t.original.isMilestone ? 'transparent' : color,
                        opacity: isDragging ? 0.9 : 1
                      }}
                    > 
@@ -530,13 +526,17 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                          }}
                          onClick={() => onSelectTask?.(t.id)}
                        >
-                         <div className="w-6 h-6 rotate-45 border-2 bg-white" style={{ borderColor: color }} />
+                         <div className={cn("w-6 h-6 rotate-45 border-2 bg-surface", colorClass)} />
                        </div>
                      ) : (
                        /* Standard Bar */
                        <>
                          <div 
-                           className={`w-full h-full rounded shadow-sm opacity-90 hover:opacity-100 flex items-center px-2 cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}`}
+                           className={cn(
+                             "w-full h-full rounded shadow-sm opacity-90 hover:opacity-100 flex items-center px-2 cursor-pointer transition-all",
+                             colorClass,
+                             isSelected && "ring-2 ring-primary ring-offset-1"
+                           )}
                            onMouseDown={(e) => {
                              e.preventDefault();
                              dragDeltaRef.current = 0;
@@ -545,12 +545,12 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                            }}
                            onClick={() => onSelectTask?.(t.id)}
                          >
-                            <span className="text-[10px] font-bold text-white truncate drop-shadow-md">{t.original.title}</span>
+                            <span className="text-[10px] font-bold text-primary-foreground truncate drop-shadow-md">{t.original.title}</span>
                          </div>
                          
                          {/* Resize Handles */}
                          <div 
-                           className="absolute left-0 top-0 bottom-0 w-3 cursor-w-resize hover:bg-white/20 rounded-l"
+                           className="absolute left-0 top-0 bottom-0 w-3 cursor-w-resize hover:bg-surface/20 rounded-l"
                            onMouseDown={(e) => {
                              e.stopPropagation();
                              dragDeltaRef.current = 0;
@@ -559,7 +559,7 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                            }}
                          />
                          <div 
-                           className="absolute right-0 top-0 bottom-0 w-3 cursor-e-resize hover:bg-white/20 rounded-r"
+                           className="absolute right-0 top-0 bottom-0 w-3 cursor-e-resize hover:bg-surface/20 rounded-r"
                            onMouseDown={(e) => {
                              e.stopPropagation();
                              dragDeltaRef.current = 0;

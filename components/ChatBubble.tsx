@@ -4,6 +4,7 @@ import { Paperclip } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useI18n } from '../src/i18n';
+import { cn } from '../src/utils/cn';
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -26,17 +27,18 @@ const Attachment = memo<AttachmentProps>(({ attachment, isUser }) => (
   <a
     href={attachment.url}
     download={attachment.name}
-    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${
+    className={cn(
+      "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors",
       isUser
-        ? 'border-white/20 bg-white/10 text-white hover:bg-white/20'
-        : 'border-border-subtle bg-background text-text-primary hover:bg-gray-100'
-    }`}
+        ? "border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
+        : "border-border-subtle bg-background text-text-primary hover:bg-secondary/10"
+    )}
     rel="noreferrer"
   >
     <Paperclip className="w-3.5 h-3.5 opacity-70" />
     <div className="flex flex-col min-w-0">
       <span className="truncate font-medium">{attachment.name}</span>
-      <span className={`text-[10px] ${isUser ? 'text-white/70' : 'text-text-secondary'}`}>
+      <span className={cn("text-[10px]", isUser ? "text-primary-foreground/70" : "text-text-secondary")}>
         {formatBytes(attachment.size)}
       </span>
     </div>
@@ -58,13 +60,13 @@ const MarkdownContent = memo<MarkdownContentProps>(({ content, isUser, codeLabel
       </div>
     ),
     thead: ({ node, ...props }: any) => (
-      <thead className={isUser ? 'bg-white/10' : 'bg-background'} {...props} />
+      <thead className={isUser ? 'bg-primary-foreground/10' : 'bg-background'} {...props} />
     ),
     th: ({ node, ...props }: any) => (
-      <th className={`px-2 py-1.5 border-b font-semibold ${isUser ? 'border-white/20' : 'border-border-subtle text-text-secondary'}`} {...props} />
+      <th className={cn("px-2 py-1.5 border-b font-semibold", isUser ? "border-primary-foreground/20" : "border-border-subtle text-text-secondary")} {...props} />
     ),
     tr: ({ node, ...props }: any) => (
-      <tr className={`border-b last:border-0 ${isUser ? 'border-white/10 hover:bg-white/5' : 'border-border-subtle hover:bg-background'}`} {...props} />
+      <tr className={cn("border-b last:border-0", isUser ? "border-primary-foreground/10 hover:bg-primary-foreground/5" : "border-border-subtle hover:bg-background")} {...props} />
     ),
     td: ({ node, ...props }: any) => <td className="px-2 py-1.5" {...props} />,
     p: ({ node, ...props }: any) => <p className="mb-1.5 last:mb-0 leading-relaxed" {...props} />,
@@ -73,21 +75,21 @@ const MarkdownContent = memo<MarkdownContentProps>(({ content, isUser, codeLabel
     ol: ({ node, ...props }: any) => <ol className="list-decimal list-outside ml-4 mb-1.5 space-y-0.5" {...props} />,
     li: ({ node, ...props }: any) => <li className="pl-0.5" {...props} />,
     blockquote: ({ node, ...props }: any) => (
-      <blockquote className={`border-l-2 pl-3 my-1.5 italic ${isUser ? 'border-white/40 text-white/90' : 'border-primary/40 text-text-secondary'}`} {...props} />
+      <blockquote className={cn("border-l-2 pl-3 my-1.5 italic", isUser ? "border-primary-foreground/40 text-primary-foreground/90" : "border-primary/40 text-text-secondary")} {...props} />
     ),
     code: ({ node, className, children, ...props }: any) => {
       const match = /language-(\w+)/.exec(className || '');
       const isInline = !match && !String(children).includes('\n');
       return isInline ? (
-        <code className={`px-1 py-0.5 rounded font-mono text-[0.9em] ${isUser ? 'bg-white/20 border border-white/20' : 'bg-background border border-border-subtle text-text-primary'}`} {...props}>
+        <code className={cn("px-1 py-0.5 rounded font-mono text-[0.9em]", isUser ? "bg-primary-foreground/20 border border-primary-foreground/20" : "bg-secondary/10 border border-border-subtle text-text-primary")} {...props}>
           {children}
         </code>
       ) : (
-        <div className={`rounded-lg overflow-hidden my-2 border ${isUser ? 'border-white/20 bg-black/20' : 'border-border-subtle bg-background'}`}>
-          <div className={`text-[10px] px-3 py-1.5 font-mono opacity-80 border-b ${isUser ? 'border-white/10 bg-white/5' : 'border-border-subtle bg-gray-50 text-text-secondary'}`}>
+        <div className={cn("rounded-lg overflow-hidden my-2 border", isUser ? "border-primary-foreground/20 bg-primary-foreground/10" : "border-border-subtle bg-background")}>
+          <div className={cn("text-[10px] px-3 py-1.5 font-mono opacity-80 border-b", isUser ? "border-primary-foreground/10 bg-primary-foreground/5" : "border-border-subtle bg-secondary/5 text-text-secondary")}>
             {match ? match[1] : codeLabel}
           </div>
-          <code className={`block p-3 overflow-x-auto font-mono text-xs ${isUser ? 'text-white/90' : 'text-text-primary'}`} {...props}>
+          <code className={cn("block p-3 overflow-x-auto font-mono text-xs", isUser ? "text-primary-foreground/90" : "text-text-primary")} {...props}>
             {children}
           </code>
         </div>
@@ -100,7 +102,7 @@ const MarkdownContent = memo<MarkdownContentProps>(({ content, isUser, codeLabel
   }), [isUser, codeLabel]);
 
   return (
-    <div className={`markdown-content ${isUser ? 'text-white' : 'text-text-primary'}`}>
+    <div className={isUser ? 'text-primary-foreground' : 'text-text-primary'}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}
       </ReactMarkdown>
@@ -132,25 +134,26 @@ export const ChatBubble = memo<ChatBubbleProps>(({ message }) => {
   }
 
   return (
-    <div className={`flex w-full mb-4 ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+    <div className={cn("flex w-full mb-4 animate-fade-in", isUser ? "justify-end" : "justify-start")}>
       <div
-        className={`max-w-[92%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all ${
+        className={cn(
+          "max-w-[92%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all",
           isUser
-            ? 'bg-primary text-white rounded-br-none shadow-blue-100/50'
-            : 'bg-surface text-text-primary border border-border-subtle rounded-bl-none shadow-sm'
-        }`}
+            ? "bg-primary text-primary-foreground rounded-br-none"
+            : "bg-surface text-text-primary border border-border-subtle rounded-bl-none"
+        )}
       >
         {hasText && <MarkdownContent content={message.text} isUser={isUser} codeLabel={t('chat.code')} />}
 
         {attachments.length > 0 && (
-          <div className={`mt-2 flex flex-col gap-1.5 ${hasText ? '' : 'mt-0'}`}>
+          <div className={cn("mt-2 flex flex-col gap-1.5", !hasText && "mt-0")}>
             {attachments.map((attachment) => (
               <Attachment key={attachment.id} attachment={attachment} isUser={isUser} />
             ))}
           </div>
         )}
 
-        <div className={`text-[10px] mt-1.5 flex items-center justify-end gap-1 ${isUser ? 'text-white/70' : 'text-text-secondary/70'}`}>
+        <div className={cn("text-[10px] mt-1.5 flex items-center justify-end gap-1", isUser ? "text-primary-foreground/70" : "text-text-secondary/70")}>
           {timestamp}
           {isUser && <span>• {t('chat.you')}</span>}
         </div>

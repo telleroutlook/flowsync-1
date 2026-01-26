@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, RotateCcw, X, Paperclip, Send, File, XCircle, AlertTriangle } from 'lucide-react';
 import { useI18n } from '../src/i18n';
 import { getActionLabel, getEntityLabel } from '../src/i18n/labels';
+import { cn } from '../src/utils/cn';
+import { Button } from './ui/Button';
 
 interface ChatInterfaceProps {
   isChatOpen: boolean;
@@ -82,7 +84,7 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
       <div className="h-14 px-4 border-b border-border-subtle flex items-center justify-between bg-surface/95 backdrop-blur-md sticky top-0 z-10 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-joule-start to-joule-end flex items-center justify-center shadow-md shadow-joule-start/20 ring-1 ring-black/5" aria-hidden="true">
-            <Sparkles className="w-4 h-4 text-white" />
+            <Sparkles className="w-4 h-4 text-accent-foreground" />
           </div>
           <div className="flex flex-col">
             <h1 className="font-bold text-sm text-text-primary tracking-tight">{t('chat.assistant_name')}</h1>
@@ -120,42 +122,44 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="px-4 py-3 border-b border-amber-200/50 bg-amber-50/60 shrink-0 backdrop-blur-sm"
+            className="px-4 py-3 border-b border-border-subtle border-l-4 border-l-critical bg-surface shrink-0"
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
-                <p className="text-xs font-bold text-amber-900">{t('chat.pending.title')}</p>
+                <AlertTriangle className="w-3.5 h-3.5 text-critical" aria-hidden="true" />
+                <p className="text-xs font-bold text-text-primary">{t('chat.pending.title')}</p>
               </div>
-              <span className="text-xs font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+              <span className="text-xs font-semibold text-critical bg-critical/10 px-2 py-0.5 rounded-full border border-critical/20">
                 {t('chat.pending.action_count', { count: pendingDraft.actions.length })}
               </span>
             </div>
             <div className="space-y-1 pl-5 mb-3">
               {pendingDraft.actions.slice(0, 3).map(action => (
-                <div key={action.id} className="text-xs text-amber-800 truncate font-medium">
+                <div key={action.id} className="text-xs text-text-secondary truncate font-medium">
                   {getActionLabel(action.action, t)} <span className="opacity-75">{getEntityLabel(action.entityType, t)}</span>
                 </div>
               ))}
               {pendingDraft.actions.length > 3 && (
-                <div className="text-xs text-amber-700 italic">{t('chat.pending.more', { count: pendingDraft.actions.length - 3 })}</div>
+                <div className="text-xs text-critical italic">{t('chat.pending.more', { count: pendingDraft.actions.length - 3 })}</div>
               )}
             </div>
             <div className="flex gap-2 pl-5">
-              <button
-                type="button"
+              <Button
+                variant="default"
+                size="sm"
                 onClick={() => onApplyDraft(pendingDraft.id)}
-                className="flex-1 rounded-lg bg-success text-white text-xs font-semibold py-1.5 hover:bg-success/90 transition-colors shadow-sm"
+                className="flex-1 h-8 bg-success hover:bg-success/90 text-success-foreground"
               >
                 {t('chat.accept')}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => onDiscardDraft(pendingDraft.id)}
-                className="flex-1 rounded-lg bg-white border border-border-subtle text-text-secondary text-xs font-semibold py-1.5 hover:bg-background hover:text-text-primary transition-colors"
+                className="flex-1 h-8"
               >
                 {t('chat.discard')}
-              </button>
+              </Button>
             </div>
           </motion.div>
         )}
@@ -243,14 +247,14 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
               {pendingAttachments.map((file) => (
                 <div
                   key={file.id}
-                  className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm text-primary"
+                  className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm text-primary"
                 >
                   <File className="w-3 h-3" aria-hidden="true" />
                   <span className="max-w-[120px] truncate font-medium">{file.name}</span>
                   <button
                     type="button"
                     onClick={() => onRemoveAttachment(file.id)}
-                    className="text-primary/60 hover:text-primary p-0.5 rounded-full hover:bg-primary/10 transition-colors"
+                    className="text-primary/60 hover:text-primary p-0.5 rounded-full hover:bg-primary/20 transition-colors"
                   >
                     <XCircle className="w-3.5 h-3.5" />
                   </button>
@@ -259,7 +263,7 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
             </motion.div>
           )}
 
-          <div className="flex items-end gap-2 bg-background p-2 rounded-xl border border-border-subtle focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+          <div className="flex items-end gap-2 bg-background p-2 rounded-xl border border-border-subtle focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20 transition-all shadow-sm">
             <input
               ref={fileInputRef}
               type="file"
@@ -271,7 +275,7 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-secondary hover:text-primary hover:bg-white transition-colors"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-secondary hover:text-primary hover:bg-surface transition-colors"
               disabled={isProcessing}
               title={t('chat.attach_files')}
             >
@@ -291,7 +295,7 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
             <button
               type="submit"
               disabled={(inputText.trim().length === 0 && pendingAttachments.length === 0) || isProcessing}
-              className="h-9 w-9 shrink-0 flex items-center justify-center bg-primary text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:hover:bg-primary transition-all shadow-sm"
+              className="h-9 w-9 shrink-0 flex items-center justify-center bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:hover:bg-primary transition-all shadow-sm"
               aria-label="Send message"
             >
               <Send className="w-4 h-4 translate-x-0.5 translate-y-0.5" />

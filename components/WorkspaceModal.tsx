@@ -1,6 +1,10 @@
-import React, { useEffect, useMemo, useState, memo, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, memo } from 'react';
 import { useI18n } from '../src/i18n';
 import type { WorkspaceJoinRequest, WorkspaceMember, WorkspaceWithMembership } from '../types';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
+import { cn } from '../src/utils/cn';
+import { X, Check, Trash2, Plus, Users, Globe, Clock, Shield, Briefcase, UserPlus } from 'lucide-react';
 
 interface WorkspaceModalProps {
   isOpen: boolean;
@@ -28,7 +32,7 @@ const WorkspaceModal = ({
   onApprove,
   onReject,
   onRemoveMember,
-}) => {
+}: WorkspaceModalProps) => {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -69,54 +73,55 @@ const WorkspaceModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-text-primary/40 backdrop-blur-sm animate-fade-in">
+      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] border border-border-subtle">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-white sticky top-0 z-10">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-border-subtle bg-surface sticky top-0 z-10">
           <div>
-            <h3 className="text-xl font-bold text-slate-900 tracking-tight">{t('workspace.manage')}</h3>
+            <h3 className="text-xl font-bold text-text-primary tracking-tight">{t('workspace.manage')}</h3>
             {activeWorkspace && (
-              <p className="text-sm text-slate-500 mt-1 font-medium flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+              <p className="text-sm text-text-secondary mt-1 font-medium flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-success inline-block"></span>
                 {activeWorkspace.name}
               </p>
             )}
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-full hover:bg-slate-100"
             aria-label={t('common.close')}
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+            <X className="w-5 h-5" />
+          </Button>
         </div>
 
         {/* Tabs */}
-        <div className="flex px-6 border-b border-slate-100 space-x-6 bg-slate-50/50">
+        <div className="flex px-6 border-b border-border-subtle space-x-6 bg-background/50">
           <button
             onClick={() => setActiveTab('list')}
-            className={`py-3 text-sm font-medium border-b-2 transition-all ${
+            className={cn(
+              "py-3 text-sm font-medium border-b-2 transition-all",
               activeTab === 'list' 
-                ? 'border-indigo-600 text-indigo-600' 
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+                ? "border-primary text-primary" 
+                : "border-transparent text-text-secondary hover:text-text-primary"
+            )}
           >
             {t('workspace.all')}
           </button>
           {isAdmin && (
             <button
               onClick={() => setActiveTab('members')}
-              className={`py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${
+              className={cn(
+                "py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2",
                 activeTab === 'members' 
-                  ? 'border-indigo-600 text-indigo-600' 
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
+                  ? "border-primary text-primary" 
+                  : "border-transparent text-text-secondary hover:text-text-primary"
+              )}
             >
               {t('workspace.members')}
               {pendingRequests.length > 0 && (
-                <span className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                <span className="bg-critical/10 text-critical border border-critical/20 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
                   {pendingRequests.length}
                 </span>
               )}
@@ -124,18 +129,19 @@ const WorkspaceModal = ({
           )}
           <button
             onClick={() => setActiveTab('create')}
-            className={`py-3 text-sm font-medium border-b-2 transition-all ${
+            className={cn(
+              "py-3 text-sm font-medium border-b-2 transition-all",
               activeTab === 'create' 
-                ? 'border-indigo-600 text-indigo-600' 
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+                ? "border-primary text-primary" 
+                : "border-transparent text-text-secondary hover:text-text-primary"
+            )}
           >
             {t('workspace.create')}
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+        <div className="flex-1 overflow-y-auto p-6 bg-background/30">
           {activeTab === 'list' && (
             <div className="space-y-3">
               {workspaces.map((workspace) => {
@@ -144,17 +150,17 @@ const WorkspaceModal = ({
                 const role = membership?.role;
                 const isActive = workspace.id === activeWorkspaceId;
                 
-                let badgeClass = 'bg-slate-100 text-slate-600';
+                let badgeClass = 'bg-secondary/10 text-text-secondary';
                 let actionLabel = '';
                 
                 if (status === 'active') {
-                   badgeClass = role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
+                   badgeClass = role === 'admin' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-success/10 text-success border border-success/20';
                    actionLabel = role === 'admin' ? t('workspace.role_admin') : t('workspace.role_member');
                 } else if (status === 'pending') {
-                   badgeClass = 'bg-amber-100 text-amber-700';
+                   badgeClass = 'bg-critical/10 text-critical border border-critical/20';
                    actionLabel = t('workspace.pending');
                 } else if (workspace.isPublic) {
-                   badgeClass = 'bg-sky-100 text-sky-700';
+                   badgeClass = 'bg-secondary/10 text-text-secondary border border-border-subtle';
                    actionLabel = t('workspace.public');
                 } else {
                    actionLabel = t('workspace.request_join');
@@ -163,39 +169,41 @@ const WorkspaceModal = ({
                 return (
                   <div
                     key={workspace.id}
-                    className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                    className={cn(
+                      "flex items-center justify-between p-4 rounded-xl border transition-all",
                       isActive 
-                        ? 'border-indigo-200 bg-white shadow-sm ring-1 ring-indigo-50' 
-                        : 'border-slate-200 bg-white hover:border-indigo-100 hover:shadow-sm'
-                    }`}
+                        ? "border-primary/30 bg-primary/5 shadow-sm ring-1 ring-primary/10" 
+                        : "border-border-subtle bg-surface hover:border-primary/20 hover:shadow-sm"
+                    )}
                   >
                     <div className="min-w-0 flex-1 mr-4">
                       <div className="flex items-center gap-2 mb-1.5">
-                        <h4 className="text-base font-bold text-slate-800 truncate">{workspace.name}</h4>
+                        <h4 className="text-base font-bold text-text-primary truncate">{workspace.name}</h4>
                         {isActive && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
                             {t('workspace.active')}
                           </span>
                         )}
                       </div>
                       {workspace.description && (
-                        <p className="text-sm text-slate-500 truncate">{workspace.description}</p>
+                        <p className="text-sm text-text-secondary truncate">{workspace.description}</p>
                       )}
                     </div>
                     
                     <div className="flex items-center gap-3">
                       {(status === 'active' || status === 'pending' || workspace.isPublic && status) ? (
-                        <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                        <span className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider", badgeClass)}>
                           {actionLabel}
                         </span>
                       ) : (
-                        <button
-                          type="button"
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => void onRequestJoin(workspace.id)}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all shadow-sm"
+                          className="h-8 text-xs font-semibold"
                         >
                           {actionLabel}
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -208,37 +216,41 @@ const WorkspaceModal = ({
             <div className="space-y-8">
               {pendingRequests.length > 0 && (
                 <section>
-                  <h4 className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <h4 className="text-xs font-bold text-critical uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <UserPlus className="w-4 h-4" />
                     {t('workspace.pending_requests')}
                   </h4>
                   <div className="grid gap-2">
                     {pendingRequests.map((request) => (
-                      <div key={request.userId} className="flex items-center justify-between p-3 rounded-lg border border-amber-200 bg-amber-50/50">
+                      <div key={request.userId} className="flex items-center justify-between p-3 rounded-lg border border-critical/20 bg-critical/5">
                         <div className="flex items-center gap-3">
-                           <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-xs">
+                           <div className="w-8 h-8 rounded-full bg-critical/10 flex items-center justify-center text-critical font-bold text-xs ring-1 ring-critical/20">
                              {request.username.charAt(0).toUpperCase()}
                            </div>
                            <div>
-                            <p className="text-sm font-semibold text-slate-700">{request.username}</p>
-                            <p className="text-[10px] text-slate-500">{t('workspace.requested')}</p>
+                            <p className="text-sm font-semibold text-text-primary">{request.username}</p>
+                            <p className="text-[10px] text-text-secondary">{t('workspace.requested')}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => void onApprove(activeWorkspaceId, request.userId)}
-                            className="p-1.5 rounded-md bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors shadow-sm"
+                            className="h-8 w-8 text-success hover:text-success hover:bg-success/10"
                             title={t('workspace.approve')}
                           >
-                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                          </button>
-                          <button
+                             <Check className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => void onReject(activeWorkspaceId, request.userId)}
-                            className="p-1.5 rounded-md bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors shadow-sm"
+                            className="h-8 w-8 text-negative hover:text-negative hover:bg-negative/10"
                             title={t('workspace.reject')}
                           >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                          </button>
+                            <X className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -247,22 +259,25 @@ const WorkspaceModal = ({
               )}
 
               <section>
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-3 flex items-center gap-2">
+                   <Users className="w-4 h-4" />
                    {t('workspace.members')}
                 </h4>
-                <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                <div className="bg-surface rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
                   {members.map((member) => (
-                    <div key={member.userId} className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
+                    <div key={member.userId} className="flex items-center justify-between p-3 hover:bg-background transition-colors">
                       <div className="flex items-center gap-3">
-                           <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
-                           member.role === 'admin' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'
-                         }`}>
+                           <div className={cn(
+                             "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ring-1",
+                             member.role === 'admin' 
+                               ? "bg-primary/10 text-primary ring-primary/20" 
+                               : "bg-secondary/10 text-text-secondary ring-border-subtle"
+                           )}>
                            {member.username.charAt(0).toUpperCase()}
                          </div>
                         <div>
-                          <p className="text-base font-semibold text-slate-700">{member.username}</p>
-                          <p className="text-xs text-slate-400">
+                          <p className="text-base font-semibold text-text-primary">{member.username}</p>
+                          <p className="text-xs text-text-secondary">
                             {member.role === 'admin' ? t('workspace.role_admin') : t('workspace.role_member')}
                           </p>
                         </div>
@@ -274,7 +289,7 @@ const WorkspaceModal = ({
                               void onRemoveMember(activeWorkspaceId, member.userId);
                             }
                           }}
-                          className="text-xs font-medium text-slate-400 hover:text-rose-600 transition-colors px-2 py-1"
+                          className="text-xs font-medium text-text-secondary hover:text-negative transition-colors px-2 py-1"
                         >
                           {t('workspace.remove')}
                         </button>
@@ -289,47 +304,49 @@ const WorkspaceModal = ({
           {activeTab === 'create' && (
             <div className="max-w-md mx-auto py-4">
               <div className="text-center mb-6">
-                 <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                 <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-3 ring-1 ring-primary/20">
+                    <Plus className="w-6 h-6" />
                  </div>
-                 <h4 className="text-base font-bold text-slate-800">{t('workspace.create_new')}</h4>
-                 <p className="text-xs text-slate-500 mt-1">{t('workspace.create_desc')}</p>
+                 <h4 className="text-base font-bold text-text-primary">{t('workspace.create_new')}</h4>
+                 <p className="text-xs text-text-secondary mt-1">{t('workspace.create_desc')}</p>
               </div>
               
               <form onSubmit={handleCreate} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                  <label className="block text-xs font-bold text-text-secondary mb-1.5 uppercase tracking-wide">
                     {t('workspace.name')}
                   </label>
-                  <input
+                  <Input
                     type="text"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-sm"
                     placeholder={t('workspace.name_placeholder')}
                     required
                   />
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
-                    {t('workspace.description')} <span className="text-slate-400 font-normal lowercase">({t('common.optional')})</span>
+                   <label className="block text-xs font-bold text-text-secondary mb-1.5 uppercase tracking-wide">
+                    {t('workspace.description')} <span className="text-text-secondary/50 font-normal lowercase">({t('common.optional')})</span>
                   </label>
                   <textarea
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-sm resize-none"
+                    className={cn(
+                      "flex min-h-[80px] w-full rounded-md border border-border-subtle bg-surface px-3 py-2 text-sm ring-offset-background placeholder:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none shadow-sm"
+                    )}
                     placeholder={t('workspace.description_placeholder')}
                     rows={3}
                   />
                 </div>
                 <div className="pt-2">
-                  <button
+                  <Button
                     type="submit"
                     disabled={!name.trim() || isSubmitting}
-                    className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+                    isLoading={isSubmitting}
+                    className="w-full font-bold shadow-md hover:shadow-lg"
                   >
-                    {isSubmitting ? t('common.processing') : t('workspace.create')}
-                  </button>
+                    {t('workspace.create')}
+                  </Button>
                 </div>
               </form>
             </div>

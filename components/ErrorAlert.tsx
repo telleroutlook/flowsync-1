@@ -7,9 +7,9 @@ interface ErrorAlertProps {
 }
 
 const alertStyles = {
-  error: 'border-rose-200 bg-rose-50 text-rose-700',
-  warning: 'border-amber-200 bg-amber-50 text-amber-700',
-  info: 'border-slate-200 bg-slate-50 text-slate-700',
+  error: 'border-negative/20 bg-negative/10 text-negative',
+  warning: 'border-critical/20 bg-critical/10 text-critical',
+  info: 'border-primary/20 bg-primary/10 text-primary',
 };
 
 const iconSvg = {
@@ -60,7 +60,7 @@ export const LoadingSpinner = memo<{ size?: 'sm' | 'md' | 'lg'; className?: stri
   return (
     <div className={`flex items-center justify-center ${className}`}>
       <svg
-        className={`animate-spin ${sizeClasses[size]} text-indigo-600`}
+        className={`animate-spin ${sizeClasses[size]} text-primary`}
         fill="none"
         viewBox="0 0 24 24"
         role="status"

@@ -42,17 +42,17 @@ export const WorkspacePanel = memo<WorkspacePanelProps>(({
       <div className="flex items-center justify-between gap-2 px-1">
         <div className="flex items-center gap-3 overflow-hidden">
            <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm shadow-sm ${
-             user ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'
+             user ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'
            }`}>
              {userInitial}
            </div>
            <div className="flex flex-col min-w-0">
-              <span className="text-sm font-bold text-slate-800 truncate">
+              <span className="text-sm font-bold text-text-primary truncate">
                 {userName}
               </span>
               <button
                 onClick={onOpenProfile}
-                className="text-xs text-slate-400 hover:text-indigo-500 text-left transition-colors truncate"
+                className="text-xs text-secondary hover:text-primary text-left transition-colors truncate"
               >
                 {t('profile.open')}
               </button>
@@ -64,7 +64,7 @@ export const WorkspacePanel = memo<WorkspacePanelProps>(({
             <button
               type="button"
               onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-all"
+              className="p-2 text-secondary hover:text-negative hover:bg-negative/10 rounded-md transition-all"
               title={t('auth.logout')}
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -75,7 +75,7 @@ export const WorkspacePanel = memo<WorkspacePanelProps>(({
             <button
               type="button"
               onClick={onOpenLogin}
-              className="text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-lg transition-colors"
+              className="text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-2 rounded-lg transition-colors"
             >
               {t('auth.login')}
             </button>
@@ -85,7 +85,7 @@ export const WorkspacePanel = memo<WorkspacePanelProps>(({
 
       {/* Workspace Selector */}
       <div className="space-y-1.5">
-        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">
+        <label className="text-xs font-bold text-secondary uppercase tracking-widest px-1">
           {t('workspace.title')}
         </label>
         <div className="flex gap-1.5">
@@ -93,7 +93,7 @@ export const WorkspacePanel = memo<WorkspacePanelProps>(({
             <select
               value={activeWorkspaceId}
               onChange={handleWorkspaceChange}
-              className="w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:border-indigo-300 transition-all shadow-sm cursor-pointer"
+              className="w-full appearance-none rounded-lg border border-border-subtle bg-surface pl-3 pr-8 py-2 text-sm font-semibold text-text-primary focus:outline-none focus:ring-2 focus:ring-primary hover:border-primary/50 transition-all shadow-sm cursor-pointer"
               aria-label={t('workspace.select')}
             >
               {workspaces.map((workspace) => (
@@ -102,7 +102,7 @@ export const WorkspacePanel = memo<WorkspacePanelProps>(({
                 </option>
               ))}
             </select>
-             <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-400">
+             <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-secondary">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
@@ -113,7 +113,7 @@ export const WorkspacePanel = memo<WorkspacePanelProps>(({
             <button
               type="button"
               onClick={onOpenManage}
-              className="flex items-center justify-center w-10 h-[38px] rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all shadow-sm"
+              className="flex items-center justify-center w-10 h-[38px] rounded-lg border border-border-subtle bg-surface text-secondary hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all shadow-sm"
               title={t('workspace.manage')}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

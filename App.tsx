@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, useCallback, memo } from 'react';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { WorkspacePanel } from './components/WorkspacePanel';
+import { Button } from './components/ui/Button';
+import { cn } from './src/utils/cn';
+import { Menu, X, Grid, List as ListIcon, Calendar, Upload, Download, History, MessageSquare, FileText, Check, MoreVertical } from 'lucide-react';
 import { LoginModal } from './components/LoginModal';
 import WorkspaceModal from './components/WorkspaceModal';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -30,8 +33,8 @@ type ViewMode = 'BOARD' | 'LIST' | 'GANTT';
 const LoadingSpinner = memo(({ message }: { message: string }) => (
   <div className="flex items-center justify-center h-full">
     <div className="flex flex-col items-center gap-3">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" aria-hidden="true" />
-      <p className="text-sm text-slate-500 font-medium">{message}</p>
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" aria-hidden="true" />
+      <p className="text-sm text-secondary font-medium">{message}</p>
     </div>
   </div>
 ));
@@ -370,7 +373,10 @@ function App() {
     <div className="flex h-screen w-full bg-background overflow-hidden text-text-primary font-sans selection:bg-primary/20 selection:text-primary">
       
       {/* 1. Project Sidebar (Left) */}
-      <div className={`${isSidebarOpen ? 'w-[260px]' : 'w-0'} transition-all duration-300 overflow-hidden border-r border-border-subtle bg-surface relative z-20 flex-shrink-0`}>
+      <div className={cn(
+        "transition-all duration-300 overflow-hidden border-r border-border-subtle bg-surface relative z-20 flex-shrink-0",
+        isSidebarOpen ? "w-[260px]" : "w-0"
+      )}>
         <ProjectSidebar 
           topSlot={(
             <WorkspacePanel
@@ -396,49 +402,61 @@ function App() {
       {/* 2. Workspace (Middle) */}
       <div className="flex-1 flex flex-col h-full bg-background relative overflow-hidden min-w-0">
         {/* Header */}
-        <div className="h-12 border-b border-border-subtle flex items-center justify-between px-4 bg-surface/80 backdrop-blur-md z-20 sticky top-0 shrink-0">
+        <div className="h-14 border-b border-border-subtle flex items-center justify-between px-4 bg-surface/80 backdrop-blur-md z-20 sticky top-0 shrink-0">
           <div className="flex items-center gap-4">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setIsSidebarOpen(prev => !prev)}
-              className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-background rounded-lg transition-colors"
               title={isSidebarOpen ? t('app.sidebar.close') : t('app.sidebar.open')}
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
+              <Menu className="w-5 h-5" />
+            </Button>
 
             <div className="flex flex-col">
-              <h2 className="text-base font-bold text-text-primary leading-tight truncate max-w-[200px]">{activeProject.name}</h2>
+              <h2 className="text-sm font-bold text-text-primary leading-tight truncate max-w-[200px]">{activeProject.name}</h2>
               {activeProject.description && (
-                 <p className="text-xs font-medium text-text-secondary truncate max-w-[200px]">{activeProject.description}</p>
+                 <p className="text-[10px] font-medium text-text-secondary truncate max-w-[200px]">{activeProject.description}</p>
               )}
             </div>
             
-            <div className="h-4 w-px bg-border-subtle mx-2"></div>
+            <div className="h-5 w-px bg-border-subtle mx-2"></div>
 
             {/* View Switcher */}
-            <div className="flex p-0.5 bg-background rounded-lg border border-border-subtle backdrop-blur-sm">
-               {['BOARD', 'LIST', 'GANTT'].map((mode) => (
-                 <button
-                   key={mode}
-                   onClick={() => setViewMode(mode as ViewMode)}
-                   className={`px-3 py-1.5 rounded-md text-xs font-bold tracking-wide transition-all ${
-                     viewMode === mode
-                       ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5'
-                       : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
-                   }`}
-                   aria-label={`${viewLabels[mode as ViewMode]} view`}
-                   aria-pressed={viewMode === mode}
-                 >
-                   {viewLabels[mode as ViewMode]}
-                 </button>
-               ))}
+            <div className="flex p-1 bg-background/50 rounded-lg border border-border-subtle gap-1">
+               <Button
+                 variant={viewMode === 'BOARD' ? 'secondary' : 'ghost'}
+                 size="sm"
+                 onClick={() => setViewMode('BOARD')}
+                 className="h-7 px-2 text-xs"
+               >
+                 <Grid className="w-3.5 h-3.5 mr-1.5" />
+                 {t('app.view.board')}
+               </Button>
+               <Button
+                 variant={viewMode === 'LIST' ? 'secondary' : 'ghost'}
+                 size="sm"
+                 onClick={() => setViewMode('LIST')}
+                 className="h-7 px-2 text-xs"
+               >
+                 <ListIcon className="w-3.5 h-3.5 mr-1.5" />
+                 {t('app.view.list')}
+               </Button>
+               <Button
+                 variant={viewMode === 'GANTT' ? 'secondary' : 'ghost'}
+                 size="sm"
+                 onClick={() => setViewMode('GANTT')}
+                 className="h-7 px-2 text-xs"
+               >
+                 <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                 {t('app.view.gantt')}
+               </Button>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-             <div className="flex items-center gap-1.5 bg-surface p-0.5 rounded-lg border border-border-subtle shadow-sm">
+             {/* Import Group */}
+             <div className="flex items-center gap-1 bg-surface p-1 rounded-lg border border-border-subtle shadow-sm">
                <input
                  ref={importInputRef}
                  type="file"
@@ -450,14 +468,15 @@ function App() {
                    event.currentTarget.value = '';
                  }}
                />
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => importInputRef.current?.click()}
-                className="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-semibold text-text-secondary hover:bg-background hover:text-primary transition-colors"
+                className="h-7 px-2 text-xs"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                <span>{t('app.header.import')}</span>
-              </button>
+                <Upload className="w-3.5 h-3.5 mr-1.5" />
+                {t('app.header.import')}
+              </Button>
               <div className="w-px h-3 bg-border-subtle"></div>
               <select
                 value={importStrategy}
@@ -465,7 +484,7 @@ function App() {
                   const value = event.target.value;
                   recordImportPreference(value === 'merge' ? 'merge' : 'append');
                 }}
-                className="bg-transparent text-xs font-medium text-text-secondary outline-none cursor-pointer hover:text-primary border-none py-0 focus:ring-0"
+                className="bg-transparent text-xs font-medium text-text-secondary outline-none cursor-pointer hover:text-primary border-none py-0 focus:ring-0 h-7"
                 aria-label={t('app.header.import_strategy')}
               >
                 <option value="append">{t('app.header.import.append')}</option>
@@ -473,80 +492,72 @@ function App() {
               </select>
              </div>
 
+             {/* Audit Button */}
              <div className="relative">
-              <button
-                type="button"
+              <Button
+                variant={isAuditOpen ? 'secondary' : 'outline'}
+                size="sm"
                 onClick={() => setIsAuditOpen(prev => !prev)}
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold shadow-sm transition-all ${
-                  isAuditOpen
-                    ? 'border-primary/20 bg-primary/10 text-primary'
-                    : 'border-border-subtle bg-surface text-text-secondary hover:border-primary/30 hover:text-primary'
-                }`}
+                className="h-9 px-3 gap-2"
                 aria-label={`${t('app.header.audit')} (${auditLogs.length})`}
               >
+                <History className="w-4 h-4" />
                 <span>{t('app.header.audit')}</span>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary min-w-[18px] text-center">
+                <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary min-w-[18px] text-center">
                   {auditLogs.length}
                 </span>
-              </button>
+              </Button>
             </div>
 
+            {/* Export Button */}
             <div className="relative">
-              <button
-                type="button"
+              <Button
+                 variant="outline"
+                 size="sm"
                  onClick={(event) => {
                   event.stopPropagation();
                   setIsExportOpen(prev => !prev);
                  }}
-                 className="flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface px-2.5 py-1.5 text-xs font-semibold text-text-secondary shadow-sm hover:border-primary/30 hover:text-primary transition-all"
-                 aria-label={t('app.header.export')}
+                 className="h-9 px-3 gap-2"
                >
                  <span>{t('app.header.export')}</span>
-                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                 </svg>
-               </button>
+                 <Download className="w-4 h-4" />
+               </Button>
                {isExportOpen && (
                  <div
                    onClick={(event) => event.stopPropagation()}
-                   className="absolute right-0 mt-2 w-64 rounded-xl border border-border-subtle bg-surface shadow-xl shadow-black/5 z-50 p-2 animate-fade-in"
+                   className="absolute right-0 mt-2 w-64 rounded-xl border border-border-subtle bg-surface shadow-xl z-50 p-2 animate-fade-in"
                    role="menu"
                  >
-                   <div className="px-3 pt-2 pb-1 text-xs font-bold uppercase tracking-widest text-text-secondary/50">{t('app.header.export_scope')}</div>
+                   <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">{t('app.header.export_scope')}</div>
                    <div className="flex gap-1 p-1 bg-background rounded-lg mb-2">
-                     <button
-                       type="button"
+                     <Button
+                       variant={exportScope === 'active' ? 'secondary' : 'ghost'}
+                       size="sm"
                        onClick={() => setExportScope('active')}
-                       className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-all ${
-                         exportScope === 'active'
-                           ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5'
-                           : 'text-text-secondary hover:text-text-primary'
-                       }`}
+                       className="flex-1 h-7 text-xs"
                        role="menuitemradio"
                        aria-checked={exportScope === 'active'}
                      >
                        {t('app.header.export_current')}
-                     </button>
-                     <button
-                       type="button"
+                     </Button>
+                     <Button
+                       variant={exportScope === 'all' ? 'secondary' : 'ghost'}
+                       size="sm"
                        onClick={() => setExportScope('all')}
-                       className={`flex-1 rounded-md px-2 py-1.5 text-xs font-bold transition-all ${ 
-                         exportScope === 'all'
-                           ? 'bg-surface text-primary shadow-sm ring-1 ring-black/5'
-                           : 'text-text-secondary hover:text-text-primary'
-                       }`}
+                       className="flex-1 h-7 text-xs"
                      >
                        {t('app.header.export_all')}
-                     </button>
+                     </Button>
                    </div>
                    
                    <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">{t('app.header.format')}</div>
-                   <div className="grid grid-cols-1 gap-0.5">
+                   <div className="grid grid-cols-1 gap-1">
                      {([
-                       { id: 'csv', label: 'CSV', desc: t('export.format.csv_desc') },
-                       { id: 'pdf', label: 'PDF', desc: t('export.format.pdf_desc') },
-                       { id: 'json', label: 'JSON', desc: t('export.format.json_desc') },
-                       { id: 'markdown', label: 'Markdown', desc: t('export.format.markdown_desc') },
+                       { id: 'csv', label: 'CSV', desc: t('export.format.csv_desc'), icon: FileText },
+                       { id: 'pdf', label: 'PDF', desc: t('export.format.pdf_desc'), icon: FileText },
+                       { id: 'json', label: 'JSON', desc: t('export.format.json_desc'), icon: FileText },
+                       { id: 'markdown', label: 'Markdown', desc: t('export.format.markdown_desc'), icon: FileText },
                      ] as const).map(item => (
                        <button
                          key={item.id}
@@ -555,15 +566,19 @@ function App() {
                            void handleExportTasks(item.id, exportScope);
                            setIsExportOpen(false);
                          }}
-                         className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${ 
+                         className={cn(
+                           "group flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors",
                            lastExportFormat === item.id ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-background' 
-                         }`}
+                         )}
                        >
-                         <div className="flex flex-col items-start">
-                            <span className="font-semibold">{item.label}</span>
-                            <span className="text-[9px] opacity-70 group-hover:opacity-100">{item.desc}</span>
+                         <div className="flex items-center gap-3">
+                            <item.icon className="w-4 h-4 opacity-70" />
+                            <div className="flex flex-col items-start">
+                              <span className="font-semibold">{item.label}</span>
+                              <span className="text-[9px] opacity-70 group-hover:opacity-100">{item.desc}</span>
+                            </div>
                          </div>
-                         {lastExportFormat === item.id && <span className="text-primary">✓</span>}
+                         {lastExportFormat === item.id && <Check className="w-3 h-3 text-primary" />}
                        </button>
                      ))}
                    </div>
@@ -576,11 +591,14 @@ function App() {
                          handleExportChat();
                          setIsExportOpen(false);
                        }}
-                       className="group flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors text-text-secondary hover:bg-background"
+                       className="w-full group flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors text-text-secondary hover:bg-background"
                      >
-                       <div className="flex flex-col items-start">
-                         <span className="font-semibold">TXT</span>
-                         <span className="text-[9px] opacity-70 group-hover:opacity-100">{t('export.format.chat_txt_desc')}</span>
+                       <div className="flex items-center gap-3">
+                         <MessageSquare className="w-4 h-4 opacity-70" />
+                         <div className="flex flex-col items-start">
+                           <span className="font-semibold">TXT</span>
+                           <span className="text-[9px] opacity-70 group-hover:opacity-100">{t('export.format.chat_txt_desc')}</span>
+                         </div>
                        </div>
                      </button>
                    </div>
@@ -588,24 +606,19 @@ function App() {
                )}
              </div>
 
-             <button 
+             <Button 
+                variant={isChatOpen ? 'secondary' : 'ghost'}
+                size="icon"
                 onClick={() => setIsChatOpen(prev => !prev)}
-                className={`p-1.5 rounded-lg transition-colors ${
-                  isChatOpen 
-                    ? 'text-primary bg-primary/10' 
-                    : 'text-text-secondary hover:text-primary hover:bg-background'
-                }`}
                 title={t('app.header.toggle_chat')}
              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-             </button>
+                <MessageSquare className="w-5 h-5" />
+             </Button>
           </div>
         </div>
 
         {dataError && (
-          <div className="px-6 py-3 text-sm font-medium bg-rose-50 text-rose-700 border-b border-slate-200" role="alert">
+          <div className="px-6 py-3 text-sm font-medium bg-negative/5 text-negative border-b border-negative/20" role="alert">
             {t('app.error.load_data', { error: dataError })}
           </div>
         )}
@@ -684,7 +697,7 @@ function App() {
                     />
                   )}
                   {viewMode === 'GANTT' && (
-                    <div className="flex-1 h-full min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="flex-1 h-full min-w-0 bg-surface rounded-xl border border-border-subtle shadow-sm overflow-hidden">
                       <GanttChart
                         tasks={activeTasks}
                         selectedTaskId={selectedTaskId}
@@ -698,7 +711,10 @@ function App() {
                 </Suspense>
               </div>
 
-              <div className={`transition-all duration-300 ${selectedTask ? 'w-[300px] opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-10 pointer-events-none'}`}>
+              <div className={cn(
+                "transition-all duration-300",
+                selectedTask ? "w-[350px] opacity-100 translate-x-0" : "w-0 opacity-0 translate-x-10 pointer-events-none"
+              )}>
                 {selectedTask && (
                   <TaskDetailPanel
                     selectedTask={selectedTask}
