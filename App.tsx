@@ -269,11 +269,6 @@ function App() {
 
   // --- EFFECTS & HANDLERS ---
 
-  // Sync scroll on message change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, messagesEndRef]);
-
   // Handle selected task validation
   useEffect(() => {
     if (selectedTaskId && !tasks.find(task => task.id === selectedTaskId)) {

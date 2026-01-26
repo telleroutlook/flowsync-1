@@ -52,6 +52,34 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
   onResetChat,
 }) => {
   const { t } = useI18n();
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const isAutoScrolling = React.useRef(false);
+
+  // Smart scrolling logic
+  const scrollToBottom = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
+    if (messagesEndRef.current) {
+      isAutoScrolling.current = true;
+      messagesEndRef.current.scrollIntoView({ behavior });
+      // Reset auto-scrolling flag after animation
+      setTimeout(() => {
+        isAutoScrolling.current = false;
+      }, 500);
+    }
+  }, [messagesEndRef]);
+
+  // Scroll to bottom on new messages or processing updates
+  React.useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    const lastMessage = messages[messages.length - 1];
+    const isUserMessage = lastMessage?.role === 'user';
+
+    if (isNearBottom || isUserMessage || isProcessing) {
+      scrollToBottom(isUserMessage ? 'auto' : 'smooth');
+    }
+  }, [messages, isProcessing, scrollToBottom]);
 
   const handleFileInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     onAttachFiles(event.target.files);
@@ -166,10 +194,14 @@ export const ChatInterface = memo<ChatInterfaceProps>(({
       </AnimatePresence>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-background scroll-smooth">
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-background scroll-smooth"
+      >
         {messages.map((msg) => (
           <ChatBubble key={msg.id} message={msg} />
         ))}
+
 
         {/* Thinking Indicator */}
         <AnimatePresence>

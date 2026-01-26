@@ -94,37 +94,37 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
 
   return (
     <div className="w-[350px] bg-surface border-l border-border-subtle shadow-xl flex flex-col h-full animate-slide-in-right z-30">
-      <div className="p-4 border-b border-border-subtle flex items-center justify-between bg-surface/50 backdrop-blur-sm">
+      <div className="p-3 border-b border-border-subtle flex items-center justify-between bg-surface/50 backdrop-blur-sm">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-text-secondary uppercase tracking-widest">{t('task.details')}</span>
+          <span className="text-[10px] font-bold text-text-secondary uppercase tracking-widest">{t('task.details')}</span>
           {selectedTask.isMilestone && (
-              <span className="px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-bold border border-accent/20">{t('task.milestone')}</span>
+              <span className="px-1.5 py-0.5 rounded-full bg-accent/10 text-accent text-[9px] font-bold border border-accent/20">{t('task.milestone')}</span>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-          <X className="w-4 h-4" />
+        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
+          <X className="w-3.5 h-3.5" />
         </Button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-4 custom-scrollbar">
 
         {/* Title */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-title">{t('task.title')}</label>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-title">{t('task.title')}</label>
           <Input
             id="task-title"
-            className="font-semibold text-base h-11"
+            className="font-semibold text-sm h-9 px-3"
             value={selectedTask.title}
             onChange={(event) => handleUpdate('title', event.target.value)}
           />
         </div>
 
         {/* Status & Priority */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-status">{t('task.status')}</label>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-status">{t('task.status')}</label>
             <select
               id="task-status"
-              className="flex h-10 w-full rounded-md border border-border-subtle bg-surface px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="flex h-8 w-full rounded-md border border-border-subtle bg-surface px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               value={selectedTask.status}
               onChange={(event) => handleUpdate('status', event.target.value as TaskStatus)}
             >
@@ -133,11 +133,11 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
               <option value={TaskStatus.DONE}>{getStatusLabel(TaskStatus.DONE, t)}</option>
             </select>
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-priority">{t('task.priority')}</label>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-priority">{t('task.priority')}</label>
             <select
               id="task-priority"
-              className="flex h-10 w-full rounded-md border border-border-subtle bg-surface px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="flex h-8 w-full rounded-md border border-border-subtle bg-surface px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               value={selectedTask.priority}
               onChange={(event) => handleUpdate('priority', event.target.value as Priority)}
             >
@@ -149,18 +149,18 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
         </div>
 
         {/* Dates */}
-        <div className="p-4 bg-background rounded-xl border border-border-subtle space-y-4">
-          <div className="flex items-center gap-2 text-text-primary font-medium text-sm border-b border-border-subtle pb-2 mb-2">
-             <Calendar className="w-4 h-4 text-primary" />
+        <div className="p-3 bg-background rounded-lg border border-border-subtle space-y-3">
+          <div className="flex items-center gap-2 text-text-primary font-semibold text-[11px] border-b border-border-subtle pb-1.5 mb-1">
+             <Calendar className="w-3.5 h-3.5 text-primary" />
              {t('task.schedule')}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-secondary" htmlFor="task-start">{t('task.start_date')}</label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-medium text-text-secondary" htmlFor="task-start">{t('task.start_date')}</label>
               <Input
                 id="task-start"
                 type="date"
-                className="bg-surface"
+                className="bg-surface h-7 text-xs px-2"
                 value={formatDateInput(selectedTask.startDate ?? selectedTask.createdAt)}
                 onChange={(event) => {
                   const startDate = parseDateInput(event.target.value);
@@ -168,12 +168,12 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
                 }}
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-secondary" htmlFor="task-due">{t('task.due_date')}</label>
+            <div className="space-y-1">
+              <label className="text-[10px] font-medium text-text-secondary" htmlFor="task-due">{t('task.due_date')}</label>
               <Input
                 id="task-due"
                 type="date"
-                className={cn("bg-surface", selectedTask.dueDate && selectedTask.dueDate < Date.now() && selectedTask.status !== TaskStatus.DONE && "border-negative text-negative")}
+                className={cn("bg-surface h-7 text-xs px-2", selectedTask.dueDate && selectedTask.dueDate < Date.now() && selectedTask.status !== TaskStatus.DONE && "border-negative text-negative")}
                 value={formatDateInput(selectedTask.dueDate)}
                 onChange={(event) => {
                   const dueDate = parseDateInput(event.target.value);
@@ -185,21 +185,22 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
         </div>
 
         {/* Assignee & WBS */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-assignee">{t('task.assignee')}</label>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-assignee">{t('task.assignee')}</label>
             <Input
               id="task-assignee"
               placeholder={t('task.unassigned')}
+              className="h-8 text-xs px-2"
               value={selectedTask.assignee || ''}
               onChange={(event) => handleUpdate('assignee', event.target.value || undefined)}
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-wbs">{t('task.wbs_code')}</label>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-wbs">{t('task.wbs_code')}</label>
             <Input
               id="task-wbs"
-              className="font-mono text-xs"
+              className="font-mono text-[10px] h-8 px-2"
               placeholder="1.0"
               value={selectedTask.wbs || ''}
               onChange={(event) => handleUpdate('wbs', event.target.value || undefined)}
@@ -208,10 +209,10 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
         </div>
 
         {/* Progress */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex justify-between items-center">
-              <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-completion">{t('task.completion')}</label>
-              <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">{selectedTask.completion ?? 0}%</span>
+              <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider" htmlFor="task-completion">{t('task.completion')}</label>
+              <span className="text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{selectedTask.completion ?? 0}%</span>
           </div>
           <input
             id="task-completion"
@@ -220,45 +221,45 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
             max={100}
             value={selectedTask.completion ?? 0}
             onChange={(event) => handleUpdate('completion', clampCompletion(Number(event.target.value)))}
-            className="w-full h-2 bg-secondary/20 rounded-lg appearance-none cursor-pointer accent-primary"
+            className="w-full h-1.5 bg-secondary/20 rounded-lg appearance-none cursor-pointer accent-primary"
           />
         </div>
 
         {/* Dependencies */}
-        <div className="space-y-3 pt-4 border-t border-border-subtle">
-          <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-2">
+        <div className="space-y-2.5 pt-3 border-t border-border-subtle">
+          <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-2">
             {t('task.dependencies')}
-            <span className="bg-secondary/10 text-secondary text-xs px-1.5 py-0.5 rounded-full">{predecessorDetails.length}</span>
+            <span className="bg-secondary/10 text-secondary text-[10px] px-1.5 py-0.5 rounded-full">{predecessorDetails.length}</span>
           </label>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {predecessorDetails.map((item) => (
-              <div key={item.ref} className="flex items-center justify-between bg-background border border-border-subtle rounded-lg p-2.5 group">
+              <div key={item.ref} className="flex items-center justify-between bg-background border border-border-subtle rounded-md p-2 group">
                 <div className="flex flex-col overflow-hidden">
-                  <span className="text-sm font-medium text-text-primary truncate">
+                  <span className="text-xs font-medium text-text-primary truncate">
                     {item.task ? item.task.title : item.ref}
                   </span>
                   {item.task && (
-                    <span className="text-xs text-text-secondary font-mono">
+                    <span className="text-[9px] text-text-secondary font-mono">
                       {item.task.wbs ? `WBS: ${item.task.wbs}` : `ID: ${item.task.id.slice(0, 8)}`}
                     </span>
                   )}
                   {!item.task && (
-                    <span className="text-xs text-negative italic">{t('task.not_found')}</span>
+                    <span className="text-[9px] text-negative italic">{t('task.not_found')}</span>
                   )}
                 </div>
                 <button
                   onClick={() => handleRemovePredecessor(item.ref)}
-                  className="p-1.5 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                  className="p-1 text-text-secondary hover:text-negative hover:bg-negative/10 rounded-md transition-colors opacity-0 group-hover:opacity-100"
                   title="Remove dependency"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             ))}
 
             <select
-              className="flex h-10 w-full rounded-md border border-border-subtle bg-surface px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="flex h-8 w-full rounded-md border border-border-subtle bg-surface px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               value=""
               onChange={(event) => {
                 const taskId = event.target.value;
@@ -275,16 +276,16 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
           </div>
 
           {hasPredecessorConflicts && (
-            <div className="bg-negative/5 border border-negative/20 rounded-lg p-3 animate-fade-in" role="alert">
-              <div className="flex items-start gap-2 text-negative mb-3">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span className="text-sm font-semibold">{t('task.schedule_conflict')}</span>
+            <div className="bg-negative/5 border border-negative/20 rounded-md p-2 animate-fade-in" role="alert">
+              <div className="flex items-start gap-1.5 text-negative mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span className="text-xs font-semibold">{t('task.schedule_conflict')}</span>
               </div>
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={handleFixSchedule}
-                className="w-full"
+                className="w-full h-7 text-xs"
               >
                 {t('task.fix_schedule')}
               </Button>
@@ -292,13 +293,13 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
           )}
         </div>
 
-        <div className="pt-2">
-          <label className="flex items-center gap-3 cursor-pointer group p-2 hover:bg-background rounded-lg border border-transparent hover:border-border-subtle transition-all">
+        <div className="pt-1">
+          <label className="flex items-center gap-2.5 cursor-pointer group p-1.5 hover:bg-background rounded-md border border-transparent hover:border-border-subtle transition-all">
               <div className={cn(
-                "w-5 h-5 rounded border flex items-center justify-center transition-colors",
+                "w-4 h-4 rounded border flex items-center justify-center transition-colors",
                 selectedTask.isMilestone ? "bg-accent border-accent text-accent-foreground" : "bg-surface border-border-subtle group-hover:border-accent"
               )}>
-                {selectedTask.isMilestone && <Check className="w-3.5 h-3.5" />}
+                {selectedTask.isMilestone && <Check className="w-3 h-3" />}
               </div>
               <input
               type="checkbox"
@@ -306,7 +307,7 @@ export const TaskDetailPanel = memo<TaskDetailPanelProps>(({
               checked={!!selectedTask.isMilestone}
               onChange={(event) => handleUpdate('isMilestone', event.target.checked)}
             />
-            <span className="text-sm text-text-primary font-medium">{t('task.mark_milestone')}</span>
+            <span className="text-xs text-text-primary font-medium">{t('task.mark_milestone')}</span>
           </label>
         </div>
 
