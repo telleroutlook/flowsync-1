@@ -149,9 +149,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = memo(({ tasks, selectedTa
   }, [tasks]);
 
   return (
-    <div className="flex flex-1 gap-6 overflow-x-auto pb-2 h-full snap-x">
+    <div className="flex flex-1 gap-4 overflow-x-auto pb-2 h-full snap-x">
       {([TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE] as TaskStatus[]).map((status) => (
-        <div key={status} className="flex-1 min-w-[300px] flex flex-col bg-background/50 rounded-2xl border border-border-subtle shadow-inner snap-center">
+        <div key={status} className="flex-1 min-w-0 flex flex-col bg-background/50 rounded-2xl border border-border-subtle shadow-inner snap-center">
           <div className="p-4 flex justify-between items-center sticky top-0 z-10">
             <h3 className="font-bold text-text-primary text-base flex items-center gap-2">
               <span className={cn(
