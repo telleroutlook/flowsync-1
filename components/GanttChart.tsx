@@ -24,17 +24,6 @@ type DragState = {
 
 type TaskEntry = Task & { startMs: number; endMs: number };
 
-type TaskCoord = {
-  id: string;
-  x: number;
-  top: number;
-  w: number;
-  start: number;
-  end: number;
-  centerY: number;
-  original: TaskEntry;
-};
-
 const DAY_MS = 86400000;
 
 const VIEW_SETTINGS: Record<ViewMode, { pxPerDay: number; tickLabelFormat: Intl.DateTimeFormatOptions }> = {
@@ -69,7 +58,6 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
   onUpdateTaskDates,
 }) => {
   const { t, locale } = useI18n();
-  // ... (keeping state and other hooks same)
   const [viewMode, setViewMode] = useState<ViewMode>('Month');
   const [showList, setShowList] = useState(true);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -78,7 +66,8 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
   const [dependencyTooltip, setDependencyTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const arrowId = useId();
 
-  const timelineRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   const viewModeLabels: Record<ViewMode, string> = useMemo(() => ({
     Day: t('gantt.view.day'),
@@ -217,7 +206,8 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
   }, [taskEntries, viewMode, locale]);
 
   // Helper: Time -> X
-  const getX = (time: number) => (time - startMs) * pxPerMs;
+  const getX = useCallback((time: number) => (time - startMs) * pxPerMs, [startMs, pxPerMs]);
+
   // 3. Drag Logic
   useEffect(() => {
     if (!dragState) return;
@@ -267,6 +257,13 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
       window.removeEventListener('mouseup', handleUp);
     };
   }, [dragState, pxPerMs, onUpdateTaskDates]);
+
+  // Sync scroll
+  const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (headerRef.current) {
+      headerRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  }, []);
 
   if (tasks.length === 0) return <div className="p-8 text-center text-text-secondary">{t('gantt.no_tasks')}</div>;
 
@@ -333,11 +330,11 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
   }, [taskEntries, taskMap, taskById, t]);
 
   const updateDependencyTooltip = useCallback((event: React.MouseEvent<SVGPathElement>, text: string) => {
-    const timeline = timelineRef.current;
-    if (!timeline) return;
-    const rect = timeline.getBoundingClientRect();
-    const x = event.clientX - rect.left + timeline.scrollLeft;
-    const y = event.clientY - rect.top + timeline.scrollTop;
+    const body = bodyRef.current;
+    if (!body) return;
+    const rect = body.getBoundingClientRect();
+    const x = event.clientX - rect.left + body.scrollLeft;
+    const y = event.clientY - rect.top + body.scrollTop;
     setDependencyTooltip({ text, x, y });
   }, []);
 
@@ -371,55 +368,62 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto relative">
-        <div className="relative" style={{ height: taskEntries.length * ROW_HEIGHT }}>
-            {/* STICKY LIST: Positioned sticky to the scroll container */}
+      {/* Header Row (Fixed) */}
+      <div className="flex h-10 border-b border-border-subtle bg-surface shrink-0 z-10">
+        {/* Top Left: Task Name */}
+        {showList && (
+          <div className="w-64 shrink-0 border-r border-border-subtle px-4 flex items-center text-xs font-semibold text-text-secondary bg-background shadow-sm z-20">
+             {t('gantt.task_name')}
+          </div>
+        )}
+        
+        {/* Timeline Header (Scrollable, Synced) */}
+        <div ref={headerRef} className="flex-1 overflow-hidden relative bg-surface">
+           <div style={{ width: Math.max(totalWidth, 100) + 'px', height: '100%' }} className="relative">
+              {gridLines.map(line => (
+                <div
+                  key={line.time}
+                  className={cn(
+                    "absolute top-0 bottom-0 border-l border-border-subtle/50 pl-2 pt-2.5 text-xs font-medium text-text-secondary truncate",
+                    line.isMajor && "border-border-subtle"
+                  )}
+                  style={{ left: line.x, width: 200 }}
+                >
+                  {line.label}
+                </div>
+              ))}
+           </div>
+        </div>
+      </div>
+
+      {/* Body (Scrollable) */}
+      <div 
+        ref={bodyRef}
+        className="flex-1 overflow-auto relative"
+        onScroll={handleBodyScroll}
+      >
+        <div className="flex min-w-full w-max">
+            {/* Sticky List Column */}
             {showList && (
-              <div 
-                className="w-64 shrink-0 border-r border-border-subtle bg-surface z-20 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]"
-                style={{ position: 'sticky', left: 0, height: '100%' }}
-              >
-                 <div className="sticky top-0 z-10 bg-background border-b border-border-subtle h-10 flex items-center px-4 text-xs font-semibold text-text-secondary">
-                   {t('gantt.task_name')}
-                 </div>
+               <div className="sticky left-0 w-64 shrink-0 z-30 bg-surface border-r border-border-subtle shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
                  {taskEntries.map(task => (
                    <div 
                      key={task.id} 
-                     className="h-11 px-4 border-b border-border-subtle/50 flex flex-col justify-center hover:bg-background cursor-pointer transition-colors hover:text-primary"
+                     className="px-4 border-b border-border-subtle/50 flex flex-col justify-center hover:bg-background cursor-pointer transition-colors hover:text-primary box-border"
+                     style={{ height: ROW_HEIGHT }}
                      onClick={() => onSelectTask?.(task.id)}
                    >
                      <div className="text-sm font-medium text-text-primary truncate">{task.title}</div>
                      <div className="text-xs text-text-secondary truncate">{task.assignee || t('gantt.unassigned')}</div>
                    </div>
                  ))}
-              </div>
+               </div>
             )}
 
-            {/* ABSOLUTE TIMELINE: Positioned absolute within the sizer, offset by the list width */}
-            <div 
-              className="absolute top-0 bg-background/30"
-              style={{ left: showList ? '16rem' : 0, right: 0 }}
-            >
-              <div ref={timelineRef} className="relative overflow-visible" style={{ width: Math.max(totalWidth, 100) + 'px', height: '100%' }}>
-                
-                {/* Grid Header */}
-                <div className="sticky top-0 z-10 bg-surface border-b border-border-subtle h-10 select-none shadow-sm">
-                   {gridLines.map(line => (
-                     <div
-                       key={line.time}
-                       className={cn(
-                         "absolute top-0 bottom-0 border-l border-border-subtle/50 pl-2 pt-2.5 text-xs font-medium text-text-secondary truncate",
-                         line.isMajor && "border-border-subtle"
-                       )}
-                       style={{ left: line.x, width: 200 }} // width just for overflow text
-                     >
-                       {line.label}
-                     </div>
-                   ))}
-                </div>
-
-                {/* Grid Vertical Lines */}
-                <div className="absolute inset-0 pointer-events-none">
+            {/* Timeline Content */}
+            <div className="relative flex-1" style={{ width: Math.max(totalWidth, 100) + 'px', height: taskEntries.length * ROW_HEIGHT }}>
+               {/* Grid Vertical Lines */}
+               <div className="absolute inset-0 pointer-events-none z-0">
                    {gridLines.map(line => (
                      <div
                        key={line.time}
@@ -437,15 +441,15 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                        className="absolute top-0 bottom-0 w-px bg-critical z-0"
                        style={{ left: getX(Date.now()) }}
                      >
-                       <div className="bg-critical text-critical-foreground text-xs px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">{t('gantt.today')}</div>
+                       {/* Label moved to header if we wanted, but sticking it here is fine too */}
                      </div>
                    )}
-                </div>
+               </div>
 
-                {/* Task Layer */}
-                <div className="relative" style={{ height: taskEntries.length * ROW_HEIGHT }}>
+               {/* Task & Dependency Layer */}
+               <div className="relative z-10 w-full h-full">
                    {/* Dependency Lines (SVG) */}
-                   <svg className="absolute inset-0 w-full h-full overflow-visible">
+                   <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none">
                      <defs>
                         <marker id={`arrow-head-${arrowId}`} markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
                           <path d="M0,0 L6,3 L0,6 Z" className="fill-secondary" />
@@ -458,8 +462,7 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                          strokeWidth="1.5"
                          fill="none"
                          markerEnd={`url(#arrow-head-${arrowId})`}
-                         className="stroke-secondary transition-colors hover:stroke-primary"
-                         style={{ pointerEvents: 'stroke' }}
+                         className="stroke-secondary transition-colors hover:stroke-primary pointer-events-auto"
                          onMouseEnter={(event) => updateDependencyTooltip(event, link.label)}
                          onMouseMove={(event) => updateDependencyTooltip(event, link.label)}
                          onMouseLeave={() => setDependencyTooltip(null)}
@@ -467,6 +470,7 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                      ))}
                    </svg>
 
+                   {/* Dependency Tooltip */}
                    {dependencyTooltip && (
                      <div
                        className="absolute z-20 rounded-md bg-text-primary text-surface text-[10px] px-2 py-1 shadow-md pointer-events-none"
@@ -551,8 +555,7 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
                        </div>
                      );
                    })}
-                </div>
-              </div>
+               </div>
             </div>
         </div>
       </div>
