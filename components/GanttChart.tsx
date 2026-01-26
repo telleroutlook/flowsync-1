@@ -79,9 +79,6 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
   const arrowId = useId();
 
   const timelineRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const isScrollingLeftRef = useRef(false);
-  const isScrollingRightRef = useRef(false);
 
   const viewModeLabels: Record<ViewMode, string> = useMemo(() => ({
     Day: t('gantt.view.day'),
@@ -271,31 +268,6 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
     };
   }, [dragState, pxPerMs, onUpdateTaskDates]);
 
-  // Sync scrolling
-  useEffect(() => {
-    const list = listRef.current;
-    const timeline = timelineRef.current;
-    if (!list || !timeline) return;
-    const syncL = () => {
-      if (isScrollingRightRef.current) return;
-      isScrollingLeftRef.current = true;
-      timeline.scrollTop = list.scrollTop;
-      setTimeout(() => isScrollingLeftRef.current = false, 0);
-    };
-    const syncR = () => {
-      if (isScrollingLeftRef.current) return;
-      isScrollingRightRef.current = true;
-      list.scrollTop = timeline.scrollTop;
-      setTimeout(() => isScrollingRightRef.current = false, 0);
-    };
-    list.addEventListener('scroll', syncL);
-    timeline.addEventListener('scroll', syncR);
-    return () => {
-      list.removeEventListener('scroll', syncL);
-      timeline.removeEventListener('scroll', syncR);
-    };
-  }, []);
-
   if (tasks.length === 0) return <div className="p-8 text-center text-text-secondary">{t('gantt.no_tasks')}</div>;
 
   // Compute task coordinates with drag state applied - memoized for performance
@@ -399,181 +371,189 @@ export const GanttChart: React.FC<GanttChartProps> = memo(({
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Left List */}
-        {showList && (
-          <div ref={listRef} className="w-64 shrink-0 border-r border-border-subtle bg-surface overflow-y-auto overflow-x-hidden z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
-             <div className="sticky top-0 z-20 bg-background border-b border-border-subtle h-10 flex items-center px-4 text-xs font-semibold text-text-secondary">
-               {t('gantt.task_name')}
-             </div>
-             {taskEntries.map(task => (
-               <div 
-                 key={task.id} 
-                 className="h-11 px-4 border-b border-border-subtle/50 flex flex-col justify-center hover:bg-background cursor-pointer transition-colors hover:text-primary"
-                 onClick={() => onSelectTask?.(task.id)}
-               >
-                 <div className="text-sm font-medium text-text-primary truncate">{task.title}</div>
-                 <div className="text-xs text-text-secondary truncate">{task.assignee || t('gantt.unassigned')}</div>
-               </div>
-             ))}
-          </div>
-        )}
-
-        {/* Timeline Area */}
-        <div ref={timelineRef} className="flex-1 overflow-auto bg-background/30 relative">
-          <div style={{ width: Math.max(totalWidth, 100) + 'px', height: '100%', position: 'relative' }}>
-            
-            {/* Grid Header */}
-            <div className="sticky top-0 z-10 bg-surface border-b border-border-subtle h-10 select-none shadow-sm">
-               {gridLines.map(line => (
-                 <div
-                   key={line.time}
-                   className={cn(
-                     "absolute top-0 bottom-0 border-l border-border-subtle/50 pl-2 pt-2.5 text-xs font-medium text-text-secondary truncate",
-                     line.isMajor && "border-border-subtle"
-                   )}
-                   style={{ left: line.x, width: 200 }} // width just for overflow text
-                 >
-                   {line.label}
+      <div className="flex-1 overflow-auto relative">
+        <div className="relative" style={{ height: taskEntries.length * ROW_HEIGHT }}>
+            {/* STICKY LIST: Positioned sticky to the scroll container */}
+            {showList && (
+              <div 
+                className="w-64 shrink-0 border-r border-border-subtle bg-surface z-20 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]"
+                style={{ position: 'sticky', left: 0, height: '100%' }}
+              >
+                 <div className="sticky top-0 z-10 bg-background border-b border-border-subtle h-10 flex items-center px-4 text-xs font-semibold text-text-secondary">
+                   {t('gantt.task_name')}
                  </div>
-               ))}
-            </div>
-
-            {/* Grid Vertical Lines */}
-            <div className="absolute inset-0 pointer-events-none">
-               {gridLines.map(line => (
-                 <div
-                   key={line.time}
-                   className={cn(
-                     "absolute top-0 bottom-0 border-l",
-                     line.isMajor ? "border-border-subtle" : "border-border-subtle/50"
-                   )}
-                   style={{ left: line.x }}
-                 />
-               ))}
-               
-               {/* Today Marker */}
-               {Date.now() >= startMs && Date.now() <= endMs && (
-                 <div 
-                   className="absolute top-0 bottom-0 w-px bg-critical z-0"
-                   style={{ left: getX(Date.now()) }}
-                 >
-                   <div className="bg-critical text-critical-foreground text-xs px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">{t('gantt.today')}</div>
-                 </div>
-               )}
-            </div>
-
-            {/* Task Layer */}
-            <div className="relative pb-10" style={{ height: taskEntries.length * ROW_HEIGHT }}>
-               {/* Dependency Lines (SVG) */}
-               <svg className="absolute inset-0 w-full h-full overflow-visible">
-                 <defs>
-                    <marker id={`arrow-head-${arrowId}`} markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
-                      <path d="M0,0 L6,3 L0,6 Z" className="fill-secondary" />
-                    </marker>
-                 </defs>
-                 {dependencyLinks.map(link => (
-                   <path
-                     key={link.key}
-                     d={link.d}
-                     strokeWidth="1.5"
-                     fill="none"
-                     markerEnd={`url(#arrow-head-${arrowId})`}
-                     className="stroke-secondary transition-colors hover:stroke-primary"
-                     style={{ pointerEvents: 'stroke' }}
-                     onMouseEnter={(event) => updateDependencyTooltip(event, link.label)}
-                     onMouseMove={(event) => updateDependencyTooltip(event, link.label)}
-                     onMouseLeave={() => setDependencyTooltip(null)}
-                   />
-                 ))}
-               </svg>
-
-               {dependencyTooltip && (
-                 <div
-                   className="absolute z-20 rounded-md bg-text-primary text-surface text-[10px] px-2 py-1 shadow-md pointer-events-none"
-                   style={{ left: dependencyTooltip.x + 8, top: dependencyTooltip.y + 8 }}
-                 >
-                   {dependencyTooltip.text}
-                 </div>
-               )}
-
-               {/* Task Bars */}
-               {taskCoords.map((t) => {
-                 const colorClass = getTaskColorClass(t.original.priority, t.original.isMilestone);
-                 const isSelected = selectedTaskId === t.id;
-                 const isDragging = dragState?.id === t.id;
-
-                 return (
-                   <div
-                     key={t.id}
-                     className="absolute h-8 rounded-md select-none group"
-                     style={{
-                       left: t.x,
-                       top: t.top,
-                       width: t.w,
-                       opacity: isDragging ? 0.9 : 1
-                     }}
-                   > 
-                     {/* Milestone Diamond */}
-                     {t.original.isMilestone ? (
-                       <div
-                         className="relative w-8 h-8 flex items-center justify-center cursor-pointer"
-                         onMouseDown={(e) => {
-                           e.preventDefault();
-                           dragDeltaRef.current = 0;
-                           setDragDeltaMs(0);
-                           setDragState({ id: t.id, mode: 'move', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
-                         }}
-                         onClick={() => onSelectTask?.(t.id)}
-                       >
-                         <div className={cn("w-6 h-6 rotate-45 border-2 bg-surface", colorClass)} />
-                       </div>
-                     ) : (
-                       /* Standard Bar */
-                       <>
-                         <div 
-                           className={cn(
-                             "w-full h-full rounded shadow-sm opacity-90 hover:opacity-100 flex items-center px-2 cursor-pointer transition-all",
-                             colorClass,
-                             isSelected && "ring-2 ring-primary ring-offset-1"
-                           )}
-                           onMouseDown={(e) => {
-                             e.preventDefault();
-                             dragDeltaRef.current = 0;
-                             setDragDeltaMs(0);
-                             setDragState({ id: t.id, mode: 'move', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
-                           }}
-                           onClick={() => onSelectTask?.(t.id)}
-                         >
-                            <span className="text-[10px] font-bold text-primary-foreground truncate drop-shadow-md">{t.original.title}</span>
-                         </div>
-                         
-                         {/* Resize Handles */}
-                         <div 
-                           className="absolute left-0 top-0 bottom-0 w-3 cursor-w-resize hover:bg-surface/20 rounded-l"
-                           onMouseDown={(e) => {
-                             e.stopPropagation();
-                             dragDeltaRef.current = 0;
-                             setDragDeltaMs(0);
-                             setDragState({ id: t.id, mode: 'start', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
-                           }}
-                         />
-                         <div 
-                           className="absolute right-0 top-0 bottom-0 w-3 cursor-e-resize hover:bg-surface/20 rounded-r"
-                           onMouseDown={(e) => {
-                             e.stopPropagation();
-                             dragDeltaRef.current = 0;
-                             setDragDeltaMs(0);
-                             setDragState({ id: t.id, mode: 'end', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
-                           }}
-                         />
-                       </>
-                     )}
+                 {taskEntries.map(task => (
+                   <div 
+                     key={task.id} 
+                     className="h-11 px-4 border-b border-border-subtle/50 flex flex-col justify-center hover:bg-background cursor-pointer transition-colors hover:text-primary"
+                     onClick={() => onSelectTask?.(task.id)}
+                   >
+                     <div className="text-sm font-medium text-text-primary truncate">{task.title}</div>
+                     <div className="text-xs text-text-secondary truncate">{task.assignee || t('gantt.unassigned')}</div>
                    </div>
-                 );
-               })}
+                 ))}
+              </div>
+            )}
+
+            {/* ABSOLUTE TIMELINE: Positioned absolute within the sizer, offset by the list width */}
+            <div 
+              className="absolute top-0 bg-background/30"
+              style={{ left: showList ? '16rem' : 0, right: 0 }}
+            >
+              <div ref={timelineRef} className="relative overflow-visible" style={{ width: Math.max(totalWidth, 100) + 'px', height: '100%' }}>
+                
+                {/* Grid Header */}
+                <div className="sticky top-0 z-10 bg-surface border-b border-border-subtle h-10 select-none shadow-sm">
+                   {gridLines.map(line => (
+                     <div
+                       key={line.time}
+                       className={cn(
+                         "absolute top-0 bottom-0 border-l border-border-subtle/50 pl-2 pt-2.5 text-xs font-medium text-text-secondary truncate",
+                         line.isMajor && "border-border-subtle"
+                       )}
+                       style={{ left: line.x, width: 200 }} // width just for overflow text
+                     >
+                       {line.label}
+                     </div>
+                   ))}
+                </div>
+
+                {/* Grid Vertical Lines */}
+                <div className="absolute inset-0 pointer-events-none">
+                   {gridLines.map(line => (
+                     <div
+                       key={line.time}
+                       className={cn(
+                         "absolute top-0 bottom-0 border-l",
+                         line.isMajor ? "border-border-subtle" : "border-border-subtle/50"
+                       )}
+                       style={{ left: line.x }}
+                     />
+                   ))}
+                   
+                   {/* Today Marker */}
+                   {Date.now() >= startMs && Date.now() <= endMs && (
+                     <div 
+                       className="absolute top-0 bottom-0 w-px bg-critical z-0"
+                       style={{ left: getX(Date.now()) }}
+                     >
+                       <div className="bg-critical text-critical-foreground text-xs px-1 py-0.5 rounded ml-0.5 mt-10 w-fit">{t('gantt.today')}</div>
+                     </div>
+                   )}
+                </div>
+
+                {/* Task Layer */}
+                <div className="relative" style={{ height: taskEntries.length * ROW_HEIGHT }}>
+                   {/* Dependency Lines (SVG) */}
+                   <svg className="absolute inset-0 w-full h-full overflow-visible">
+                     <defs>
+                        <marker id={`arrow-head-${arrowId}`} markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+                          <path d="M0,0 L6,3 L0,6 Z" className="fill-secondary" />
+                        </marker>
+                     </defs>
+                     {dependencyLinks.map(link => (
+                       <path
+                         key={link.key}
+                         d={link.d}
+                         strokeWidth="1.5"
+                         fill="none"
+                         markerEnd={`url(#arrow-head-${arrowId})`}
+                         className="stroke-secondary transition-colors hover:stroke-primary"
+                         style={{ pointerEvents: 'stroke' }}
+                         onMouseEnter={(event) => updateDependencyTooltip(event, link.label)}
+                         onMouseMove={(event) => updateDependencyTooltip(event, link.label)}
+                         onMouseLeave={() => setDependencyTooltip(null)}
+                       />
+                     ))}
+                   </svg>
+
+                   {dependencyTooltip && (
+                     <div
+                       className="absolute z-20 rounded-md bg-text-primary text-surface text-[10px] px-2 py-1 shadow-md pointer-events-none"
+                       style={{ left: dependencyTooltip.x + 8, top: dependencyTooltip.y + 8 }}
+                     >
+                       {dependencyTooltip.text}
+                     </div>
+                   )}
+
+                   {/* Task Bars */}
+                   {taskCoords.map((t) => {
+                     const colorClass = getTaskColorClass(t.original.priority, t.original.isMilestone);
+                     const isSelected = selectedTaskId === t.id;
+                     const isDragging = dragState?.id === t.id;
+
+                     return (
+                       <div
+                         key={t.id}
+                         className="absolute h-8 rounded-md select-none group"
+                         style={{
+                           left: t.x,
+                           top: t.top,
+                           width: t.w,
+                           opacity: isDragging ? 0.9 : 1
+                         }}
+                       > 
+                         {/* Milestone Diamond */}
+                         {t.original.isMilestone ? (
+                           <div
+                             className="relative w-8 h-8 flex items-center justify-center cursor-pointer"
+                             onMouseDown={(e) => {
+                               e.preventDefault();
+                               dragDeltaRef.current = 0;
+                               setDragDeltaMs(0);
+                               setDragState({ id: t.id, mode: 'move', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
+                             }}
+                             onClick={() => onSelectTask?.(t.id)}
+                           >
+                             <div className={cn("w-6 h-6 rotate-45 border-2 bg-surface", colorClass)} />
+                           </div>
+                         ) : (
+                           /* Standard Bar */
+                           <>
+                             <div 
+                               className={cn(
+                                 "w-full h-full rounded shadow-sm opacity-90 hover:opacity-100 flex items-center px-2 cursor-pointer transition-all",
+                                 colorClass,
+                                 isSelected && "ring-2 ring-primary ring-offset-1"
+                               )}
+                               onMouseDown={(e) => {
+                                 e.preventDefault();
+                                 dragDeltaRef.current = 0;
+                                 setDragDeltaMs(0);
+                                 setDragState({ id: t.id, mode: 'move', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
+                               }}
+                               onClick={() => onSelectTask?.(t.id)}
+                             >
+                                <span className="text-[10px] font-bold text-primary-foreground truncate drop-shadow-md">{t.original.title}</span>
+                             </div>
+                             
+                             {/* Resize Handles */}
+                             <div 
+                               className="absolute left-0 top-0 bottom-0 w-3 cursor-w-resize hover:bg-surface/20 rounded-l"
+                               onMouseDown={(e) => {
+                                 e.stopPropagation();
+                                 dragDeltaRef.current = 0;
+                                 setDragDeltaMs(0);
+                                 setDragState({ id: t.id, mode: 'start', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
+                               }}
+                             />
+                             <div 
+                               className="absolute right-0 top-0 bottom-0 w-3 cursor-e-resize hover:bg-surface/20 rounded-r"
+                               onMouseDown={(e) => {
+                                 e.stopPropagation();
+                                 dragDeltaRef.current = 0;
+                                 setDragDeltaMs(0);
+                                 setDragState({ id: t.id, mode: 'end', originX: e.clientX, originStart: t.original.startMs, originEnd: t.original.endMs });
+                               }}
+                             />
+                           </>
+                         )}
+                       </div>
+                     );
+                   })}
+                </div>
+              </div>
             </div>
-          </div>
         </div>
       </div>
     </div>

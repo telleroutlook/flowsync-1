@@ -311,7 +311,7 @@ export const AuditPanel = memo<AuditPanelProps>(({
       </div>
 
       {isAuditDetailOpen && selectedAudit && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm" role="dialog" aria-modal="true">
           <div className="w-[760px] max-w-[90vw] rounded-2xl bg-surface shadow-2xl border border-border-subtle">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
               <div>
