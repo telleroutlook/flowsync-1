@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import type { Project, Task } from '../../types';
 import { apiService } from '../../services/apiService';
-import { Project, Task } from '../../types';
 import { useI18n } from '../i18n';
 
 const PAGE_SIZE = 100;
@@ -47,6 +47,10 @@ export const useProjectData = (workspaceId: string) => {
     }
   }, []);
 
+  const getStorageKey = useCallback(() => {
+    return workspaceId ? `flowsync:activeProjectId:${workspaceId}` : 'flowsync:activeProjectId';
+  }, [workspaceId]);
+
   const refreshData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -56,7 +60,7 @@ export const useProjectData = (workspaceId: string) => {
 
       setProjects(projectList);
 
-      const storageKey = workspaceId ? `flowsync:activeProjectId:${workspaceId}` : 'flowsync:activeProjectId';
+      const storageKey = getStorageKey();
       const stored = window.localStorage.getItem(storageKey);
       const candidate = stored && projectList.find(project => project.id === stored) ? stored : activeProjectIdRef.current;
       const finalId = candidate && projectList.find(project => project.id === candidate)
@@ -78,12 +82,12 @@ export const useProjectData = (workspaceId: string) => {
         setIsLoading(false);
       }
     }
-  }, [fetchAllTasks, t, workspaceId]);
+  }, [fetchAllTasks, t, getStorageKey]);
 
   const handleSelectProject = useCallback(async (id: string) => {
     setActiveProjectId(id);
     activeProjectIdRef.current = id;
-    const storageKey = workspaceId ? `flowsync:activeProjectId:${workspaceId}` : 'flowsync:activeProjectId';
+    const storageKey = getStorageKey();
     window.localStorage.setItem(storageKey, id);
     try {
       setIsLoading(true);
@@ -98,7 +102,7 @@ export const useProjectData = (workspaceId: string) => {
         setIsLoading(false);
       }
     }
-  }, [fetchAllTasks, t, workspaceId]);
+  }, [fetchAllTasks, t, getStorageKey]);
 
   // Initial load
   useEffect(() => {
@@ -108,15 +112,15 @@ export const useProjectData = (workspaceId: string) => {
     return () => {
       isMountedRef.current = false;
     };
-  }, [refreshData, workspaceId]); // re-run when workspace changes
+  }, [refreshData]);
 
   // Persist active project selection
   useEffect(() => {
     if (activeProjectId) {
-      const storageKey = workspaceId ? `flowsync:activeProjectId:${workspaceId}` : 'flowsync:activeProjectId';
+      const storageKey = getStorageKey();
       window.localStorage.setItem(storageKey, activeProjectId);
     }
-  }, [activeProjectId, workspaceId]);
+  }, [activeProjectId, getStorageKey]);
 
   return {
     projects,

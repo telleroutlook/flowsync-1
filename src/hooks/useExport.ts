@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Project, Task, DraftAction, TaskStatus, Priority, Draft } from '../../types';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import type { Project, Task, DraftAction, Draft } from '../../types';
+import { TaskStatus, Priority } from '../../types';
 import { apiService } from '../../services/apiService';
 import { generateId, getTaskStart, getTaskEnd, formatExportDate, parseDateFlexible } from '../utils';
 import { useI18n } from '../i18n';
@@ -148,6 +149,48 @@ export const useExport = ({
   const [lastExportFormat, setLastExportFormat] = useState<ExportFormat>('csv');
   const [importStrategy, setImportStrategy] = useState<ImportStrategy>('append');
 
+  // Memoize static arrays to prevent recreation
+  const exportHeaders = useMemo(() => [
+    'rowType',
+    'projectId',
+    'project',
+    'projectDescription',
+    'projectIcon',
+    'projectCreatedAt',
+    'projectUpdatedAt',
+    'id',
+    'title',
+    'status',
+    'priority',
+    'assignee',
+    'wbs',
+    'startDate',
+    'dueDate',
+    'completion',
+    'isMilestone',
+    'predecessors',
+    'description',
+    'createdAt',
+    'updatedAt',
+  ] as const, []);
+
+  const displayHeaders = useMemo(() => [
+    'project',
+    'id',
+    'title',
+    'status',
+    'priority',
+    'assignee',
+    'wbs',
+    'startDate',
+    'dueDate',
+    'completion',
+    'isMilestone',
+    'predecessors',
+    'description',
+    'createdAt',
+  ] as const, []);
+
   useEffect(() => {
     const storedScope = window.localStorage.getItem('flowsync:exportScope');
     const storedFormat = window.localStorage.getItem('flowsync:exportFormat');
@@ -173,47 +216,6 @@ export const useExport = ({
     setImportStrategy(strategy);
     window.localStorage.setItem('flowsync:importStrategy', strategy);
   }, []);
-
-  const exportHeaders = [
-    'rowType',
-    'projectId',
-    'project',
-    'projectDescription',
-    'projectIcon',
-    'projectCreatedAt',
-    'projectUpdatedAt',
-    'id',
-    'title',
-    'status',
-    'priority',
-    'assignee',
-    'wbs',
-    'startDate',
-    'dueDate',
-    'completion',
-    'isMilestone',
-    'predecessors',
-    'description',
-    'createdAt',
-    'updatedAt',
-  ];
-
-  const displayHeaders = [
-    'project',
-    'id',
-    'title',
-    'status',
-    'priority',
-    'assignee',
-    'wbs',
-    'startDate',
-    'dueDate',
-    'completion',
-    'isMilestone',
-    'predecessors',
-    'description',
-    'createdAt',
-  ];
 
   const buildDisplayRows = useCallback((sourceTasks: Task[], exportProjects: Project[]) => {
     const projectLookup = exportProjects.reduce<Record<string, Project>>((acc, project) => {

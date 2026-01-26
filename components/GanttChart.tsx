@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect, useId, memo, useCallback } from 'react';
-import { Task, Priority } from '../types';
+import type { Task } from '../types';
+import { Priority } from '../types';
 import { useI18n } from '../src/i18n';
 import { cn } from '../src/utils/cn';
 

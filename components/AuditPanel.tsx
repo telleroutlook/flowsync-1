@@ -1,29 +1,24 @@
 import React, { useState, memo, useMemo, useCallback } from 'react';
-import { AuditLog } from '../types';
+import type { AuditLog } from '../types';
 import { useI18n } from '../src/i18n';
 import { getActionLabel, getEntityLabel, getActorLabel } from '../src/i18n/labels';
 import { cn } from '../src/utils/cn';
+
+type AuditFilters = {
+  actor: string;
+  action: string;
+  entityType: string;
+  q: string;
+  from: string;
+  to: string;
+};
 
 interface AuditPanelProps {
   isOpen: boolean;
   isLoading: boolean;
   onRefresh: () => void;
-  filters: {
-    actor: string;
-    action: string;
-    entityType: string;
-    q: string;
-    from: string;
-    to: string;
-  };
-  setFilters: React.Dispatch<React.SetStateAction<{
-    actor: string;
-    action: string;
-    entityType: string;
-    q: string;
-    from: string;
-    to: string;
-  }>>;
+  filters: AuditFilters;
+  setFilters: React.Dispatch<React.SetStateAction<AuditFilters>>;
   logs: AuditLog[];
   total: number;
   page: number;

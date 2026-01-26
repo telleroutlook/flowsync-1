@@ -1,17 +1,19 @@
 import type { ApiResponse, AuditLog, Draft, DraftAction, Project, Task, User, Workspace, WorkspaceJoinRequest, WorkspaceMember, WorkspaceMemberActionResult, WorkspaceMembership, WorkspaceWithMembership } from '../types';
 
-const buildQueryString = (params: Record<string, string | number | boolean | undefined | null>): string => {
+type QueryParams = Record<string, string | number | boolean | undefined | null>;
+
+const buildQueryString = (params: QueryParams): string => {
   const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
+  for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== '') {
       query.set(key, String(value));
     }
-  });
+  }
   const suffix = query.toString();
   return suffix ? `?${suffix}` : '';
 };
 
-const getStoredValue = (key: string) => {
+const getStoredValue = (key: string): string | null => {
   if (typeof window === 'undefined') return null;
   try {
     return window.localStorage.getItem(key);
@@ -20,7 +22,7 @@ const getStoredValue = (key: string) => {
   }
 };
 
-const buildHeaders = (headers?: HeadersInit) => {
+const buildHeaders = (headers?: HeadersInit): Headers => {
   const merged = new Headers(headers || {});
   const token = getStoredValue('flowsync:authToken');
   if (token) merged.set('Authorization', `Bearer ${token}`);

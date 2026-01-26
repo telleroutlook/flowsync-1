@@ -1,5 +1,6 @@
 import React, { useMemo, memo, useCallback } from 'react';
-import { Task, Priority, TaskStatus } from '../types';
+import type { Task } from '../types';
+import { TaskStatus, Priority } from '../types';
 import { useI18n } from '../src/i18n';
 import { getPriorityLabel, getStatusLabel } from '../src/i18n/labels';
 import { cn } from '../src/utils/cn';

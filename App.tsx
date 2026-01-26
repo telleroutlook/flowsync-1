@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo, Suspense, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense, useCallback, memo, startTransition } from 'react';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { WorkspacePanel } from './components/WorkspacePanel';
 import { Button } from './components/ui/Button';
 import { cn } from './src/utils/cn';
-import { Menu, X, Grid, List as ListIcon, Calendar, Upload, Download, History, MessageSquare, FileText, Check, MoreVertical } from 'lucide-react';
+import { Menu, X, Grid, List as ListIcon, Calendar, Upload, Download, History, MessageSquare, FileText, Check } from 'lucide-react';
 import { LoginModal } from './components/LoginModal';
 import WorkspaceModal from './components/WorkspaceModal';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -11,7 +11,7 @@ import { ChatInterface } from './components/ChatInterface';
 import { AuditPanel } from './components/AuditPanel';
 import { TaskDetailPanel } from './components/TaskDetailPanel';
 import { CreateProjectModal } from './components/CreateProjectModal';
-import { Task, DraftAction, ChatMessage } from './types';
+import type { Task, DraftAction, ChatMessage } from './types';
 import { useProjectData } from './src/hooks/useProjectData';
 import { useAuth } from './src/hooks/useAuth';
 import { useWorkspaces } from './src/hooks/useWorkspaces';
@@ -34,7 +34,7 @@ const LoadingSpinner = memo(({ message }: { message: string }) => (
   <div className="flex items-center justify-center h-full">
     <div className="flex flex-col items-center gap-3">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" aria-hidden="true" />
-      <p className="text-sm text-secondary font-medium">{message}</p>
+      <p className="text-sm text-text-secondary font-medium">{message}</p>
     </div>
   </div>
 ));
@@ -54,7 +54,7 @@ function App() {
   const { t, locale } = useI18n();
 
   // UI State
-  const [viewMode, setViewMode] = useState<ViewMode>('GANTT'); 
+  const [viewMode, setViewMode] = useState<ViewMode>('GANTT');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -63,11 +63,18 @@ function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  
+
   // Refs
   const importInputRef = useRef<HTMLInputElement>(null);
   const pendingTaskUpdatesRef = useRef<Record<string, Partial<Task>>>({});
   const taskUpdateTimers = useRef<Map<string, number>>(new Map());
+
+  // Stable view mode setter with transition for better UX
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    startTransition(() => {
+      setViewMode(mode);
+    });
+  }, []);
 
   // --- HOOKS ---
 
@@ -427,7 +434,7 @@ function App() {
                <Button
                  variant={viewMode === 'BOARD' ? 'secondary' : 'ghost'}
                  size="sm"
-                 onClick={() => setViewMode('BOARD')}
+                 onClick={() => handleViewModeChange('BOARD')}
                  className="h-7 px-2 text-xs"
                >
                  <Grid className="w-3.5 h-3.5 mr-1.5" />
@@ -436,7 +443,7 @@ function App() {
                <Button
                  variant={viewMode === 'LIST' ? 'secondary' : 'ghost'}
                  size="sm"
-                 onClick={() => setViewMode('LIST')}
+                 onClick={() => handleViewModeChange('LIST')}
                  className="h-7 px-2 text-xs"
                >
                  <ListIcon className="w-3.5 h-3.5 mr-1.5" />
@@ -445,7 +452,7 @@ function App() {
                <Button
                  variant={viewMode === 'GANTT' ? 'secondary' : 'ghost'}
                  size="sm"
-                 onClick={() => setViewMode('GANTT')}
+                 onClick={() => handleViewModeChange('GANTT')}
                  className="h-7 px-2 text-xs"
                >
                  <Calendar className="w-3.5 h-3.5 mr-1.5" />

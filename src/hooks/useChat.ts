@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { aiService } from '../../services/aiService';
 import { apiService } from '../../services/apiService';
-import { ChatMessage, ChatAttachment, DraftAction, Project, Task } from '../../types';
+import type { ChatMessage, ChatAttachment, DraftAction, Project, Task } from '../../types';
 import { generateId } from '../utils';
 import { processToolCalls, type ApiClient, type ProcessingStep } from './ai';
 import { useI18n } from '../i18n';
@@ -56,7 +56,8 @@ export const useChat = ({
 
   const pushProcessingStep = useCallback((step: string, elapsedMs?: number) => {
     setProcessingSteps(prev => {
-      if (prev[prev.length - 1]?.label === step) return prev;
+      const lastStep = prev[prev.length - 1];
+      if (lastStep?.label === step) return prev;
       const next = [...prev, { label: step, elapsedMs }];
       return next.slice(-6);
     });
