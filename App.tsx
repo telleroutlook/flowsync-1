@@ -214,9 +214,9 @@ function App() {
 
   // 3. Audit Logs
   const { 
-    auditLogs, auditTotal, isAuditLoading, auditError, rollbackingAuditId,
+    auditLogs, auditTotal, isAuditLoading, auditError,
     auditPage, setAuditPage, auditPageSize, setAuditPageSize, auditFilters, setAuditFilters,
-    refreshAuditLogs, handleRollbackAudit
+    refreshAuditLogs
   } = useAuditLogs({ 
     activeProjectId, 
     refreshData,
@@ -630,8 +630,6 @@ function App() {
           setPage={setAuditPage}
           pageSize={auditPageSize}
           setPageSize={setAuditPageSize}
-          onRollback={handleRollbackAudit}
-          rollbackingId={rollbackingAuditId}
           error={auditError}
         />
 

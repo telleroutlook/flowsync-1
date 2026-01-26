@@ -9,13 +9,11 @@ import { I18nProvider } from '../i18n';
 vi.mock('../../services/apiService', () => ({
   apiService: {
     listAuditLogs: vi.fn(),
-    rollbackAuditLog: vi.fn(),
   },
 }));
 
 const api = apiService as unknown as {
   listAuditLogs: ReturnType<typeof vi.fn>;
-  rollbackAuditLog: ReturnType<typeof vi.fn>;
 };
 
 const logs: AuditLog[] = [
@@ -54,9 +52,7 @@ describe('useAuditLogs', () => {
       }), { wrapper }
     );
 
-    await waitFor(() => expect(result.current.isAuditLoading).toBe(false));
-
-    expect(result.current.auditLogs).toHaveLength(1);
+    await waitFor(() => expect(result.current.auditLogs).toHaveLength(1));
 
     act(() => {
       result.current.setAuditFilters({
@@ -69,39 +65,6 @@ describe('useAuditLogs', () => {
       });
     });
 
-    await waitFor(() => expect(api.listAuditLogs).toHaveBeenCalled());
-
-    const lastCall = api.listAuditLogs.mock.calls.at(-1)?.[0];
-    expect(lastCall?.actor).toBe('user');
-  });
-
-  it('rolls back audit entries and refreshes data', async () => {
-    const refreshData = vi.fn(async () => {});
-    const appendSystemMessage = vi.fn();
-
-    api.rollbackAuditLog.mockResolvedValue({ audit: logs[0], entity: null });
-
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-
-    const { result } = renderHook(() =>
-      useAuditLogs({
-        activeProjectId: 'p1',
-        refreshData,
-        appendSystemMessage,
-      }), { wrapper }
-    );
-
-    await waitFor(() => expect(result.current.isAuditLoading).toBe(false));
-
-    await act(async () => {
-      await result.current.handleRollbackAudit('a1');
-    });
-
-    expect(api.rollbackAuditLog).toHaveBeenCalledWith('a1', 'user');
-    expect(refreshData).toHaveBeenCalledTimes(1);
-    expect(api.listAuditLogs).toHaveBeenCalled();
-    expect(appendSystemMessage).toHaveBeenCalledWith('Rollback applied: a1');
-
-    confirmSpy.mockRestore();
+    await waitFor(() => expect(api.listAuditLogs).toHaveBeenCalledWith(expect.objectContaining({ actor: 'user' })));
   });
 });

@@ -30,8 +30,6 @@ interface AuditPanelProps {
   setPage: React.Dispatch<React.SetStateAction<number>>;
   pageSize: number;
   setPageSize: React.Dispatch<React.SetStateAction<number>>;
-  onRollback: (id: string) => void;
-  rollbackingId: string | null;
   error: string | null;
 }
 
@@ -107,8 +105,6 @@ export const AuditPanel = memo<AuditPanelProps>(({
   setPage,
   pageSize,
   setPageSize,
-  onRollback,
-  rollbackingId,
   error,
 }) => {
   const { t, locale } = useI18n();
@@ -185,7 +181,6 @@ export const AuditPanel = memo<AuditPanelProps>(({
             <option value="create">{t('audit.actions.create')}</option>
             <option value="update">{t('audit.actions.update')}</option>
             <option value="delete">{t('audit.actions.delete')}</option>
-            <option value="rollback">{t('audit.actions.rollback')}</option>
           </select>
           <select
             value={filters.entityType}
@@ -231,45 +226,28 @@ export const AuditPanel = memo<AuditPanelProps>(({
 
         <div className="mt-3 grid gap-2">
           {logs.map((log) => (
-            <div key={log.id} className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface px-4 py-3 shadow-sm">
-              <div className="flex items-start gap-3">
-                <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-xs font-bold uppercase tracking-wider", auditBadgeClass(log.action))}>
+            <div key={log.id} className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface px-4 py-2 shadow-sm">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <span className={cn("shrink-0 inline-flex rounded-full border px-2 py-0.5 text-xs font-bold uppercase tracking-wider", auditBadgeClass(log.action))}>
                   {getActionLabel(log.action, t)}
                 </span>
-                <div>
-                  <div className="text-sm font-semibold text-text-primary">
-                    {getEntityLabel(log.entityType, t)} · {log.entityId}
-                  </div>
-                  <div className="text-xs text-text-secondary">
-                    {getActorLabel(log.actor, t)} · {formatAuditTimestamp(log.timestamp, locale)}
-                  </div>
-                  {log.reason && (
-                    <div className="text-xs text-text-secondary/70">{t('audit.reason', { reason: log.reason })}</div>
-                  )}
+                <div className="flex items-center gap-2 text-sm text-text-primary truncate">
+                  <span className="font-semibold">{getEntityLabel(log.entityType, t)}</span>
+                  <span className="text-text-secondary">·</span>
+                  <span className="font-mono text-xs text-text-secondary">{log.entityId}</span>
+                  <span className="text-text-secondary">·</span>
+                  <span className="text-text-secondary">{getActorLabel(log.actor, t)}</span>
+                  <span className="text-text-secondary">·</span>
+                  <span className="text-xs text-text-secondary">{formatAuditTimestamp(log.timestamp, locale)}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openAuditDetail(log)}
-                  className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:border-primary hover:text-primary transition-colors"
-                >
-                  {t('audit.details')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onRollback(log.id)}
-                  disabled={log.action === 'rollback' || rollbackingId === log.id}
-                  className={cn(
-                    "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-                    log.action === 'rollback'
-                      ? "bg-secondary/10 text-text-secondary cursor-not-allowed"
-                      : "bg-critical/5 text-critical hover:bg-critical/10 border border-critical/20"
-                  )}
-                >
-                  {rollbackingId === log.id ? t('audit.rolling_back') : t('audit.rollback')}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => openAuditDetail(log)}
+                className="shrink-0 rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:border-primary hover:text-primary transition-colors"
+              >
+                {t('audit.details')}
+              </button>
             </div>
           ))}
         </div>

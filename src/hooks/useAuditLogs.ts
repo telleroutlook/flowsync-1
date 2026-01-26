@@ -15,7 +15,6 @@ export const useAuditLogs = ({ activeProjectId, refreshData, appendSystemMessage
   const [auditTotal, setAuditTotal] = useState(0);
   const [isAuditLoading, setIsAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
-  const [rollbackingAuditId, setRollbackingAuditId] = useState<string | null>(null);
   
   // Pagination & Filtering
   const [auditPage, setAuditPage] = useState(1);
@@ -63,23 +62,6 @@ export const useAuditLogs = ({ activeProjectId, refreshData, appendSystemMessage
     }
   }, [activeProjectId, auditPage, auditPageSize, auditFilters]);
 
-  const handleRollbackAudit = useCallback(async (auditId: string) => {
-    if (rollbackingAuditId) return;
-    const confirmed = window.confirm(t('audit.rollback_confirm'));
-    if (!confirmed) return;
-    try {
-      setRollbackingAuditId(auditId);
-      await apiService.rollbackAuditLog(auditId, 'user');
-      appendSystemMessage(t('audit.rollback_applied', { id: auditId }));
-      await refreshData();
-      await refreshAuditLogs(activeProjectId);
-    } catch (error) {
-      appendSystemMessage(error instanceof Error ? t('audit.rollback_failed_detail', { error: error.message }) : t('audit.rollback_failed'));
-    } finally {
-      setRollbackingAuditId(null);
-    }
-  }, [rollbackingAuditId, activeProjectId, refreshData, refreshAuditLogs, appendSystemMessage, t]);
-
   // Effects
   useEffect(() => {
     setAuditPage(1);
@@ -107,14 +89,12 @@ export const useAuditLogs = ({ activeProjectId, refreshData, appendSystemMessage
     auditTotal,
     isAuditLoading,
     auditError,
-    rollbackingAuditId,
     auditPage,
     setAuditPage,
     auditPageSize,
     setAuditPageSize,
     auditFilters,
     setAuditFilters,
-    refreshAuditLogs,
-    handleRollbackAudit
+    refreshAuditLogs
   };
 };
