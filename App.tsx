@@ -37,8 +37,18 @@ const LoadingSpinner = memo(({ message }: { message: string }) => (
 ));
 LoadingSpinner.displayName = 'LoadingSpinner';
 
+const formatAttachmentSize = (value: number): string => {
+  if (value < 1024) return `${value} B`;
+  const kb = value / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
+};
+
+const CHAT_EXPORT_SEPARATOR = '-'.repeat(72);
+
 function App() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   // UI State
   const [viewMode, setViewMode] = useState<ViewMode>('GANTT'); 
@@ -138,6 +148,66 @@ function App() {
     setMessages([initialMsg]);
     localStorage.removeItem('flowsync_chat_history');
   }, [t]);
+
+  const handleExportChat = useCallback(() => {
+    const exportDate = new Date();
+    const fileStamp = exportDate.toISOString().slice(0, 10);
+    const baseName = `ai-chat-history-${fileStamp}`;
+    const dateFormatter = new Intl.DateTimeFormat(locale, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    const formatTimestamp = (value: number) => dateFormatter.format(new Date(value));
+    const roleLabel = (role: ChatMessage['role']) => {
+      if (role === 'user') return t('export.chat.role.user');
+      if (role === 'model') return t('export.chat.role.model');
+      return t('export.chat.role.system');
+    };
+
+    const contentBlocks = messages.map((message, index) => {
+      const trimmedText = message.text.trim();
+      const lines: string[] = [
+        CHAT_EXPORT_SEPARATOR,
+        `${t('export.chat.message_label', { index: index + 1 })} | ${roleLabel(message.role)} | ${formatTimestamp(message.timestamp)}`,
+        `${t('export.chat.content_label')}:`,
+        trimmedText ? trimmedText : t('export.chat.empty_message'),
+      ];
+
+      const attachments = message.attachments || [];
+      if (attachments.length > 0) {
+        lines.push('');
+        lines.push(`${t('export.chat.attachments_label')}:`);
+        attachments.forEach(attachment => {
+          const typeLabel = attachment.type?.trim() ? attachment.type : t('export.chat.attachment_unknown_type');
+          lines.push(`- ${attachment.name} (${formatAttachmentSize(attachment.size)}, ${typeLabel})`);
+        });
+      }
+
+      return lines.join('\n');
+    });
+
+    const output = [
+      t('export.chat.title'),
+      t('export.chat.exported_at', { date: formatTimestamp(exportDate.getTime()) }),
+      t('export.chat.total_messages', { count: messages.length }),
+      '',
+      ...contentBlocks,
+      '',
+    ].join('\n');
+
+    const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${baseName}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [locale, messages, t]);
 
   // 3. Audit Logs
   const { 
@@ -496,6 +566,23 @@ function App() {
                          {lastExportFormat === item.id && <span className="text-primary">✓</span>}
                        </button>
                      ))}
+                   </div>
+
+                   <div className="mt-2 border-t border-border-subtle pt-2">
+                     <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary/50">{t('app.header.export_chat')}</div>
+                     <button
+                       type="button"
+                       onClick={() => {
+                         handleExportChat();
+                         setIsExportOpen(false);
+                       }}
+                       className="group flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors text-text-secondary hover:bg-background"
+                     >
+                       <div className="flex flex-col items-start">
+                         <span className="font-semibold">TXT</span>
+                         <span className="text-[9px] opacity-70 group-hover:opacity-100">{t('export.format.chat_txt_desc')}</span>
+                       </div>
+                     </button>
                    </div>
                  </div>
                )}
